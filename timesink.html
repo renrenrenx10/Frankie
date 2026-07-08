@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TimeSink — NuCCoL</title>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<style>
+/* ================================================================
+   CSS VARIABLES & RESET
+================================================================ */
+:root {
+  --navy:    #00126B;
+  --blue:    #3860B9;
+  --blue2:   #3860BA;
+  --purple:  #6C2481;
+  --white:   #FFFFFF;
+  --bg:      #F3F4F8;
+  --text:    #1F2937;
+  --muted:   #6B7280;
+  --border:  #D1D5DB;
+  --row-alt: #F0F4FF;
+  --green:   #16A34A;
+  --red:     #DC2626;
+  --orange:  #EA580C;
+  --indigo:  #6366F1;
+  --violet:  #9333EA;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+button { font-family: inherit; cursor: pointer; }
+input, select { font-family: inherit; }
+
+/* ================================================================
+   LAYOUT
+================================================================ */
+#app { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ---- HEADER ---- */
+.hdr {
+  background: var(--blue);
+  border-bottom: 3px solid var(--navy);
+  padding: 0 28px;
+  height: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.hdr-left { display: flex; align-items: center; gap: 16px; }
+.hdr-title {
+  font-family: 'Courier New', monospace;
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+  letter-spacing: 1px;
+}
+.hdr-sub {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #BFDBFE;
+  margin-top: 3px;
+}
+.hdr-right { display: flex; align-items: center; gap: 8px; }
+
+/* ---- WEEK NAV ---- */
+.week-nav { display: flex; align-items: center; gap: 6px; }
+.week-nav button {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.35);
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 11px;
+  padding: 5px 11px;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+}
+.week-nav button:hover { background: rgba(255,255,255,0.3); }
+
+/* ---- BACK BUTTON ---- */
+.back-btn {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.35);
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  padding: 5px 12px;
+  font-weight: bold;
+  transition: background 0.15s;
+}
+.back-btn:hover { background: rgba(255,255,255,0.3); }
+
+/* ---- MAIN CONTENT ---- */
+.main {
+  flex: 1;
+  padding: 20px 28px 100px;
+  overflow-x: auto;
+}
+
+/* ================================================================
+   HOME SCREEN
+================================================================ */
+.home-grid {
+  display: flex;
+  gap: 24px;
+  margin-top: 50px;
+  flex-wrap: wrap;
+}
+.home-card {
+  background: #fff;
+  border: 2px solid var(--border);
+  width: 300px;
+  padding: 36px 24px 28px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+.home-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,18,107,0.12);
+  border-color: var(--blue);
+}
+.home-card-icon {
+  font-size: 44px;
+  color: var(--purple);
+  margin-bottom: 14px;
+  line-height: 1;
+}
+.home-card h2 {
+  font-family: 'Courier New', monospace;
+  font-size: 17px;
+  font-weight: bold;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.home-card p { font-size: 12px; color: var(--muted); line-height: 1.55; }
+
+/* ================================================================
+   DATA TABLE
+================================================================ */
+.tbl-wrap {
+  border: 2px solid var(--navy);
+  overflow-x: auto;
+  margin-top: 12px;
+  background: #fff;
+}
+.tbl-head {
+  background: var(--blue);
+  display: grid;
+  padding: 7px 8px;
+  gap: 6px;
+  border-bottom: 2px solid var(--navy);
+}
+.tbl-head span {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.3px;
+}
+.tbl-row {
+  display: grid;
+  padding: 5px 8px;
+  gap: 6px;
+  align-items: center;
+  min-height: 48px;
+  border-bottom: 1px solid #E5E7EB;
+  background: #fff;
+}
+.tbl-row:nth-child(even) { background: var(--row-alt); }
+.tbl-row:last-child { border-bottom: none; }
+
+/* ---- Day label ---- */
+.day-cell { padding: 2px 0; }
+.day-name {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--navy);
+}
+.day-date {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---- Inline inputs ---- */
+.row-inp {
+  width: 100%;
+  border: 1px solid var(--border);
+  padding: 4px 7px;
+  font-size: 13px;
+  background: #fff;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.12s;
+}
+.row-inp:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(56,96,185,0.2); }
+select.row-inp { cursor: pointer; }
+
+/* ---- Icon buttons ---- */
+.ico-btn {
+  background: none;
+  border: none;
+  font-size: 15px;
+  padding: 3px 5px;
+  color: var(--blue);
+  transition: color 0.12s, transform 0.1s;
+  line-height: 1;
+}
+.ico-btn:hover { color: var(--navy); transform: scale(1.15); }
+.ico-btn.del:hover { color: var(--red); }
+
+/* ================================================================
+   SAVE BAR
+================================================================ */
+.save-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: #fff;
+  border-top: 3px solid var(--navy);
+  padding: 10px 28px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 100;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+}
+.btn-save {
+  background: var(--blue);
+  color: #fff;
+  border: 2px solid var(--navy);
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 13px;
+  padding: 8px 22px;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+}
+.btn-save:hover { background: var(--navy); }
+.save-info {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ================================================================
+   KPI CARDS
+================================================================ */
+.kpi-row {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.kpi-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  padding: 14px 18px;
+  flex: 1;
+  min-width: 140px;
+}
+.kpi-label {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.kpi-val {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ================================================================
+   SUMMARY / DETAIL TABLES
+================================================================ */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 2px solid var(--navy);
+}
+.data-table th {
+  background: var(--blue);
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-right: 1px solid rgba(255,255,255,0.2);
+  border-bottom: 2px solid var(--navy);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #E5E7EB;
+  font-size: 13px;
+  background: #fff;
+}
+.data-table tbody tr:nth-child(even) td { background: var(--row-alt); }
+.data-table tbody tr.clickable:hover td {
+  background: #E0E7FF;
+  cursor: pointer;
+}
+.data-table tfoot td {
+  background: #F0F4FF;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 12px;
+  border-top: 2px solid var(--navy);
+}
+
+/* ================================================================
+   SECTION HEADING
+================================================================ */
+.section-hd {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--navy);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin: 20px 0 6px;
+  border-left: 3px solid var(--purple);
+  padding-left: 8px;
+}
+
+/* ================================================================
+   LOADING / ERROR
+================================================================ */
+.loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Courier New', monospace;
+  color: var(--muted);
+  gap: 12px;
+}
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ================================================================
+   NOTIFICATION TOAST
+================================================================ */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 11px 20px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.3px;
+  z-index: 9999;
+  animation: toastIn 0.2s ease;
+  max-width: 380px;
+}
+.toast.ok  { background: var(--green); color: #fff; }
+.toast.err { background: var(--red);   color: #fff; }
+@keyframes toastIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+
+/* ================================================================
+   UTILITY
+================================================================ */
+.ta-right { text-align: right; }
+.ta-center { text-align: center; }
+.nowrap { white-space: nowrap; }
+.user-chip {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #BFDBFE;
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+  <div class="loading" id="login-screen">
+    <div style="text-align:center;font-family:'Courier New',monospace;">
+      <div style="font-size:22px;font-weight:bold;color:var(--navy);margin-bottom:8px;">TimeSink — NuCCoL</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:32px;">Sign in with your NuCCoL Microsoft account</div>
+      <button id="login-btn" style="background:var(--blue);color:#fff;border:2px solid var(--navy);font-family:'Courier New',monospace;font-size:14px;font-weight:bold;padding:12px 32px;cursor:pointer;letter-spacing:0.5px;">
+        Sign in with Microsoft
+      </button>
+      <div id="login-error" style="color:var(--red);font-size:12px;margin-top:16px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   CONFIGURATION — fill these in before deploying
+================================================================ */
+const CFG = {
+  tenantId : 'd44192f5-1023-458c-9cb3-9ff7e9c6d4ad',
+  clientId : 'ec0a6806-59e8-4ea9-8ff5-6bdb1ba87baf',          // Azure AD SPA app registration
+  siteUrl  : 'https://nuccol.sharepoint.com/sites/ProjectControl',
+  scope    : 'https://nuccol.sharepoint.com/.default',
+  lists: {
+    timeEntries      : 'TimeEntries',
+    expenses         : 'Expenses',
+    projects         : 'Projects',
+    pipelineProjects : 'PipelineProjects',
+    employees        : 'Employees'
+  },
+  expenseCategories: ['Travel','Accommodation','Subsistence','Equipment','Training','Other']
+};
+
+/* ================================================================
+   MSAL
+================================================================ */
+const msalApp = new msal.PublicClientApplication({
+  auth: {
+    clientId  : CFG.clientId,
+    authority : `https://login.microsoftonline.com/${CFG.tenantId}`,
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
+});
+
+// Popup-based auth (not redirect): redirect flows are blocked by MSAL when the
+// app is running inside an iframe (e.g. embedded in the SCC hub), since a
+// redirect happening in a hidden frame is a clickjacking vector. Popups work
+// fine from an iframe and behave identically when run standalone.
+async function getToken() {
+  const accounts = msalApp.getAllAccounts();
+  if (!accounts.length) {
+    const result = await msalApp.loginPopup({ scopes: [CFG.scope] });
+    msalApp.setActiveAccount(result.account);
+    return result.accessToken;
+  }
+  msalApp.setActiveAccount(accounts[0]);
+  try {
+    const r = await msalApp.acquireTokenSilent({ scopes: [CFG.scope], account: accounts[0] });
+    return r.accessToken;
+  } catch {
+    const r = await msalApp.acquireTokenPopup({ scopes: [CFG.scope] });
+    return r.accessToken;
+  }
+}
+
+/* ================================================================
+   SHAREPOINT REST
+================================================================ */
+async function spGet(path) {
+  const token = await getToken();
+  const res = await fetch(`${CFG.siteUrl}/_api/${path}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json;odata=nometadata' }
+  });
+  if (!res.ok) throw new Error(`GET ${res.status}: ${path}`);
+  return res.json();
+}
+
+async function spPost(path, body) {
+  const token = await getToken();
+  const res = await fetch(`${CFG.siteUrl}/_api/${path}`, {
+    method : 'POST',
+    headers: {
+      Authorization  : `Bearer ${token}`,
+      Accept         : 'application/json;odata=nometadata',
+      'Content-Type' : 'application/json;odata=nometadata'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) { const t = await res.text(); throw new Error(`POST ${res.status}: ${t}`); }
+  const t = await res.text();
+  return t ? JSON.parse(t) : {};
+}
+
+async function spPatch(path, body) {
+  const token = await getToken();
+  const res = await fetch(`${CFG.siteUrl}/_api/${path}`, {
+    method : 'POST',
+    headers: {
+      Authorization   : `Bearer ${token}`,
+      Accept          : 'application/json;odata=nometadata',
+      'Content-Type'  : 'application/json;odata=nometadata',
+      'X-HTTP-Method' : 'MERGE',
+      'If-Match'      : '*'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) { const t = await res.text(); throw new Error(`PATCH ${res.status}: ${t}`); }
+}
+
+async function spDelete(path) {
+  const token = await getToken();
+  const res = await fetch(`${CFG.siteUrl}/_api/${path}`, {
+    method : 'POST',
+    headers: {
+      Authorization   : `Bearer ${token}`,
+      'X-HTTP-Method' : 'DELETE',
+      'If-Match'      : '*'
+    }
+  });
+  if (!res.ok) throw new Error(`DELETE ${res.status}: ${path}`);
+}
+
+const listItems = n => `web/lists/getbytitle('${encodeURIComponent(n)}')/items`;
+const listItem  = (n,id) => `web/lists/getbytitle('${encodeURIComponent(n)}')/items(${id})`;
+
+/* ================================================================
+   DATE UTILITIES
+================================================================ */
+function monday(d) {
+  const dt = new Date(d); dt.setHours(0,0,0,0);
+  const day = dt.getDay();
+  dt.setDate(dt.getDate() + (day === 0 ? -6 : 1 - day));
+  return dt;
+}
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+
+// Use local date components to avoid UTC off-by-one in UK timezone
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Parse a SharePoint ISO datetime string safely
+function parseSPDate(s) {
+  if (!s) return new Date();
+  return new Date(s.split('T')[0] + 'T12:00:00');
+}
+
+function ukDate(d) {
+  const dt = typeof d === 'string' ? parseSPDate(d) : d;
+  return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+function dayName(d) {
+  return d.toLocaleDateString('en-GB', { weekday:'long' });
+}
+function weekLabel(ws) {
+  const we = addDays(ws, 4);
+  const fmt = d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  return `${fmt(ws)} — ${fmt(we)}`;
+}
+function dateFilter(ws) {
+  const s = isoDate(ws);
+  const e = isoDate(addDays(ws, 5));
+  return `Date ge datetime'${s}T00:00:00Z' and Date lt datetime'${e}T00:00:00Z'`;
+}
+function uid() { return Math.random().toString(36).substr(2,9); }
+
+/* ================================================================
+   APP STATE
+================================================================ */
+const S = {
+  view            : 'loading',
+  currentUser     : null,   // { email, displayName, spId }
+  employeeRecord  : null,   // { StaffDayRate, CommercialDayRate }
+  allProjects     : [],
+  allPipeline     : [],
+
+  // Timesheet entry
+  tsWeekStart     : null,
+  tsRows          : [],
+
+  // Expenses entry
+  expWeekStart    : null,
+  expRows         : [],
+
+  // Summary
+  sumWeekStart    : null,
+  sumEntries      : [],
+  sumExpenses     : [],
+  empSummary      : [],
+
+  // Detail
+  detEmployee     : null,
+  detEntries      : [],
+  detExpenses     : []
+};
+
+/* ================================================================
+   TOAST
+================================================================ */
+// Can't find your project as 'Active'? It's probably still sat in
+// ControlCentre's pipeline (e.g. 'Proposal Sent') — this jumps a user there
+// so a PM can promote it, rather than leaving them stuck with no clear next step.
+function openControlCentre() {
+  const inHub = window.parent && window.parent !== window;
+  if (inHub) {
+    window.parent.postMessage({ type: 'nuccol:nav', screen: 'controlcentre' }, '*');
+  } else {
+    window.open('controlcentre.html', '_blank');
+  }
+}
+
+function toast(msg, type='ok') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+/* ================================================================
+   DATA LOADERS
+================================================================ */
+async function loadRefData() {
+  const [proj, pipe] = await Promise.all([
+    spGet(`${listItems(CFG.lists.projects)}?$select=ID,Title,Company,ProjectTitle0&$orderby=Title asc`),
+    spGet(`${listItems(CFG.lists.pipelineProjects)}?$select=ID,Title,Company_x002f_ProjectName,ProjectTitle,Status&$orderby=Title asc`)
+  ]);
+  // Build DisplayName client-side (calculated columns not returned by REST API)
+  S.allProjects = proj.value.map(p => ({
+    ...p,
+    ProjectTitle0: p.ProjectTitle0 || p.Title || '',
+    DisplayName: p.Company
+      ? (p.ProjectTitle0 ? `${p.Company}-${p.ProjectTitle0}` : p.Company)
+      : (p.ProjectTitle0 || p.Title || '')
+  }));
+  S.allPipeline = pipe.value.map(p => ({
+    ...p,
+    Status: p.Status || 'Lead',
+    ProjectTitle: p.ProjectTitle || p.Title || '',
+    DisplayName: p.Company_x002f_ProjectName
+      ? (p.ProjectTitle ? `${p.Company_x002f_ProjectName} — ${p.ProjectTitle}` : p.Company_x002f_ProjectName)
+      : (p.ProjectTitle || p.Title || '')
+  }));
+}
+
+// Pipeline projects that are still realistic to book time against.
+// Excludes deals that are dead (Lost / Proposal Rejected) — everything still
+// live in the pipeline (Lead → Won) stays bookable so staff are never blocked
+// from logging time just because ControlCentre hasn't promoted it yet.
+const UNBOOKABLE_PIPELINE_STATUSES = ['Lost', 'Proposal Rejected'];
+function bookablePipeline() {
+  return S.allPipeline.filter(p => !UNBOOKABLE_PIPELINE_STATUSES.includes(p.Status));
+}
+
+async function loadCurrentUser() {
+  const u = await spGet('web/currentuser');
+  S.currentUser = { email: u.Email, displayName: u.Title, spId: u.Id };
+  const emp = await spGet(
+    `${listItems(CFG.lists.employees)}?$expand=StaffName` +
+    `&$select=ID,StaffDayRate,CommercialDayRate,StaffName/EMail` +
+    `&$filter=StaffName/EMail eq '${encodeURIComponent(u.Email)}'`
+  );
+  S.employeeRecord = emp.value[0] || null;
+}
+
+async function loadTsWeek(ws) {
+  S.tsWeekStart = ws;
+  const data = await spGet(
+    `${listItems(CFG.lists.timeEntries)}` +
+    `?$select=ID,Date,HoursWorked,TravelHours,Notes,StaffRate,CommercialRate,EmployeeName,ProjectType` +
+    `,Employee/EMail,Project/Id,Project/ProjectTitle0,PipelineProject/Id,PipelineProject/ProjectTitle` +
+    `&$expand=Employee,Project,PipelineProject` +
+    `&$filter=Employee/EMail eq '${encodeURIComponent(S.currentUser.email)}' and ${dateFilter(ws)}` +
+    `&$orderby=Date asc`
+  );
+
+  // Group by date
+  const byDate = {};
+  for (const item of data.value) {
+    const dk = item.Date.split('T')[0];
+    if (!byDate[dk]) byDate[dk] = [];
+    byDate[dk].push({
+      entryId     : uid(),
+      date        : dk,
+      hoursWorked : item.HoursWorked != null ? String(item.HoursWorked) : '',
+      travelHours : item.TravelHours  != null ? String(item.TravelHours)  : '',
+      notes       : item.Notes || '',
+      projectType : item.ProjectType || 'Active Project',
+      projectId   : item.Project       ? item.Project.Id            : null,
+      projName    : item.Project ? (() => { const p = S.allProjects.find(x => x.ID === item.Project.Id); return p ? p.DisplayName : (item.Project.ProjectTitle0 || ''); })() : '',
+      pipeId      : item.PipelineProject ? item.PipelineProject.Id   : null,
+      pipeName    : item.PipelineProject ? (() => { const p = S.allPipeline.find(x => x.ID === item.PipelineProject.Id); return p ? p.DisplayName : (item.PipelineProject.ProjectTitle || ''); })() : '',
+      isExisting  : true,
+      spId        : item.ID
+    });
+  }
+
+  S.tsRows = [];
+  for (let i = 0; i < 5; i++) {
+    const day = addDays(ws, i);
+    const dk  = isoDate(day);
+    S.tsRows.push(...(byDate[dk] || [blankTs(dk)]));
+  }
+}
+
+function blankTs(dk) {
+  // Use same uid-based approach as newTsRow so entryId is always valid
+  return newTsRow(dk);
+}
+function newTsRow(dk) {
+  return { entryId:uid(), date:dk, hoursWorked:'', travelHours:'', notes:'',
+    projectType:'Active Project', projectId:null, projName:'', pipeId:null, pipeName:'',
+    isExisting:false, spId:null };
+}
+function newExpRow(dk) {
+  return { entryId:uid(), date:dk, category:'', amount:'', notes:'',
+    project:'', isExisting:false, spId:null };
+}
+
+async function loadExpWeek(ws) {
+  S.expWeekStart = ws;
+  // Filter by EmployeeNameId (SP always exposes the integer *Id field for User columns)
+  // This avoids needing $expand entirely
+  const data = await spGet(
+    `${listItems(CFG.lists.expenses)}` +
+    `?$filter=${dateFilter(ws)} and EmployeeId eq ${S.currentUser.spId}` +
+    `&$orderby=Date asc`
+  );
+
+  const byDate = {};
+  for (const item of data.value) {
+    const dk = item.Date.split('T')[0];
+    if (!byDate[dk]) byDate[dk] = [];
+    byDate[dk].push({
+      entryId   : uid(),
+      date      : dk,
+      category  : item.Category0 || item.Category || '',
+      amount    : item.Amount != null ? String(item.Amount) : '',
+      notes     : item.Notes || '',
+      project   : item.Project || '',
+      isExisting: true,
+      spId      : item.ID
+    });
+  }
+
+  S.expRows = [];
+  for (let i = 0; i < 5; i++) {
+    const day = addDays(ws, i);
+    const dk  = isoDate(day);
+    S.expRows.push(...(byDate[dk] || [newExpRow(dk)]));
+  }
+}
+
+async function loadSumWeek(ws) {
+  S.sumWeekStart = ws;
+  const [te, ex] = await Promise.all([
+    spGet(
+      `${listItems(CFG.lists.timeEntries)}` +
+      `?$select=ID,Date,HoursWorked,TravelHours,Notes,StaffRate,CommercialRate,EmployeeName,ProjectType` +
+      `,Employee/Title,Employee/EMail,Project/ProjectTitle0,PipelineProject/ProjectTitle` +
+      `&$expand=Employee,Project,PipelineProject` +
+      `&$filter=${dateFilter(ws)}`
+    ),
+    spGet(
+      `${listItems(CFG.lists.expenses)}` +
+      `?$expand=Employee&$select=ID,Date,Amount,Category0,Notes,Project,EmployeeId,Employee/Title,Employee/EMail` +
+      `&$filter=${dateFilter(ws)}`
+    )
+  ]);
+
+  S.sumEntries = te.value.map(e => ({
+    ...e,
+    _empName    : e.Employee?.Title || e.EmployeeName || '(Unknown)',
+    _empEmail   : e.Employee?.EMail || '',
+    _projName   : (() => {
+      if (e.Project?.Id) { const p = S.allProjects.find(x => x.ID === e.Project.Id); if (p) return p.DisplayName; }
+      if (e.PipelineProject?.Id) { const p = S.allPipeline.find(x => x.ID === e.PipelineProject.Id); if (p) return p.DisplayName; }
+      return e.Project?.ProjectTitle0 || e.PipelineProject?.ProjectTitle || '';
+    })()
+  }));
+  S.sumExpenses = ex.value.map(e => ({
+    ...e,
+    Category  : e.Category0 || e.Category || '',
+    _empName  : e.Employee?.Title || '(Unknown)',
+    _empEmail : e.Employee?.EMail || ''
+  }));
+
+  // Aggregate by employee
+  const map = new Map();
+  for (const e of S.sumEntries) {
+    const k = e._empName;
+    if (!map.has(k)) map.set(k, { name:k, hours:0, travel:0, staff:0, commercial:0, expenses:0 });
+    const r = map.get(k);
+    r.hours      += e.HoursWorked  || 0;
+    r.travel     += e.TravelHours  || 0;
+    r.staff      += ((e.HoursWorked||0) + (e.TravelHours||0)) * (e.StaffRate      || 0) / 7;
+    r.commercial += ((e.HoursWorked||0) + (e.TravelHours||0)) * (e.CommercialRate || 0) / 7;
+  }
+  for (const e of S.sumExpenses) {
+    const k = e._empName;
+    if (!map.has(k)) map.set(k, { name:k, hours:0, travel:0, staff:0, commercial:0, expenses:0 });
+    map.get(k).expenses += e.Amount || 0;
+  }
+  S.empSummary = [...map.values()].sort((a,b) => a.name.localeCompare(b.name));
+}
+
+/* ================================================================
+   SAVE LOGIC
+================================================================ */
+// Read live DOM values before save/re-render
+function syncTsDom() {
+  for (const row of S.tsRows) {
+    const h = document.getElementById(`ts-h-${row.entryId}`);
+    const t = document.getElementById(`ts-t-${row.entryId}`);
+    const n = document.getElementById(`ts-n-${row.entryId}`);
+    if (h) row.hoursWorked = h.value;
+    if (t) row.travelHours = t.value;
+    if (n) row.notes = n.value;
+    // Also sync project selects so they survive re-renders
+    const projSel = document.querySelector(`[data-proj-entry="${row.entryId}"]`);
+    if (projSel && projSel.value) {
+      const selOpt = projSel.options[projSel.selectedIndex];
+      const selLabel = selOpt ? selOpt.dataset.label : '';
+      if (projSel.value.startsWith('p:')) {
+        row.projectType = 'Pipeline Project';
+        row.pipeId    = projSel.value.slice(2);
+        row.pipeName  = selLabel;
+        row.projectId = null; row.projName = '';
+      } else if (projSel.value.startsWith('a:')) {
+        row.projectType = 'Active Project';
+        row.projectId = projSel.value.slice(2);
+        row.projName  = selLabel;
+        row.pipeId = null; row.pipeName = '';
+      }
+    }
+  }
+}
+function syncExpDom() {
+  for (const row of S.expRows) {
+    const c = document.getElementById(`exp-c-${row.entryId}`);
+    const a = document.getElementById(`exp-a-${row.entryId}`);
+    const n = document.getElementById(`exp-n-${row.entryId}`);
+    const p = document.getElementById(`exp-p-${row.entryId}`);
+    if (c) row.category = c.value;
+    if (a) row.amount   = a.value;
+    if (n) row.notes    = n.value;
+    if (p) row.project  = p.value;
+  }
+}
+
+async function saveTs() {
+  syncTsDom();
+  const toSave = S.tsRows.filter(r => r.hoursWorked!=='' || r.travelHours!=='' || r.notes!=='');
+  const invalid = toSave.filter(r => !r.projectId && !r.pipeId && (r.hoursWorked!=='' || r.travelHours!==''));
+  if (invalid.length) { toast('Please select a project for all entries with hours','err'); return; }
+
+  const staffRate      = S.employeeRecord?.StaffDayRate      || 0;
+  const commercialRate = S.employeeRecord?.CommercialDayRate  || 0;
+
+  for (const row of toSave) {
+    const payload = {
+      Title            : `Time Entry - ${row.date}`,
+      Date             : `${row.date}T00:00:00Z`,
+      HoursWorked      : row.hoursWorked !== '' ? parseFloat(row.hoursWorked) : null,
+      TravelHours      : row.travelHours !== '' ? parseFloat(row.travelHours) : null,
+      Notes            : row.notes || '',
+      StaffRate        : staffRate,
+      CommercialRate   : commercialRate,
+      EmployeeName     : S.currentUser.displayName,
+      EmployeeId       : S.currentUser.spId,
+      ProjectId        : row.projectId ? parseInt(row.projectId) : null,
+      PipelineProjectId: row.pipeId    ? parseInt(row.pipeId)    : null,
+      ProjectType      : row.projectId ? 'Active Project' : (row.pipeId ? 'Pipeline Project' : null)
+    };
+    if (row.isExisting && row.spId) {
+      await spPatch(listItem(CFG.lists.timeEntries, row.spId), payload);
+    } else {
+      const created = await spPost(listItems(CFG.lists.timeEntries), payload);
+      row.isExisting = true;
+      row.spId = created.ID;
+    }
+  }
+
+  // Update TotalCommercialCost on affected active projects
+  const affectedIds = [...new Set(toSave.filter(r => r.projectId).map(r => parseInt(r.projectId)))];
+  for (const pid of affectedIds) {
+    try {
+      const allTe  = await spGet(`${listItems(CFG.lists.timeEntries)}?$select=HoursWorked,CommercialRate&$filter=ProjectId eq ${pid}`);
+      const timeSum = allTe.value.reduce((s,e) => s + ((e.HoursWorked||0) * (e.CommercialRate||0) / 7), 0);
+      const proj = S.allProjects.find(p => p.ID === pid);
+      let expSum = 0;
+      if (proj) {
+        const allExp = await spGet(`${listItems(CFG.lists.expenses)}?$select=Amount&$filter=Project eq '${encodeURIComponent(proj.ProjectTitle0)}'`);
+        expSum = allExp.value.reduce((s,e) => s + (e.Amount||0), 0);
+      }
+      await spPatch(listItem(CFG.lists.projects, pid), { TotalCommercialCost: timeSum + expSum });
+    } catch(e) { console.warn('TotalCommercialCost update failed for project', pid, e); }
+  }
+
+  toast('All entries saved successfully');
+}
+
+async function saveExp() {
+  syncExpDom();
+  const toSave = S.expRows.filter(r => r.amount!=='' || r.category!=='' || r.notes!=='');
+  for (const row of toSave) {
+    const payload = {
+      Title           : `Expense - ${row.date}`,
+      Date            : `${row.date}T00:00:00Z`,
+      Category0       : row.category || '',
+      Amount          : row.amount !== '' ? parseFloat(row.amount) : null,
+      Notes           : row.notes || '',
+      Project         : row.project || '',
+      EmployeeId      : S.currentUser.spId
+    };
+    if (row.isExisting && row.spId) {
+      await spPatch(listItem(CFG.lists.expenses, row.spId), payload);
+    } else {
+      const created = await spPost(listItems(CFG.lists.expenses), payload);
+      row.isExisting = true;
+      row.spId = created.ID;
+    }
+  }
+  toast('Expenses saved successfully');
+}
+
+async function deleteTsRow(entryId) {
+  const row = S.tsRows.find(r => r.entryId === entryId);
+  if (!row) return;
+  if (row.isExisting && row.spId) await spDelete(listItem(CFG.lists.timeEntries, row.spId));
+  const dk = row.date;
+  S.tsRows = S.tsRows.filter(r => r.entryId !== entryId);
+  if (!S.tsRows.some(r => r.date === dk)) {
+    const idx = S.tsRows.findIndex(r => r.date > dk);
+    const blank = newTsRow(dk);
+    idx === -1 ? S.tsRows.push(blank) : S.tsRows.splice(idx, 0, blank);
+  }
+}
+
+async function deleteExpRow(entryId) {
+  const row = S.expRows.find(r => r.entryId === entryId);
+  if (!row) return;
+  if (row.isExisting && row.spId) await spDelete(listItem(CFG.lists.expenses, row.spId));
+  const dk = row.date;
+  S.expRows = S.expRows.filter(r => r.entryId !== entryId);
+  if (!S.expRows.some(r => r.date === dk)) {
+    const idx = S.expRows.findIndex(r => r.date > dk);
+    const blank = newExpRow(dk);
+    idx === -1 ? S.expRows.push(blank) : S.expRows.splice(idx, 0, blank);
+  }
+}
+
+/* ================================================================
+   HTML HELPERS
+================================================================ */
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function buildSelect(opts, selVal, placeholder, cls, onchange) {
+  // opts: [{value, label}]
+  const options = opts.map(o => {
+    const sel = String(o.value) === String(selVal) ? ' selected' : '';
+    return `<option value="${esc(o.value)}" data-label="${esc(o.label)}"${sel}>${esc(o.label)}</option>`;
+  }).join('');
+  return `<select class="${cls}" onchange="${onchange}">
+    <option value="">${esc(placeholder)}</option>${options}</select>`;
+}
+
+// Single combined Active + Pipeline project picker, used on the timesheet grid.
+// Removes the old "Project Type" toggle: users just pick a project from one
+// list, grouped by Active vs Pipeline, and the row's type is inferred from
+// which group the chosen option came from. This is what stops people getting
+// stuck when a project is still sat in ControlCentre's pipeline (e.g.
+// 'Proposal Sent') rather than promoted to a Live project.
+function buildProjectSelect(row, entryId) {
+  const selVal = row.projectType === 'Pipeline Project' && row.pipeId
+    ? `p:${row.pipeId}`
+    : (row.projectId ? `a:${row.projectId}` : '');
+  const activeOpts = S.allProjects.map(p =>
+    `<option value="a:${esc(p.ID)}" data-label="${esc(p.DisplayName)}"${String(`a:${p.ID}`)===selVal?' selected':''}>${esc(p.DisplayName)}</option>`
+  ).join('');
+  const pipeOpts = bookablePipeline().map(p =>
+    `<option value="p:${esc(p.ID)}" data-label="${esc(p.DisplayName)}"${String(`p:${p.ID}`)===selVal?' selected':''}>${esc(p.DisplayName)} (${esc(p.Status)})</option>`
+  ).join('');
+  return `<select class="row-inp" data-proj-entry="${entryId}"
+      onchange="updateTsProjUnified('${entryId}', this.value, this.options[this.selectedIndex].dataset.label)">
+    <option value="">— Select Project —</option>
+    <optgroup label="Active Projects">${activeOpts}</optgroup>
+    <optgroup label="Pipeline Projects">${pipeOpts}</optgroup>
+  </select>`;
+}
+
+function money(n) { return `£${(n||0).toFixed(2)}`; }
+function num(n,dp=1) { return (n||0).toFixed(dp); }
+
+/* ================================================================
+   RENDER ENGINE
+================================================================ */
+const app = document.getElementById('app');
+function render(html) { app.innerHTML = html; }
+function go() {
+  switch (S.view) {
+    case 'home'      : renderHome();      break;
+    case 'timesheet' : renderTs();        break;
+    case 'expenses'  : renderExp();       break;
+    case 'summary'   : renderSum();       break;
+    case 'detail'    : renderDetail();    break;
+    default: render('<div class="loading"><div class="loading-spinner"></div>Loading…</div>');
+  }
+}
+
+/* ================================================================
+   HOME
+================================================================ */
+function renderHome() {
+  render(`
+    <div class="hdr">
+      <div class="hdr-left">
+        <div>
+          <div class="hdr-title">TimeSink</div>
+          <div class="hdr-sub">NuCCoL Time & Expenses</div>
+        </div>
+      </div>
+      <div class="hdr-right">
+        <button class="ico-btn" title="Open Control Centre — e.g. to promote a pipeline project to Live"
+          onclick="openControlCentre()" style="font-size:.78rem;padding:6px 12px;width:auto;border:1px solid #d8dee6;border-radius:6px;margin-right:10px">
+          ↗ Control Centre
+        </button>
+        <span class="user-chip">${esc(S.currentUser?.displayName)}</span>
+      </div>
+    </div>
+    <div class="main">
+      <div class="home-grid">
+        <div class="home-card" onclick="navTs()">
+          <div class="home-card-icon">📄</div>
+          <h2>Add New Timesheet</h2>
+          <p>Enter your weekly time entries against active and pipeline projects</p>
+        </div>
+        <div class="home-card" onclick="navExp()">
+          <div class="home-card-icon">💷</div>
+          <h2>Add Expenses</h2>
+          <p>Record your expense claims here</p>
+        </div>
+        <div class="home-card" onclick="navSum()">
+          <div class="home-card-icon">📅</div>
+          <h2>View Timesheets</h2>
+          <p>Browse weekly summaries for all employees</p>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+/* ================================================================
+   TIMESHEET ENTRY
+================================================================ */
+function renderTs() {
+  const ws = S.tsWeekStart;
+  let lastDk = null;
+  const rows = S.tsRows.map(row => {
+    const isFirst = row.date !== lastDk;
+    lastDk = row.date;
+    const day = new Date(row.date + 'T12:00:00');
+    const projSelect = buildProjectSelect(row, row.entryId);
+
+    const cols = '110px 1fr 72px 72px 1fr 28px 28px';
+    return `
+      <div class="tbl-row" style="grid-template-columns:${cols};">
+        <div class="day-cell">
+          ${isFirst ? `<div class="day-name">${dayName(day).substr(0,3).toUpperCase()}</div>
+          <div class="day-date">${ukDate(day)}</div>` : ''}
+        </div>
+        <div>${projSelect}</div>
+        <div><input id="ts-h-${row.entryId}" type="number" class="row-inp" step="0.5" min="0" max="24"
+          value="${esc(row.hoursWorked)}" placeholder="hrs"
+          oninput="updateTsField('${row.entryId}','hoursWorked',this.value)"></div>
+        <div><input id="ts-t-${row.entryId}" type="number" class="row-inp" step="0.5" min="0" max="24"
+          value="${esc(row.travelHours)}" placeholder="hrs"
+          oninput="updateTsField('${row.entryId}','travelHours',this.value)"></div>
+        <div><input id="ts-n-${row.entryId}" type="text" class="row-inp"
+          value="${esc(row.notes)}" placeholder="Notes…"
+          oninput="updateTsField('${row.entryId}','notes',this.value)"></div>
+        <div class="ta-center">
+          <button class="ico-btn" onclick="addTsRow('${row.date}')" title="Add row for this day">＋</button>
+        </div>
+        <div class="ta-center">
+          <button class="ico-btn del" onclick="doDeleteTs('${row.entryId}')" title="Remove row">🗑</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  const cols = '110px 1fr 72px 72px 1fr 28px 28px';
+  render(`
+    <div class="hdr">
+      <div class="hdr-left">
+        <button class="back-btn" onclick="navHome()">← Back</button>
+        <div>
+          <div class="hdr-title">TimeSink — Timesheet</div>
+          <div class="hdr-sub">${weekLabel(ws)}</div>
+        </div>
+      </div>
+      <div class="hdr-right">
+        <div class="week-nav">
+          <button onclick="changeTsWeek(-1)">◀ PREV WK</button>
+          <button onclick="changeTsWeek(0)">THIS WK</button>
+          <button onclick="changeTsWeek(1)">NEXT WK ▶</button>
+        </div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="tbl-wrap">
+        <div class="tbl-head" style="grid-template-columns:${cols};">
+          <span>Day</span><span>Project</span>
+          <span class="ta-center">Hours</span><span class="ta-center">Travel</span>
+          <span>Notes</span><span></span><span></span>
+        </div>
+        ${rows}
+      </div>
+    </div>
+    <div class="save-bar">
+      <button class="btn-save" onclick="doSaveTs()">💾  Save All Entries</button>
+      <span class="save-info">
+        ${esc(S.currentUser?.displayName)}
+        ${S.employeeRecord ? ` &nbsp;·&nbsp; Staff: ${money(S.employeeRecord.StaffDayRate)}/day
+          &nbsp;·&nbsp; Commercial: ${money(S.employeeRecord.CommercialDayRate)}/day` : ''}
+      </span>
+    </div>
+  `);
+}
+
+/* ================================================================
+   EXPENSES ENTRY
+================================================================ */
+function renderExp() {
+  const ws = S.expWeekStart;
+  let lastDk = null;
+  const rows = S.expRows.map(row => {
+    const isFirst = row.date !== lastDk;
+    lastDk = row.date;
+    const day = new Date(row.date + 'T12:00:00');
+
+    const projSelect = buildSelect(
+      S.allProjects.map(p=>({value:p.ProjectTitle0, label:p.DisplayName})),
+      row.project, '— Project —', 'row-inp',
+      `updateExpField('${row.entryId}','project',this.value)`
+    );
+
+    const cols = '110px 1fr 160px 90px 1fr 28px 28px';
+    return `
+      <div class="tbl-row" style="grid-template-columns:${cols};">
+        <div class="day-cell">
+          ${isFirst ? `<div class="day-name">${dayName(day).substr(0,3).toUpperCase()}</div>
+          <div class="day-date">${ukDate(day)}</div>` : ''}
+        </div>
+        <div>${projSelect}</div>
+        <div><input id="exp-c-${row.entryId}" type="text" class="row-inp"
+          list="cat-list" value="${esc(row.category)}" placeholder="Category"
+          oninput="updateExpField('${row.entryId}','category',this.value)"></div>
+        <div><input id="exp-a-${row.entryId}" type="number" class="row-inp"
+          step="0.01" min="0" value="${esc(row.amount)}" placeholder="£0.00"
+          oninput="updateExpField('${row.entryId}','amount',this.value)"></div>
+        <div><input id="exp-n-${row.entryId}" type="text" class="row-inp"
+          value="${esc(row.notes)}" placeholder="Notes…"
+          oninput="updateExpField('${row.entryId}','notes',this.value)"></div>
+        <div class="ta-center">
+          <button class="ico-btn" onclick="addExpRow('${row.date}')" title="Add row">＋</button>
+        </div>
+        <div class="ta-center">
+          <button class="ico-btn del" onclick="doDeleteExp('${row.entryId}')" title="Remove row">🗑</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  const cols = '110px 1fr 160px 90px 1fr 28px 28px';
+  render(`
+    <datalist id="cat-list">
+      ${CFG.expenseCategories.map(c=>`<option value="${esc(c)}">`).join('')}
+    </datalist>
+    <div class="hdr">
+      <div class="hdr-left">
+        <button class="back-btn" onclick="navHome()">← Back</button>
+        <div>
+          <div class="hdr-title">TimeSink — Expenses</div>
+          <div class="hdr-sub">${weekLabel(ws)}</div>
+        </div>
+      </div>
+      <div class="hdr-right">
+        <div class="week-nav">
+          <button onclick="changeExpWeek(-1)">◀ PREV WK</button>
+          <button onclick="changeExpWeek(0)">THIS WK</button>
+          <button onclick="changeExpWeek(1)">NEXT WK ▶</button>
+        </div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="tbl-wrap">
+        <div class="tbl-head" style="grid-template-columns:${cols};">
+          <span>Day</span><span>Project</span><span class="ta-center">Type</span>
+          <span class="ta-center">Amount</span><span>Notes</span><span></span><span></span>
+        </div>
+        ${rows}
+      </div>
+    </div>
+    <div class="save-bar">
+      <button class="btn-save" onclick="doSaveExp()">💾  Save All Entries</button>
+      <span class="save-info">${esc(S.currentUser?.displayName)}</span>
+    </div>
+  `);
+}
+
+/* ================================================================
+   WEEKLY SUMMARY
+================================================================ */
+function renderSum() {
+  const ws = S.sumWeekStart;
+  const totals = S.empSummary.reduce((t,e) => ({
+    hours: t.hours+e.hours, travel: t.travel+e.travel,
+    staff: t.staff+e.staff, commercial: t.commercial+e.commercial, expenses: t.expenses+e.expenses
+  }), {hours:0,travel:0,staff:0,commercial:0,expenses:0});
+
+  const rows = S.empSummary.length
+    ? S.empSummary.map(e => `
+        <tr class="clickable" onclick="navDetail('${esc(e.name)}')">
+          <td style="font-family:'Courier New',monospace; font-weight:bold;">${esc(e.name)}</td>
+          <td class="ta-right" style="color:var(--blue);">${num(e.hours)}</td>
+          <td class="ta-right" style="color:var(--orange);">${num(e.travel)}</td>
+          <td class="ta-right" style="color:var(--green);">${money(e.expenses)}</td>
+          <td class="ta-right" style="color:var(--violet);">${money(e.staff)}</td>
+          <td class="ta-right" style="color:var(--indigo);">${money(e.commercial)}</td>
+        </tr>`)
+      .join('')
+    : `<tr><td colspan="6" class="ta-center" style="padding:20px;color:var(--muted);font-family:'Courier New',monospace;">
+        No entries for this week</td></tr>`;
+
+  render(`
+    <div class="hdr">
+      <div class="hdr-left">
+        <button class="back-btn" onclick="navHome()">← Back</button>
+        <div>
+          <div class="hdr-title">TimeSink — Weekly Summary</div>
+          <div class="hdr-sub">${weekLabel(ws)}</div>
+        </div>
+      </div>
+      <div class="hdr-right">
+        <div class="week-nav">
+          <button onclick="changeSumWeek(-1)">◀ PREV WK</button>
+          <button onclick="changeSumWeek(0)">THIS WK</button>
+          <button onclick="changeSumWeek(1)">NEXT WK ▶</button>
+        </div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="kpi-row">
+        ${kpi('Total Hours',     num(totals.hours),            'var(--blue)')}
+        ${kpi('Travel Hours',    num(totals.travel),           'var(--orange)')}
+        ${kpi('Expenses',        money(totals.expenses),       'var(--green)')}
+        ${kpi('Staff Cost',      money(totals.staff),          'var(--violet)')}
+        ${kpi('Commercial Cost', money(totals.commercial),     'var(--indigo)')}
+      </div>
+      <table class="data-table">
+        <thead><tr>
+          <th>Employee</th>
+          <th class="ta-right">Hours</th><th class="ta-right">Travel</th>
+          <th class="ta-right">Expenses</th><th class="ta-right">Staff Cost</th>
+          <th class="ta-right">Commercial Cost</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        ${S.empSummary.length ? `<tfoot><tr>
+          <td>TOTAL</td>
+          <td class="ta-right">${num(totals.hours)}</td>
+          <td class="ta-right">${num(totals.travel)}</td>
+          <td class="ta-right">${money(totals.expenses)}</td>
+          <td class="ta-right">${money(totals.staff)}</td>
+          <td class="ta-right">${money(totals.commercial)}</td>
+        </tr></tfoot>` : ''}
+      </table>
+      <div style="font-family:'Courier New',monospace;font-size:11px;color:var(--muted);margin-top:8px;">
+        Click a row to view employee detail
+      </div>
+    </div>
+  `);
+}
+
+function kpi(label, value, color) {
+  return `<div class="kpi-card">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-val" style="color:${color};">${value}</div>
+  </div>`;
+}
+
+/* ================================================================
+   EMPLOYEE DETAIL
+================================================================ */
+function renderDetail() {
+  const name = S.detEmployee;
+  const tes  = S.detEntries;
+  const exps = S.detExpenses;
+
+  const th = tes.reduce((s,e) => s+(e.HoursWorked||0), 0);
+  const tt = tes.reduce((s,e) => s+(e.TravelHours||0), 0);
+  const te = exps.reduce((s,e) => s+(e.Amount||0), 0);
+  const ts = tes.reduce((s,e) => s+((e.HoursWorked||0)+(e.TravelHours||0))*(e.StaffRate||0)/7, 0);
+  const tc = tes.reduce((s,e) => s+((e.HoursWorked||0)+(e.TravelHours||0))*(e.CommercialRate||0)/7, 0);
+
+  const teRows = tes.length
+    ? tes.map(e => `<tr>
+        <td class="nowrap">${ukDate(e.Date)}</td>
+        <td>${esc(e._projName||'')}</td>
+        <td class="ta-right">${num(e.HoursWorked)}</td>
+        <td class="ta-right">${num(e.TravelHours)}</td>
+        <td class="ta-right">${money((e.HoursWorked||0)*(e.StaffRate||0)/7)}</td>
+        <td class="ta-right">${money((e.HoursWorked||0)*(e.CommercialRate||0)/7)}</td>
+        <td>${esc(e.Notes||'')}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="7" class="ta-center" style="padding:14px;color:var(--muted);">No time entries</td></tr>`;
+
+  const expRows = exps.length
+    ? exps.map(e => `<tr>
+        <td class="nowrap">${ukDate(e.Date)}</td>
+        <td>${esc(e.Project||'')}</td>
+        <td class="ta-center">${esc(e.Category||'')}</td>
+        <td class="ta-right">${money(e.Amount)}</td>
+        <td>${esc(e.Notes||'')}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="5" class="ta-center" style="padding:14px;color:var(--muted);">No expenses</td></tr>`;
+
+  render(`
+    <div class="hdr">
+      <div class="hdr-left">
+        <button class="back-btn" onclick="navSum()">← Back</button>
+        <div>
+          <div class="hdr-title">Weekly Timesheet — ${esc(name)}</div>
+          <div class="hdr-sub">${weekLabel(S.sumWeekStart)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="kpi-row">
+        ${kpi('Total Hours',     num(th),   'var(--blue)')}
+        ${kpi('Travel Hours',    num(tt),   'var(--orange)')}
+        ${kpi('Expenses',        money(te), 'var(--green)')}
+        ${kpi('Staff Cost',      money(ts), 'var(--violet)')}
+        ${kpi('Commercial Cost', money(tc), 'var(--indigo)')}
+      </div>
+
+      <div class="section-hd">Time Entries</div>
+      <table class="data-table">
+        <thead><tr>
+          <th style="width:100px;">Date</th><th>Project</th>
+          <th class="ta-right" style="width:70px;">Hours</th>
+          <th class="ta-right" style="width:70px;">Travel</th>
+          <th class="ta-right" style="width:100px;">Staff Rate</th>
+          <th class="ta-right" style="width:110px;">Charge Rate</th>
+          <th>Notes</th>
+        </tr></thead>
+        <tbody>${teRows}</tbody>
+        ${tes.length ? `<tfoot><tr>
+          <td colspan="2">TOTAL</td>
+          <td class="ta-right">${num(th)}</td>
+          <td class="ta-right">${num(tt)}</td>
+          <td class="ta-right">${money(ts)}</td>
+          <td class="ta-right">${money(tc)}</td>
+          <td></td>
+        </tr></tfoot>` : ''}
+      </table>
+
+      <div class="section-hd">Expenses</div>
+      <table class="data-table">
+        <thead><tr>
+          <th style="width:100px;">Date</th><th>Project</th>
+          <th class="ta-center" style="width:150px;">Expense Type</th>
+          <th class="ta-right" style="width:100px;">Amount</th>
+          <th>Notes</th>
+        </tr></thead>
+        <tbody>${expRows}</tbody>
+        ${exps.length ? `<tfoot><tr>
+          <td colspan="3">TOTAL</td>
+          <td class="ta-right">${money(te)}</td>
+          <td></td>
+        </tr></tfoot>` : ''}
+      </table>
+    </div>
+  `);
+}
+
+/* ================================================================
+   NAVIGATION FUNCTIONS (called from inline handlers)
+================================================================ */
+function navHome() { S.view='home'; go(); }
+
+async function navTs() {
+  try {
+    render('<div class="loading"><div class="loading-spinner"></div>Loading timesheet…</div>');
+    await loadTsWeek(monday(new Date()));
+    S.view = 'timesheet'; go();
+  } catch(e) { toast('Error loading timesheet: '+e.message,'err'); navHome(); }
+}
+
+async function navExp() {
+  try {
+    render('<div class="loading"><div class="loading-spinner"></div>Loading expenses…</div>');
+    await loadExpWeek(monday(new Date()));
+    S.view = 'expenses'; go();
+  } catch(e) { toast('Error loading expenses: '+e.message,'err'); navHome(); }
+}
+
+async function navSum() {
+  try {
+    render('<div class="loading"><div class="loading-spinner"></div>Loading summary…</div>');
+    await loadSumWeek(S.sumWeekStart || monday(new Date()));
+    S.view = 'summary'; go();
+  } catch(e) { toast('Error loading summary: '+e.message,'err'); navHome(); }
+}
+
+function navDetail(empName) {
+  S.detEmployee = empName;
+  S.detEntries  = S.sumEntries.filter(e => e._empName === empName).sort((a,b) => a.Date.localeCompare(b.Date));
+  S.detExpenses = S.sumExpenses.filter(e => e._empName === empName).sort((a,b) => a.Date.localeCompare(b.Date));
+  S.view = 'detail'; go();
+}
+
+// Week nav
+async function changeTsWeek(dir) {
+  const ws = dir===0 ? monday(new Date()) : addDays(S.tsWeekStart, dir*7);
+  render('<div class="loading"><div class="loading-spinner"></div>Loading…</div>');
+  try { await loadTsWeek(ws); S.view='timesheet'; go(); }
+  catch(e) { toast(e.message,'err'); S.view='timesheet'; go(); }
+}
+async function changeExpWeek(dir) {
+  const ws = dir===0 ? monday(new Date()) : addDays(S.expWeekStart, dir*7);
+  render('<div class="loading"><div class="loading-spinner"></div>Loading…</div>');
+  try { await loadExpWeek(ws); S.view='expenses'; go(); }
+  catch(e) { toast(e.message,'err'); S.view='expenses'; go(); }
+}
+async function changeSumWeek(dir) {
+  const ws = dir===0 ? monday(new Date()) : addDays(S.sumWeekStart, dir*7);
+  render('<div class="loading"><div class="loading-spinner"></div>Loading…</div>');
+  try { await loadSumWeek(ws); S.view='summary'; go(); }
+  catch(e) { toast(e.message,'err'); S.view='summary'; go(); }
+}
+
+/* ================================================================
+   INLINE EDIT HANDLERS
+================================================================ */
+function updateTsField(entryId, field, val) {
+  const row = S.tsRows.find(r => r.entryId===entryId);
+  if (row) row[field] = val;
+}
+
+function changeTsType(entryId, type) {
+  // Set projectType BEFORE syncTsDom so it reads the project select into the right bucket
+  const row = S.tsRows.find(r => r.entryId===entryId);
+  if (!row) return;
+  row.projectType = type;
+  syncTsDom();
+  // Clear both project fields since type just changed
+  row.projectId = null; row.projName = '';
+  row.pipeId    = null; row.pipeName = '';
+  go();
+}
+
+function updateTsProj(entryId, kind, val, label) {
+  const row = S.tsRows.find(r => r.entryId===entryId);
+  if (!row) return;
+  if (kind==='active') { row.projectId = val||null; row.projName = label||''; }
+  else                 { row.pipeId    = val||null; row.pipeName = label||''; }
+}
+
+// Handler for the combined Active+Pipeline project select (see buildProjectSelect).
+// val is prefixed 'a:<id>' for an Active project or 'p:<id>' for a Pipeline project.
+function updateTsProjUnified(entryId, val, label) {
+  const row = S.tsRows.find(r => r.entryId===entryId);
+  if (!row) return;
+  if (val && val.startsWith('p:')) {
+    row.projectType = 'Pipeline Project';
+    row.pipeId    = val.slice(2);
+    row.pipeName  = label || '';
+    row.projectId = null; row.projName = '';
+  } else if (val && val.startsWith('a:')) {
+    row.projectType = 'Active Project';
+    row.projectId = val.slice(2);
+    row.projName  = label || '';
+    row.pipeId = null; row.pipeName = '';
+  } else {
+    row.projectType = null;
+    row.projectId = null; row.projName = '';
+    row.pipeId = null; row.pipeName = '';
+  }
+}
+
+function updateExpField(entryId, field, val) {
+  const row = S.expRows.find(r => r.entryId===entryId);
+  if (row) row[field] = val;
+}
+
+function addTsRow(dk) {
+  // Sync only the inputs for this specific date's rows to avoid contaminating other rows
+  for (const row of S.tsRows.filter(r => r.date === dk)) {
+    const h = document.getElementById(`ts-h-${row.entryId}`);
+    const t = document.getElementById(`ts-t-${row.entryId}`);
+    const n = document.getElementById(`ts-n-${row.entryId}`);
+    if (h) row.hoursWorked = h.value;
+    if (t) row.travelHours = t.value;
+    if (n) row.notes = n.value;
+    const projSel = document.querySelector(`[data-proj-entry="${row.entryId}"]`);
+    if (projSel && projSel.value) {
+      const selOpt = projSel.options[projSel.selectedIndex];
+      const selLabel = selOpt ? selOpt.dataset.label : '';
+      if (projSel.value.startsWith('p:')) {
+        row.projectType = 'Pipeline Project';
+        row.pipeId    = projSel.value.slice(2);
+        row.pipeName  = selLabel;
+        row.projectId = null; row.projName = '';
+      } else if (projSel.value.startsWith('a:')) {
+        row.projectType = 'Active Project';
+        row.projectId = projSel.value.slice(2);
+        row.projName  = selLabel;
+        row.pipeId = null; row.pipeName = '';
+      }
+    }
+  }
+  const newRow = newTsRow(dk);
+  let lastIdx = -1;
+  S.tsRows.forEach((r,i) => { if (r.date===dk) lastIdx=i; });
+  S.tsRows.splice(lastIdx+1, 0, newRow);
+  go();
+}
+
+function addExpRow(dk) {
+  syncExpDom();
+  const newRow = newExpRow(dk);
+  let lastIdx = -1;
+  S.expRows.forEach((r,i) => { if (r.date===dk) lastIdx=i; });
+  S.expRows.splice(lastIdx+1, 0, newRow);
+  go();
+}
+
+async function doDeleteTs(entryId) {
+  if (!confirm('Remove this entry?')) return;
+  try { syncTsDom(); await deleteTsRow(entryId); toast('Entry removed'); go(); }
+  catch(e) { toast('Delete failed: '+e.message,'err'); }
+}
+
+async function doDeleteExp(entryId) {
+  if (!confirm('Remove this expense?')) return;
+  try { syncExpDom(); await deleteExpRow(entryId); toast('Expense removed'); go(); }
+  catch(e) { toast('Delete failed: '+e.message,'err'); }
+}
+
+async function doSaveTs() {
+  try {
+    render('<div class="loading"><div class="loading-spinner"></div>Saving…</div>');
+    await saveTs();
+    S.view='timesheet'; go();
+  } catch(e) { toast('Save failed: '+e.message,'err'); S.view='timesheet'; go(); }
+}
+
+async function doSaveExp() {
+  try {
+    render('<div class="loading"><div class="loading-spinner"></div>Saving…</div>');
+    await saveExp();
+    S.view='expenses'; go();
+  } catch(e) { toast('Save failed: '+e.message,'err'); S.view='expenses'; go(); }
+}
+
+/* ================================================================
+   INIT
+================================================================ */
+async function init() {
+  try {
+    await msalApp.initialize();
+    const redirectResult = await msalApp.handleRedirectPromise();
+    if (redirectResult) {
+      msalApp.setActiveAccount(redirectResult.account);
+    }
+    const accounts = msalApp.getAllAccounts();
+    if (!accounts.length) {
+      // Show login button — wire it up after MSAL is ready
+      const btn = document.getElementById('login-btn');
+      console.log('Login button found:', btn);
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          console.log('Button clicked');
+          btn.disabled = true;
+          btn.textContent = 'Signing in…';
+          try {
+            console.log('Calling loginPopup with scope:', CFG.scope);
+            const result = await msalApp.loginPopup({ scopes: [CFG.scope] });
+            msalApp.setActiveAccount(result.account);
+            render('<div class="loading"><div class="loading-spinner"></div>Loading data…</div>');
+            await Promise.all([loadCurrentUser(), loadRefData()]);
+            S.view = 'home';
+            go();
+          } catch(err) {
+            console.error('loginPopup error:', err);
+            btn.disabled = false;
+            btn.textContent = 'Sign in with Microsoft';
+            const errDiv = document.getElementById('login-error');
+            if (errDiv) { errDiv.textContent = err.message; errDiv.style.display = 'block'; }
+          }
+        });
+      } else {
+        console.error('Login button NOT found in DOM');
+      }
+      return;
+    }
+    msalApp.setActiveAccount(accounts[0]);
+    render('<div class="loading"><div class="loading-spinner"></div>Loading data…</div>');
+    await Promise.all([loadCurrentUser(), loadRefData()]);
+    S.view = 'home';
+    go();
+  } catch(e) {
+    render(`
+      <div class="loading">
+        <div style="color:var(--red);font-family:'Courier New',monospace;font-size:14px;text-align:center;max-width:500px;">
+          <strong>Error:</strong> ${esc(e.message)}<br><br>
+          Check that tenantId, clientId, and siteUrl are configured correctly in the CONFIG section.
+          <br><br>
+          <button onclick="init()" style="font-family:'Courier New',monospace;padding:8px 18px;cursor:pointer;
+            background:var(--blue);color:#fff;border:2px solid var(--navy);font-weight:bold;">
+            Retry
+          </button>
+        </div>
+      </div>`);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

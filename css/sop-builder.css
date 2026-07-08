@@ -1,0 +1,203 @@
+/* ── SOP Builder — sop-builder.css ─────────────────────────────────────── */
+
+/* Intro */
+.sop-intro p { font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 18px; }
+
+/* Progress bar */
+.sop-progress { padding: 14px 20px 0; }
+.sop-progress-inner {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.sop-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 60px;
+}
+.sop-step-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #999;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+.sop-step--active .sop-step-dot { background: #1F3A5F; color: #fff; }
+.sop-step--done   .sop-step-dot { background: #27AE60; color: #fff; }
+.sop-step-label { font-size: 10px; color: #888; font-weight: 600; text-align: center; }
+.sop-step--active .sop-step-label { color: #1F3A5F; }
+.sop-step--done   .sop-step-label { color: #27AE60; }
+.sop-step-line { flex: 1; height: 2px; background: #e2e8f0; margin-bottom: 18px; }
+
+/* Section title */
+.sop-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1F3A5F;
+  margin: 0 0 12px;
+  border-left: 3px solid #E8532A;
+  padding-left: 8px;
+}
+
+/* Category grid */
+.sop-cat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.sop-cat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  background: #f8f9fb;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sop-cat-card:hover { border-color: #1F3A5F; background: #EEF4FA; }
+.sop-cat-card.sop-cat--active { border-color: #1F3A5F; background: #EEF4FA; }
+.sop-cat-icon { font-size: 22px; }
+.sop-cat-label { font-size: 11px; font-weight: 600; color: #1F3A5F; line-height: 1.3; }
+
+/* Form fields */
+.sop-fields { display: flex; flex-direction: column; gap: 14px; }
+.sop-field { display: flex; flex-direction: column; gap: 4px; }
+.sop-label { font-size: 13px; font-weight: 600; color: #333; }
+.sop-input {
+  padding: 9px 12px;
+  border: 1.5px solid #d0d5dd;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  transition: border-color 0.15s;
+}
+.sop-input:focus { outline: none; border-color: #1F3A5F; }
+.sop-textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+/* Info box */
+.sop-info-box {
+  background: #EEF4FA;
+  border-left: 3px solid #1F3A5F;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #444;
+  line-height: 1.6;
+  margin: 14px 0;
+}
+
+/* Error */
+.sop-error {
+  background: #FFF0EE;
+  border: 1px solid #FCCCC7;
+  border-radius: 6px;
+  color: #C0392B;
+  font-size: 13px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
+/* Nav row */
+.sop-nav-row {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid #eee;
+}
+
+/* Spinner */
+.sop-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #1F3A5F;
+  border-radius: 50%;
+  animation: sop-spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+@keyframes sop-spin { to { transform: rotate(360deg); } }
+.sop-loading-sub { font-size: 12px; color: #888; margin-top: 4px; }
+
+/* Result */
+.sop-result { padding: 4px 0 20px; }
+.sop-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #1F3A5F;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.sop-result-company { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.sop-result-title { font-size: 17px; font-weight: 700; color: #1F3A5F; line-height: 1.3; }
+.sop-result-meta { font-size: 12px; color: #555; line-height: 2; text-align: right; }
+
+.sop-result-section { margin: 14px 0; }
+.sop-result-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #1F3A5F;
+  border-left: 3px solid #1F3A5F;
+  padding-left: 8px;
+  margin-bottom: 8px;
+}
+.sop-label--safety  { border-left-color: #C0392B; color: #C0392B; }
+.sop-label--steps   { border-left-color: #E8532A; }
+.sop-label--quality { border-left-color: #27AE60; color: #27AE60; }
+
+.sop-result-content { font-size: 13px; color: #333; line-height: 1.6; }
+.sop-ul, .sop-ol { margin: 4px 0; padding-left: 20px; }
+.sop-ul li, .sop-ol li { margin-bottom: 5px; }
+
+/* Approval table */
+.sop-approval { margin-top: 20px; }
+.sop-approval-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+.sop-approval-table th, .sop-approval-table td {
+  border: 1px solid #ccc;
+  padding: 8px 10px;
+  text-align: left;
+}
+.sop-approval-table th { background: #EEF4FA; font-weight: 600; color: #1F3A5F; }
+.sop-approval-table td { min-height: 32px; }
+
+/* Footer */
+.sop-result-footer {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 11px;
+  color: #bbb;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+}
+
+/* Action row */
+.sop-action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #eee;
+}

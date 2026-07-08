@@ -1,0 +1,129 @@
+/* ── Social Value Finder drawer styles ─────────────────────────────────────── */
+
+.sv-hidden { display: none !important; }
+.assess-footer:not(.sv-hidden) { display: flex; }
+
+.sv-intro { margin-bottom: 18px; }
+.sv-intro-text { color: var(--text-secondary, #666); font-size: 14px; line-height: 1.6; margin: 0; }
+
+.sv-form { display: flex; flex-direction: column; gap: 14px; }
+.sv-label { font-size: 13px; font-weight: 600; color: var(--text-primary, #1a1a1a); }
+.sv-label-hint { font-weight: 400; color: var(--text-secondary, #999); font-size: 12px; }
+
+.sv-input {
+  padding: 10px 14px;
+  border: 1.5px solid var(--border, #ddd);
+  border-radius: 8px;
+  font-size: 15px;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s;
+}
+.sv-input:focus { border-color: var(--accent, #2563eb); }
+
+.sv-cat-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.sv-cat-pill {
+  padding: 6px 14px;
+  border: 1.5px solid var(--border, #ddd);
+  border-radius: 20px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary, #1a1a1a);
+  transition: all .15s;
+  font-family: inherit;
+}
+.sv-cat-pill:hover { border-color: var(--accent, #2563eb); }
+.sv-cat-pill--active {
+  background: var(--accent-light, #eff6ff);
+  border-color: var(--accent, #2563eb);
+  color: var(--accent, #2563eb);
+  font-weight: 600;
+}
+
+.sv-search-btn { align-self: flex-start; margin-top: 4px; padding: 12px 28px; font-size: 15px; }
+
+.sv-change-key {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--text-secondary, #999);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  font-family: inherit;
+  align-self: flex-start;
+}
+.sv-change-key:hover { color: var(--text-primary, #333); }
+
+.sv-error {
+  color: #dc2626;
+  font-size: 13px;
+  background: #fef2f2;
+  border-radius: 6px;
+  padding: 8px 12px;
+  border: 1px solid #fecaca;
+}
+
+/* ── Setup screen ── */
+.sv-setup { display: flex; flex-direction: column; gap: 16px; }
+.sv-setup-steps { font-size: 14px; line-height: 1.8; color: var(--text-primary, #333); padding-left: 20px; margin: 0; }
+.sv-setup-steps a { color: var(--accent, #2563eb); }
+.sv-setup-btn { align-self: flex-start; padding: 11px 24px; font-size: 14px; }
+
+/* ── Loading spinner ── */
+.sv-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border, #e5e7eb);
+  border-top-color: var(--accent, #2563eb);
+  border-radius: 50%;
+  animation: sv-spin .7s linear infinite;
+  margin: 0 auto 16px;
+}
+@keyframes sv-spin { to { transform: rotate(360deg); } }
+
+/* ── Area banner ── */
+.sv-area-banner {
+  font-size: 13px;
+  color: var(--text-secondary, #666);
+  background: var(--surface-alt, #f9fafb);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border, #e5e7eb);
+}
+
+/* ── Result cards ── */
+.sv-results-grid { display: flex; flex-direction: column; gap: 12px; }
+.sv-card {
+  border: 1.5px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: var(--surface, #fff);
+  transition: box-shadow .15s;
+}
+.sv-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.sv-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sv-card-name { font-weight: 700; font-size: 14px; color: var(--text-primary, #1a1a1a); }
+.sv-card-location { font-size: 12px; color: var(--text-secondary, #888); white-space: nowrap; }
+.sv-card-cat { font-size: 11px; color: var(--accent, #2563eb); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.sv-card-desc { font-size: 13px; color: var(--text-secondary, #555); line-height: 1.5; margin: 0 0 8px; }
+.sv-card-engage { font-size: 13px; color: var(--text-primary, #333); line-height: 1.5; margin: 0 0 10px; }
+.sv-card-engage strong { color: var(--accent, #2563eb); }
+.sv-card-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sv-org-link { font-size: 12px; color: var(--accent, #2563eb); text-decoration: none; }
+.sv-org-link:hover { text-decoration: underline; }
+.sv-frankie-btn { padding: 5px 12px; font-size: 12px; margin-left: auto; }
+
+/* ── No results ── */
+.sv-no-results { text-align: center; padding: 40px 20px; }
+.sv-no-results p { margin: 8px 0; font-size: 14px; color: var(--text-secondary, #666); }

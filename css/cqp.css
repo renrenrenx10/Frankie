@@ -1,0 +1,172 @@
+/* ── Contract Quality Plan — cqp.css ──────────────────────────────────── */
+
+.cqp-intro p { font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 16px; }
+
+/* Progress */
+.cqp-progress { padding: 14px 20px 0; }
+.cqp-progress-inner { display: flex; align-items: center; }
+.cqp-step { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; }
+.cqp-step-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #e2e8f0; color: #999;
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+.cqp-step--active .cqp-step-dot { background: #1F3A5F; color: #fff; }
+.cqp-step--done   .cqp-step-dot { background: #27AE60; color: #fff; }
+.cqp-step-label { font-size: 10px; color: #888; font-weight: 600; text-align: center; }
+.cqp-step--active .cqp-step-label { color: #1F3A5F; }
+.cqp-step--done   .cqp-step-label { color: #27AE60; }
+.cqp-step-line { flex: 1; height: 2px; background: #e2e8f0; margin-bottom: 18px; }
+
+/* Section title */
+.cqp-section-title {
+  font-size: 13px; font-weight: 700; color: #1F3A5F;
+  border-left: 3px solid #E8532A; padding-left: 8px;
+  margin: 0 0 12px;
+}
+
+/* Contract band */
+.cqp-band-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+.cqp-band-card {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 12px 8px; background: #f8f9fb;
+  border: 2px solid #e2e8f0; border-radius: 8px;
+  cursor: pointer; text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cqp-band-card:hover, .cqp-band-card.cqp-band--active { border-color: #1F3A5F; background: #EEF4FA; }
+.cqp-band-label { font-size: 13px; font-weight: 700; color: #1F3A5F; }
+.cqp-band-desc  { font-size: 10px; color: #666; line-height: 1.3; }
+
+/* Pill toggles */
+.cqp-pill-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.cqp-pill {
+  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  background: #f8f9fb; border: 1.5px solid #d0d5dd;
+  border-radius: 20px; cursor: pointer; color: #333;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.cqp-pill:hover, .cqp-pill.cqp-pill--active {
+  border-color: #1F3A5F; background: #1F3A5F; color: #fff;
+}
+
+/* Fields */
+.cqp-fields { display: flex; flex-direction: column; gap: 12px; }
+.cqp-field  { display: flex; flex-direction: column; gap: 4px; }
+.cqp-label  { font-size: 13px; font-weight: 600; color: #333; }
+.cqp-input  {
+  padding: 9px 12px; border: 1.5px solid #d0d5dd;
+  border-radius: 8px; font-family: inherit; font-size: 13px;
+  transition: border-color 0.15s;
+}
+.cqp-input:focus  { outline: none; border-color: #1F3A5F; }
+.cqp-textarea     { resize: vertical; min-height: 68px; }
+
+/* Info box */
+.cqp-info-box {
+  background: #EEF4FA; border-left: 3px solid #1F3A5F;
+  border-radius: 6px; padding: 10px 14px;
+  font-size: 12px; color: #444; line-height: 1.6; margin: 14px 0;
+}
+
+/* Error */
+.cqp-error {
+  background: #FFF0EE; border: 1px solid #FCCCC7;
+  border-radius: 6px; color: #C0392B;
+  font-size: 13px; padding: 10px 12px; margin-top: 8px;
+}
+
+/* Nav row */
+.cqp-nav-row {
+  display: flex; gap: 10px; justify-content: flex-end;
+  margin-top: 20px; padding-top: 14px; border-top: 1px solid #eee;
+}
+
+/* Spinner */
+.cqp-spinner {
+  width: 40px; height: 40px; border: 4px solid #e2e8f0;
+  border-top-color: #1F3A5F; border-radius: 50%;
+  animation: cqp-spin 0.8s linear infinite; margin: 0 auto 16px;
+}
+@keyframes cqp-spin { to { transform: rotate(360deg); } }
+.cqp-loading-sub { font-size: 12px; color: #888; margin-top: 4px; }
+
+/* Result */
+.cqp-result { padding: 4px 0 20px; }
+
+.cqp-result-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  border-bottom: 2px solid #1F3A5F; padding-bottom: 12px; margin-bottom: 16px;
+  flex-wrap: wrap; gap: 10px;
+}
+.cqp-result-company { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; font-weight: 600; }
+.cqp-result-title   { font-size: 16px; font-weight: 700; color: #1F3A5F; line-height: 1.3; margin-bottom: 3px; }
+.cqp-result-client  { font-size: 12px; color: #555; }
+.cqp-result-meta    { font-size: 12px; color: #555; line-height: 2; text-align: right; }
+
+.cqp-result-section { margin: 14px 0; }
+.cqp-result-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #1F3A5F; border-left: 3px solid #1F3A5F;
+  padding-left: 8px; margin-bottom: 8px;
+}
+.cqp-label--blue   { border-left-color: #2980B9; color: #2980B9; }
+.cqp-label--orange { border-left-color: #E67E22; color: #E67E22; }
+.cqp-label--red    { border-left-color: #C0392B; color: #C0392B; }
+
+.cqp-result-content { font-size: 13px; color: #333; line-height: 1.6; }
+
+.cqp-ul { margin: 0; padding-left: 18px; }
+.cqp-ul li { margin-bottom: 5px; font-size: 13px; color: #333; line-height: 1.5; }
+
+/* Key-value pairs */
+.cqp-kv { display: flex; gap: 0; border-bottom: 1px solid #f0f0f0; padding: 6px 0; }
+.cqp-kv:last-child { border-bottom: none; }
+.cqp-kv-key { font-size: 12px; font-weight: 600; color: #1F3A5F; min-width: 180px; flex-shrink: 0; }
+.cqp-kv-val { font-size: 12px; color: #444; line-height: 1.5; }
+
+/* ITP key badges */
+.cqp-itp-key { font-size: 11px; color: #555; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cqp-itp-badge {
+  display: inline-block; width: 18px; height: 18px; border-radius: 3px;
+  color: #fff; font-weight: 700; font-size: 11px;
+  text-align: center; line-height: 18px;
+}
+
+/* ITP table */
+.cqp-table-wrap { overflow-x: auto; }
+.cqp-itp-table  { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cqp-itp-table th, .cqp-itp-table td {
+  border: 1px solid #d0d5dd; padding: 7px 9px; text-align: left;
+}
+.cqp-itp-table th { background: #EEF4FA; font-weight: 600; color: #1F3A5F; }
+.cqp-itp-table tr:nth-child(even) { background: #fafbfc; }
+
+/* Doc submission table */
+.cqp-doc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cqp-doc-table th, .cqp-doc-table td {
+  border: 1px solid #d0d5dd; padding: 7px 9px; text-align: left;
+}
+.cqp-doc-table th { background: #EEF4FA; font-weight: 600; color: #1F3A5F; }
+
+/* Approval */
+.cqp-approval { margin-top: 18px; }
+.cqp-approval-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cqp-approval-table th, .cqp-approval-table td {
+  border: 1px solid #ccc; padding: 8px 10px; text-align: left;
+}
+.cqp-approval-table th { background: #EEF4FA; font-weight: 600; color: #1F3A5F; }
+
+/* Footer */
+.cqp-result-footer {
+  margin-top: 16px; text-align: center; font-size: 11px; color: #bbb;
+  border-top: 1px solid #eee; padding-top: 10px;
+}
+
+/* Action row */
+.cqp-action-row {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid #eee;
+}

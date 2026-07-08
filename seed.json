@@ -1,0 +1,437 @@
+{
+  "news": [
+    {
+      "title": "German energy minister calls nuclear phase-out 'huge mistake'",
+      "url": "https://www.world-nuclear-news.org//articles/german-energy-minister-calls-nuclear-phase-out-huge-mistake",
+      "source": "World Nuclear News",
+      "summary": "Katherina Reiche, Germany's economy and energy minister, discussed the likely impact on the country's economy if the Iran conflict continues — as well as the need for a correction to energy policies in Europe.",
+      "category": "Nuclear",
+      "date": "2026-03-25",
+      "id": "1000"
+    },
+    {
+      "title": "Aalo completes assembly of experimental reactor",
+      "url": "https://www.world-nuclear-news.org//articles/aalo-completes-assembly-of-experimental-reactor",
+      "source": "World Nuclear News",
+      "summary": "Aalo Atomics has unveiled its completed Critical Test Reactor at the Idaho National Laboratory, expecting to achieve criticality well before the 4 July deadline.",
+      "category": "Nuclear",
+      "date": "2026-03-20",
+      "id": "1001"
+    },
+    {
+      "title": "Vietnam, Russia sign agreement on new nuclear plant",
+      "url": "https://www.world-nuclear-news.org//articles/vietnam-russia-intergovernmental-agreement-on-new-nuclear",
+      "source": "World Nuclear News",
+      "summary": "An intergovernmental agreement has been signed on cooperation in the construction of the Ninh Thuan 1 Nuclear Power Plant in Vietnam, to feature two VVER-1200 reactors.",
+      "category": "Nuclear",
+      "date": "2026-03-23",
+      "id": "1002"
+    },
+    {
+      "title": "Uzbekistan and Russia mark SMR construction progress",
+      "url": "https://www.world-nuclear-news.org//articles/uzbekistan-russia-mark-smr-construction-progress",
+      "source": "World Nuclear News",
+      "summary": "Russia and Uzbekistan signed a roadmap for nuclear cooperation as initial concrete was poured for the first small modular reactor at Uzbekistan's first nuclear power plant.",
+      "category": "Nuclear",
+      "date": "2026-03-24",
+      "id": "1003"
+    },
+    {
+      "title": "In Pictures: Akkuyu 2's polar crane installed",
+      "url": "https://www.world-nuclear-news.org//articles/in-pictures-akkuyu-2s-polar-crane-installed",
+      "source": "World Nuclear News",
+      "summary": "The main part of the polar crane for unit 2 at Turkey's Akkuyu Nuclear Power Plant has been installed at a height of 38.5 metres.",
+      "category": "Nuclear",
+      "date": "2026-03-30",
+      "id": "1004"
+    },
+    {
+      "title": "IAEA Releases Updated Regulations for Safe Transport of Radioactive Material",
+      "url": "http://www.iaea.org/newscenter/news/iaea-releases-updated-regulations-for-safe-transport-of-radioactive-material",
+      "source": "IAEA",
+      "summary": "Updated safety regulations covering the international transport of radioactive material have been released by the IAEA.",
+      "category": "Nuclear",
+      "date": "2026-03-24",
+      "id": "1005"
+    },
+    {
+      "title": "How Do We Keep Radioactive Material Safe and Secure During Transport?",
+      "url": "http://www.iaea.org/newscenter/multimedia/videos/how-do-we-keep-radioactive-material-safe-and-secure-during-transport",
+      "source": "IAEA",
+      "summary": "IAEA explainer on protocols and technologies ensuring radioactive material remains safe during transport.",
+      "category": "Nuclear",
+      "date": "2026-03-24",
+      "id": "1006"
+    },
+    {
+      "title": "Global Leaders Affirm Central Role for Nuclear at 2026 Nuclear Energy Summit",
+      "url": "http://www.iaea.org/newscenter/news/global-leaders-affirm-central-role-for-nuclear-at-2026-nuclear-energy-summit",
+      "source": "IAEA",
+      "summary": "World leaders reaffirmed nuclear energy's critical role in achieving net-zero targets at the 2026 Nuclear Energy Summit in Paris.",
+      "category": "Nuclear",
+      "date": "2026-03-13",
+      "id": "1007"
+    },
+    {
+      "title": "Global Leaders Convene in France for Nuclear Energy Summit",
+      "url": "http://www.iaea.org/newscenter/news/global-leaders-convene-in-france-for-nuclear-energy-summit",
+      "source": "IAEA",
+      "summary": "The second Nuclear Energy Summit brought together heads of state and energy ministers to accelerate nuclear deployment worldwide.",
+      "category": "Nuclear",
+      "date": "2026-03-10",
+      "id": "1008"
+    },
+    {
+      "title": "UK provides £1bn to drive zero-emission trucks and vans uptake",
+      "url": "https://www.energylivenews.com/2026/03/31/uk-provides-1bn-to-drive-zero-emission-trucks-and-vans-uptake/",
+      "source": "Energy Live News",
+      "summary": "Companies expected to save up to £81,000 off the heaviest zero-emission trucks and up to £5,000 off new zero-emission vans under the new government scheme.",
+      "category": "Nuclear",
+      "date": "2026-03-31",
+      "id": "1009"
+    },
+    {
+      "title": "EDF and Matrix team up for 500MW battery storage in Scotland",
+      "url": "https://www.energylivenews.com/2026/03/31/edf-and-matrix-team-up-for-500mw-battery-storage-in-scotland/",
+      "source": "Energy Live News",
+      "summary": "The large-scale battery storage project, currently under construction, is scheduled to start commercial operations in summer 2027.",
+      "category": "Nuclear",
+      "date": "2026-03-31",
+      "id": "1010"
+    },
+    {
+      "title": "Strathclyde Uni partners with Japan Maritime United on offshore wind",
+      "url": "https://www.energylivenews.com/2026/03/30/strathclyde-uni-partners-with-japan-maritime-united-on-offshore-wind/",
+      "source": "Energy Live News",
+      "summary": "The partnership will focus on standardisation and mass production of floating offshore wind turbines.",
+      "category": "Nuclear",
+      "date": "2026-03-30",
+      "id": "1011"
+    },
+    {
+      "title": "Hydrogen Production: Moeve and Exolum Join SHYNE",
+      "url": "https://www.hydrogenfuelnews.com/hydrogen-production-moeve-and-exolum-join-shyne-to-accelerate-spains-renewable-hydrogen-development/8575410/",
+      "source": "Hydrogen Fuel News",
+      "summary": "Moeve and Exolum join as promoting partners of the Spanish Hydrogen Network (SHYNE), accelerating the country's renewable hydrogen development.",
+      "category": "Hydrogen",
+      "date": "2026-03-30",
+      "id": "1012"
+    },
+    {
+      "title": "thyssenkrupp Steel expands Duisburg lab for hydrogen-based iron ore testing",
+      "url": "https://www.hydrogenfuelnews.com/hydrogen-production-thyssenkrupp-steel-expands-duisburg-lab-for-hydrogen-based-iron-ore-testing/8575408/",
+      "source": "Hydrogen Fuel News",
+      "summary": "thyssenkrupp Steel is expanding its Duisburg lab as it moves toward carbon-neutral steel using hydrogen-based processes.",
+      "category": "Hydrogen",
+      "date": "2026-03-30",
+      "id": "1013"
+    },
+    {
+      "title": "Wienerberger's Denton Plant Pioneers 100% Green Hydrogen Firing",
+      "url": "https://www.hydrogenfuelnews.com/hydrogen-infrastructure-wienerbergers-denton-plant-pioneers-100-green-hydrogen-firing/8575402/",
+      "source": "Hydrogen Fuel News",
+      "summary": "Wienerberger UK & Ireland's Denton plant has become a pioneer in 100% green hydrogen firing for brick manufacturing.",
+      "category": "Hydrogen",
+      "date": "2026-03-30",
+      "id": "1014"
+    },
+    {
+      "title": "Bradford-Humber Hydrogen Valley Project, Lighter than Aire, Kicks Off",
+      "url": "https://fuelcellsworks.com/2026/03/30/clean-hydrogen/bradford-humber-region-s-large-scale-hydrogen-valley-project-lighter-than-aire-kicks-off",
+      "source": "Fuel Cells Works",
+      "summary": "The Lighter than Aire hydrogen valley project launches in the Bradford-Humber region — one of the UK's largest planned hydrogen infrastructure initiatives.",
+      "category": "Hydrogen",
+      "date": "2026-03-30",
+      "id": "1015"
+    },
+    {
+      "title": "Germany Passes Hydrogen Acceleration Law to Boost Industry Growth",
+      "url": "https://fuelcellsworks.com/2026/03/30/energy-policy/germany-passes-hydrogen-acceleration-law-to-boost-industry-growth",
+      "source": "Fuel Cells Works",
+      "summary": "Germany's new Hydrogen Acceleration Law aims to fast-track hydrogen infrastructure investment and industrial adoption.",
+      "category": "Hydrogen",
+      "date": "2026-03-30",
+      "id": "1016"
+    },
+    {
+      "title": "First Hornsea 3 Offshore Substation Stands Complete",
+      "url": "https://www.offshorewind.biz/2026/03/31/first-hornsea-3-offshore-substation-stands-complete/",
+      "source": "offshoreWIND.biz",
+      "summary": "Heerema Marine Contractors has completed the installation of the first offshore substation at the Hornsea 3 wind farm.",
+      "category": "Offshore Renewables",
+      "date": "2026-03-31",
+      "id": "1017"
+    },
+    {
+      "title": "Foundation Installation Coming Up at Hornsea 3",
+      "url": "https://www.offshorewind.biz/2026/03/30/foundation-installation-coming-up-at-hornsea-3/",
+      "source": "offshoreWIND.biz",
+      "summary": "The installation of wind turbine foundations at Orsted's Hornsea 3 offshore wind farm is set to begin imminently.",
+      "category": "Offshore Renewables",
+      "date": "2026-03-30",
+      "id": "1018"
+    },
+    {
+      "title": "Welsh Port Granted £64 Million for Floating Wind Hub",
+      "url": "https://www.offshorewind.biz/2026/03/27/welsh-port-granted-gbp-64-million-for-floating-wind-hub/",
+      "source": "offshoreWIND.biz",
+      "summary": "The UK government has announced up to £64 million to develop a Welsh port as a floating offshore wind manufacturing hub.",
+      "category": "Offshore Renewables",
+      "date": "2026-03-27",
+      "id": "1019"
+    },
+    {
+      "title": "Crown Estate unveils plans for new offshore wind leasing round in UK",
+      "url": "https://www.windpowermonthly.com/article/1952896/crown-estate-unveils-plans-new-offshore-wind-leasing-round-uk",
+      "source": "Windpower Monthly",
+      "summary": "Plans for offshore wind leasing round 6 have been announced, expected to launch in the first half of 2027.",
+      "category": "Offshore Renewables",
+      "date": "2026-03-26",
+      "id": "1020"
+    },
+    {
+      "title": "UK government vetoes Mingyang's plans for Scottish wind turbine factory",
+      "url": "https://www.windpowermonthly.com/article/1952824/uk-government-vetoes-mingyangs-plans-scottish-wind-turbine-factory",
+      "source": "Windpower Monthly",
+      "summary": "The UK government has rejected Chinese manufacturer Mingyang's plans to build a major wind turbine factory in Scotland.",
+      "category": "Offshore Renewables",
+      "date": "2026-03-25",
+      "id": "1021"
+    },
+    {
+      "title": "Vestas announces plan for flagship offshore turbine factory in Scotland",
+      "url": "https://www.windpowermonthly.com/article/1952775/vestas-announces-plan-flagship-offshore-turbine-factory-scotland",
+      "source": "Windpower Monthly",
+      "summary": "Vestas has announced plans to open a nacelle and hub factory for its flagship offshore wind turbine in Scotland.",
+      "category": "Offshore Renewables",
+      "date": "2026-03-25",
+      "id": "1022"
+    }
+  ],
+  "events": [
+    {
+      "title": "World Nuclear Symposium 2026",
+      "url": "https://world-nuclear.org/events/world-nuclear-symposium-2026",
+      "description": "Energizing The Future Now",
+      "location": "Hilton London Metropole, London, UK",
+      "eventType": "In Person",
+      "category": "Nuclear",
+      "organiser": "World Nuclear Association",
+      "date": "",
+      "id": "2000"
+    },
+    {
+      "title": "Nuclear Professionals Conference",
+      "url": "https://www.ecitb.org.uk/news/subsidised-places-for-graduates-apprentices-and-trainees-at-nuclear-professionals-conference/",
+      "description": "One of the most important events in the nuclear sector calendar — subsidised places for graduates, apprentices and trainees",
+      "location": "Manchester",
+      "eventType": "In Person",
+      "category": "Nuclear",
+      "organiser": "ECITB",
+      "date": "2026-05-07",
+      "id": "2001"
+    },
+    {
+      "title": "3rd World Nuclear SMR & Advanced Reactor Congress 2026",
+      "url": "https://www.szwgroup.com/global-nuclear-industry-congress-smr-ar/",
+      "description": "The global nuclear industry is at a turning point — SMR Congress 2026 brings together the world's leading nuclear innovators",
+      "location": "London, UK",
+      "eventType": "",
+      "category": "Nuclear",
+      "organiser": "SZWGroup",
+      "date": "",
+      "id": "2002"
+    },
+    {
+      "title": "Nuclear Energy Summit 2026",
+      "url": "https://www.iaea.org/events/nuclear-energy-summit-2026",
+      "description": "The second Nuclear Energy Summit — with IAEA Director General Rafael Mariano Grossi attending and delivering a statement",
+      "location": "Paris",
+      "eventType": "In Person",
+      "category": "Nuclear",
+      "organiser": "Government of the French Republic",
+      "date": "2026-03-10",
+      "id": "2003"
+    },
+    {
+      "title": "Hydrogen Conference 2026",
+      "url": "https://www.woodmac.com/events/hydrogen-conference/",
+      "description": "Hear from hydrogen research analysts and industry experts on the latest developments in the hydrogen economy",
+      "location": "London",
+      "eventType": "In Person",
+      "category": "Hydrogen",
+      "organiser": "Wood Mackenzie",
+      "date": "2026-06-04",
+      "id": "2004"
+    },
+    {
+      "title": "North Sea CCS and Hydrogen Summit 2026",
+      "url": "https://oeuk.org.uk/event/north-sea-ccs-hydrogen-summit-2026/",
+      "description": "Bringing together experts as CCS and hydrogen move from concept to large scale deployment",
+      "location": "TBC",
+      "eventType": "",
+      "category": "Hydrogen",
+      "organiser": "Offshore Energies UK (OEUK)",
+      "date": "",
+      "id": "2005"
+    },
+    {
+      "title": "The Foresight Event | Energy Markets Conference",
+      "url": "https://www.foresight.events/hydrogen",
+      "description": "Hydrogen, Nuclear, Net Zero & Clean Energy Investment — connecting investors and operators",
+      "location": "Storey Club, Paddington Central, London",
+      "eventType": "In Person",
+      "category": "Hydrogen",
+      "organiser": "Foresight",
+      "date": "2026-06-11",
+      "id": "2006"
+    },
+    {
+      "title": "All-Energy Exhibition & Conference 2026",
+      "url": "https://www.hydrogenscotland.com/event/all-energy-exhibition-conference-2026/",
+      "description": "Innovative providers and insight from leaders of the renewable and low-carbon community",
+      "location": "TBC",
+      "eventType": "",
+      "category": "Hydrogen",
+      "organiser": "",
+      "date": "2026-05-13",
+      "id": "2007"
+    },
+    {
+      "title": "Global Offshore Wind 2026",
+      "url": "https://www.renewableuk.com/events/global-offshore-wind-2026/",
+      "description": "Flagship event bringing the entire offshore wind value chain together — theme: securing the future",
+      "location": "Manchester Central",
+      "eventType": "In Person",
+      "category": "Offshore Renewables",
+      "organiser": "RenewableUK",
+      "date": "2026-06-16",
+      "id": "2008"
+    },
+    {
+      "title": "Offshore Wind Connections 2026",
+      "url": "https://www.offshorewindconnections.com/",
+      "description": "National Conference, exhibition and networking for the offshore wind sector",
+      "location": "TBC",
+      "eventType": "In Person",
+      "category": "Offshore Renewables",
+      "organiser": "",
+      "date": "2026-04-30",
+      "id": "2009"
+    },
+    {
+      "title": "3rd Annual Floating Offshore Wind Conference",
+      "url": "https://offshorewindconference.com/",
+      "description": "Technical Advances & Commercial Success — live project market updates from Vargrønn, ESB, Equinor, Archer Wind & more",
+      "location": "One America Square, London",
+      "eventType": "In Person",
+      "category": "Offshore Renewables",
+      "organiser": "",
+      "date": "2026-03-03",
+      "id": "2010"
+    },
+    {
+      "title": "Carbon Capture, Utilization & Storage Conference 2026",
+      "url": "https://www.woodmac.com/events/carbon-capture-utilization-storage-conference/",
+      "description": "Insight on the global CCUS landscape and the US as a key market for carbon capture investment",
+      "location": "Houston, TX",
+      "eventType": "In Person",
+      "category": "CCUS",
+      "organiser": "Wood Mackenzie",
+      "date": "2026-10-07",
+      "id": "2011"
+    },
+    {
+      "title": "Carbon Capture Technology World Expo 2026",
+      "url": "https://www.carboncapture-expo.com/",
+      "description": "Network with industry frontrunners and solution providers on the increasing role of Carbon Capture in the energy transition",
+      "location": "Hamburg Messe",
+      "eventType": "In Person",
+      "category": "CCUS",
+      "organiser": "",
+      "date": "2026-10-20",
+      "id": "2012"
+    },
+    {
+      "title": "Carbon Capture Europe 2026",
+      "url": "https://www.europe.carbon-capture-conference.com/",
+      "description": "Industry leaders explore next-generation carbon capture, utilisation, storage, and transport technologies to support net-zero emissions targets",
+      "location": "TBC",
+      "eventType": "In Person",
+      "category": "CCUS",
+      "organiser": "",
+      "date": "",
+      "id": "2013"
+    }
+  ],
+  "tenders": [
+    {
+      "title": "LINC with Dounreay Registration",
+      "url": "https://www.contractsfinder.service.gov.uk/notice/f84f0f06-b8e2-452d-8c7f-c603a2f0c9d1",
+      "organisation": "Dounreay Site Restoration Limited (DSRL)",
+      "description": "Registration for LINC with Dounreay — an SME engagement and procurement route for the nuclear decommissioning programme.",
+      "sector": "Nuclear",
+      "value": "2000000",
+      "closingDate": "2028-12-19",
+      "publishedDate": "2022-11-10",
+      "id": "3000"
+    },
+    {
+      "title": "Civils Support DPS - South Region - Pre-Qualification",
+      "url": "https://www.contractsfinder.service.gov.uk/notice/0be8b24b-2f3d-4502-aa17-38463a4d86d9",
+      "organisation": "Nuclear Restoration Services Limited",
+      "description": "Provision of civils support to facilitate nuclear decommissioning across the South Region.",
+      "sector": "Nuclear",
+      "value": "4685000",
+      "closingDate": "2028-10-26",
+      "publishedDate": "2024-10-29",
+      "id": "3001"
+    },
+    {
+      "title": "Civils Support DPS (Welsh Region) - Pre-Qualification",
+      "url": "https://www.contractsfinder.service.gov.uk/notice/9a510201-5a74-4a3e-82be-7e125dd1b030",
+      "organisation": "Nuclear Restoration Services Limited",
+      "description": "Provision of civils support to facilitate nuclear decommissioning across the Welsh Region.",
+      "sector": "Nuclear",
+      "value": "9853000",
+      "closingDate": "2028-08-31",
+      "publishedDate": "2024-09-02",
+      "id": "3002"
+    },
+    {
+      "title": "Civils Support DPS (South West Region) - Pre-Qualification",
+      "url": "https://www.contractsfinder.service.gov.uk/notice/da88bbc3-e5c1-4a39-9457-79a34ca8a581",
+      "organisation": "Nuclear Restoration Services Limited",
+      "description": "Provision of civils support to facilitate nuclear decommissioning across the South West Region.",
+      "sector": "Nuclear",
+      "value": "9944000",
+      "closingDate": "2028-06-27",
+      "publishedDate": "2024-06-28",
+      "id": "3003"
+    },
+    {
+      "title": "Civils Support DPS (Scottish Region) - Pre-Qualification",
+      "url": "https://www.contractsfinder.service.gov.uk/notice/058b990c-bad3-4762-acf4-92f5057877e3",
+      "organisation": "Nuclear Restoration Services Limited",
+      "description": "Provision of Civils Support to facilitate nuclear decommissioning across the Scottish Region.",
+      "sector": "Nuclear",
+      "value": "5012000",
+      "closingDate": "2028-05-31",
+      "publishedDate": "2024-06-06",
+      "id": "3004"
+    },
+    {
+      "title": "Civils Support DPS - South East Region",
+      "url": "https://www.contractsfinder.service.gov.uk/notice/a38a2373-45e9-4057-aef3-cb4ea34464b3",
+      "organisation": "Magnox Limited",
+      "description": "Provision of civil support services to facilitate nuclear decommissioning across the South East Region.",
+      "sector": "Nuclear",
+      "value": "9500000",
+      "closingDate": "2028-02-10",
+      "publishedDate": "2024-02-07",
+      "id": "3005"
+    }
+  ],
+  "nuccol": [],
+  "webinars": []
+}

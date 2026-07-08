@@ -1,0 +1,179 @@
+/* ── Toolbox Talk Generator — toolbox-talk.css ──────────────────────────── */
+
+/* Intro */
+.tbt-intro { margin: 0 0 20px; }
+.tbt-intro p { color: #555; font-size: 14px; line-height: 1.6; margin: 0; }
+
+/* Hazard grid */
+.tbt-hazard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+.tbt-hazard-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: #f8f9fb;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: center;
+}
+.tbt-hazard-card:hover {
+  border-color: #1F3A5F;
+  background: #EEF4FA;
+}
+.tbt-hazard-icon { font-size: 28px; }
+.tbt-hazard-label { font-size: 12px; font-weight: 600; color: #1F3A5F; line-height: 1.3; }
+
+/* Detail phase */
+.tbt-detail { padding: 4px 0; }
+.tbt-selected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #1F3A5F;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 20px;
+  margin-bottom: 20px;
+}
+.tbt-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1.5px solid #d0d5dd;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  margin-top: 6px;
+  transition: border-color 0.15s;
+}
+.tbt-textarea:focus {
+  outline: none;
+  border-color: #1F3A5F;
+}
+
+/* Result */
+.tbt-result { padding: 4px 0 16px; }
+.tbt-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #1F3A5F;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.tbt-result-logo { font-size: 15px; font-weight: 700; color: #1F3A5F; }
+.tbt-result-meta { font-size: 12px; color: #555; line-height: 1.8; }
+
+.tbt-result-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1F3A5F;
+  margin: 0 0 8px;
+  line-height: 1.3;
+}
+.tbt-result-intro {
+  font-size: 13px;
+  color: #444;
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+
+/* Section blocks */
+.tbt-section-block { margin: 16px 0; }
+.tbt-section-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #1F3A5F;
+  border-left: 3px solid #E8532A;
+  padding-left: 8px;
+  margin-bottom: 8px;
+}
+.tbt-label-risk { border-left-color: #C0392B; }
+.tbt-label-ok   { border-left-color: #27AE60; }
+.tbt-label-msg  { border-left-color: #8E44AD; }
+
+.tbt-legal p, .tbt-whatif p {
+  font-size: 13px;
+  color: #444;
+  line-height: 1.6;
+  margin: 0;
+}
+.tbt-legal   { background: #FFFBF0; border-radius: 6px; padding: 10px 12px; }
+.tbt-whatif  { background: #FFF5F5; border-radius: 6px; padding: 10px 12px; }
+
+/* Lists */
+.tbt-list { margin: 0; padding: 0; list-style: none; }
+.tbt-list-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.tbt-list-item:last-child { border-bottom: none; }
+.tbt-risk-dot { color: #C0392B; flex-shrink: 0; margin-top: 1px; }
+.tbt-ok-dot   { color: #27AE60; flex-shrink: 0; margin-top: 1px; }
+
+/* Key messages */
+.tbt-key-msgs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+.tbt-key-msg {
+  background: #EEF4FA;
+  border-left: 3px solid #1F3A5F;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #333;
+  line-height: 1.5;
+}
+.tbt-msg-num {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1F3A5F;
+  margin-bottom: 4px;
+}
+
+/* Attendance */
+.tbt-attendance { border-top: 2px solid #1F3A5F; padding-top: 14px; margin-top: 20px; }
+.tbt-att-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+.tbt-att-th, .tbt-att-td {
+  border: 1px solid #ccc;
+  padding: 7px 10px;
+  text-align: left;
+}
+.tbt-att-th { background: #EEF4FA; font-weight: 600; color: #1F3A5F; }
+.tbt-att-name, .tbt-att-sig { width: 40%; min-height: 28px; }
+.tbt-att-footer { margin-top: 14px; font-size: 12px; color: #555; }
+
+/* Footer */
+.tbt-result-footer {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 11px;
+  color: #aaa;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+}

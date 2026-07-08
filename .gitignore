@@ -1,0 +1,31 @@
+# Secrets — never commit real keys (Cloudflare Worker holds them server-side instead)
+.env
+.env.local
+.env.*.local
+
+# Office lock files (created while a file is open in Word/Excel/PowerPoint)
+.~lock.*#
+~$*
+
+# Backups made while editing — keep these local, not in history
+*.bak
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor junk
+.vscode/
+*.swp
+
+# Scratch/temp folders used while drafting
+New folder/
+
+# Knowledge base — powers index.html's chat search (multiple files run
+# 100MB-2GB+, over GitHub's push limit) and scc.html only touches one small
+# stats file gracefully (degrades to "?" if missing). Only scc.html/
+# timesink.html/controlcentre.html need to be live right now, so leaving the
+# whole folder out for this push. Re-add + properly host (Git LFS or Supabase
+# storage) when index.html needs to go live too.
+kb/

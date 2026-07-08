@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://ch.rene-dorset.workers.dev https://api.postcodes.io https://charitybase.uk https://api.opencorporates.com https://qkyvmtouwrzrcyagkheo.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'self';">
+<title>Frankie - F4N Intelligence Platform</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>⚛️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/social-value.css">
+<link rel="stylesheet" href="css/due-diligence.css">
+<link rel="stylesheet" href="css/evidence-vault.css">
+<link rel="stylesheet" href="css/toolbox-talk.css">
+<link rel="stylesheet" href="css/sop-builder.css">
+<link rel="stylesheet" href="css/safety-culture.css">
+<link rel="stylesheet" href="css/cqp.css">
+<link rel="stylesheet" href="css/sqdcp.css">
+<link rel="stylesheet" href="css/ncr.css">
+<link rel="stylesheet" href="css/strategy.css">
+<link rel="stylesheet" href="css/faq.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ── LEFT SIDEBAR ─────────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="botmark"><svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="8" width="30" height="22" rx="5" fill="rgba(255,255,255,.14)" stroke="white" stroke-width="1.4"/><rect x="13" y="15" width="7" height="4" rx="1.4" fill="white"/><rect x="25" y="15" width="7" height="4" rx="1.4" fill="rgba(255,255,255,.76)"/><path d="M14 23c5 3 11 3 16 0" stroke="white" stroke-width="1.7" stroke-linecap="round"/><path d="M13 31h6v5h-6zM25 31h6v5h-6z" fill="rgba(255,255,255,.28)" stroke="white" stroke-width="1"/></svg></div>
+      <div><h1>Frankie</h1><p>F4N intelligence platform</p></div>
+    </div>
+
+    <!-- Access tier -->
+    <div style="display:none">
+      <div class="label">Access</div>
+      <div class="tier-grid">
+        <button class="tier-btn active" data-tier="free">Free <span>Programme overview and readiness tools</span></button>
+        <button class="tier-btn" data-tier="member">Member <span>Full corpus, reports, OSV and evidence guidance</span></button>
+      </div>
+    </div>
+
+    <!-- Mode toggle removed — SCC portal handles mode context -->
+
+    <!-- FAQ launcher -->
+    <div>
+      <div class="label">FAQs</div>
+      <button class="assess-launch-btn" onclick="window.FAQDrawer && window.FAQDrawer.open()" type="button" style="width:100%;justify-content:center;gap:8px">
+        <span>💬</span><span>Common Questions</span>
+      </button>
+    </div>
+
+    <!-- Supplier Tools -->
+    <div id="section-supplierTools">
+      <div class="label">Supplier Tools</div>
+      <div class="assess-launch-grid">
+        <button class="assess-launch-btn" data-tool="evidenceVault" onclick="window.EvidenceVault && window.EvidenceVault.open()" type="button">
+          <span>📁</span><span>Evidence Vault</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="websiteReview" onclick="window.WebsiteReview && window.WebsiteReview.open()" type="button">
+          <span>🌐</span><span>Website Review</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="iso19443" onclick="window.Iso19443Drawer && window.Iso19443Drawer.open()" type="button">
+          <span>📋</span><span>ISO 19443 Position</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="socialValue" onclick="window.SocialValueDrawer && window.SocialValueDrawer.open()" type="button">
+          <span>🤝</span><span>Social Value Finder</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="supplierIntel" onclick="window.DueDiligenceDrawer && window.DueDiligenceDrawer.open()" type="button">
+          <span>🛡️</span><span>Supplier Intel</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="toolboxTalk" onclick="window.ToolboxTalkDrawer && window.ToolboxTalkDrawer.open()" type="button">
+          <span>🦺</span><span>Toolbox Talk</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="sopBuilder" onclick="window.SopBuilderDrawer && window.SopBuilderDrawer.open()" type="button">
+          <span>📋</span><span>SOP Builder</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="safetyCulture" onclick="window.SafetyCultureDrawer && window.SafetyCultureDrawer.open()" type="button">
+          <span>☢️</span><span>Safety Culture</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="qualityPlan" onclick="window.CqpDrawer && window.CqpDrawer.open()" type="button">
+          <span>📑</span><span>Quality Plan</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="sqdcp" onclick="window.SqdcpDrawer && window.SqdcpDrawer.open()" type="button">
+          <span>📊</span><span>SQDCP Wizard</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="ncr" onclick="window.NcrDrawer && window.NcrDrawer.open()" type="button">
+          <span>🔎</span><span>NCR Investigation</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="strategy" onclick="window.StrategyDrawer && window.StrategyDrawer.open()" type="button">
+          <span>🏆</span><span>Strategy Builder</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Self Assessment -->
+    <div id="section-selfAssess">
+      <div class="label">Self Assessment</div>
+      <div class="assess-launch-grid">
+        <button class="assess-launch-btn" data-tool="assessBE" onclick="window.AssessmentDrawer && window.AssessmentDrawer.open('be')" type="button">
+          <span>📊</span><span>Business Excellence</span>
+        </button>
+        <button class="assess-launch-btn" data-tool="assessF4N" onclick="window.AssessmentDrawer && window.AssessmentDrawer.open('f4n')" type="button">
+          <span>⚛️</span><span>Fit for Nuclear</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Previous questions accordion -->
+    <div class="history-section">
+      <button class="history-toggle" id="historyToggle" type="button" aria-expanded="false">
+        <span class="label label--flush">Previous questions</span>
+        <span class="history-chevron">▾</span>
+      </button>
+      <div class="history-panel" id="recentPanel" hidden></div>
+    </div>
+
+
+    <!-- Authorization notice — populated from localStorage after members login -->
+    <div id="auth-notice" style="display:none;margin:0 0 10px;padding:10px 12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:.72rem;line-height:1.45">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="color:#4ade80;font-size:.8rem">&#10003;</span>
+        <span style="font-weight:700;letter-spacing:.04em;color:rgba(255,255,255,.9);text-transform:uppercase;font-size:.65rem">Authorized Account</span>
+      </div>
+      <div id="auth-company-name" style="font-weight:700;color:#fff;font-size:.82rem;margin-bottom:3px"></div>
+      <div style="color:rgba(255,255,255,.55);font-size:.68rem">Only this account can upload evidence and undertake assessments.</div>
+    </div>
+
+    <div class="foot">
+      Frankie answers from NucCol and F4N documentation first. Verify key decisions with your SCC.<br>
+      <button class="clear-btn" id="clearHistory" type="button">Clear chat</button>
+      <button class="clear-btn" id="clearAllHistory" type="button">Clear history</button>
+    </div>
+  </aside>
+
+  <!-- ── MAIN CHAT ──────────────────────────────────────────────────────────── -->
+  <main class="main">
+    <header class="topbar">
+      <span class="dot"></span>
+      <div>
+        <h2 id="modeTitle">Company Mode</h2>
+        <p id="modeSub">Practical F4N guidance with source-backed response cards.</p>
+      </div>
+      <!-- Status button lives here, replaces the old source-pill -->
+      <button class="status-btn" id="statusToggleBtn" type="button" title="Frankie system status">
+        <span id="statusBtnDot">⚡</span>
+        <span id="statusBtnLabel">Checking…</span>
+      </button>
+    </header>
+
+    <!-- Status dropdown panel — appears below topbar -->
+    <div class="status-dropdown" id="statusDropdown" hidden>
+      <div id="brainStatusOutput"></div>
+    </div>
+
+    <section class="messages" id="messages"></section>
+    <form class="composer" id="composer">
+      <div class="input-wrap">
+        <textarea id="input" placeholder="Ask about F4N scoring, OSV evidence, SQEP, CFSI, portal steps, suppliers, or nuclear market intelligence…"></textarea>
+      </div>
+      <button class="send" id="send" type="submit">Send</button>
+    </form>
+  </main>
+
+  <!-- ── RIGHT RAIL ────────────────────────────────────────────────────────── -->
+  <aside class="rail">
+    <div class="rail-head">
+      <h3>Sources</h3>
+      <p>Matched references appear here after each answer. Click to open where available.</p>
+    </div>
+    <div class="rail-body" id="rail"></div>
+
+    <div class="rail-head rail-head--suggest rail-head--hidden" id="suggestHead">
+      <h3>Suggested questions</h3>
+    </div>
+    <div class="suggest-panel" id="suggestPanel"></div>
+  </aside>
+
+</div>
+
+<script type="module" src="js/app.js"></script>
+<script src="js/token-monitor.js"></script>
+<script src="js/braincheck-ui.js"></script>
+<script src="js/handbook-drawer.js"></script>
+<script src="js/plant-drawer.js"></script>
+<script src="js/assessment-drawer.js"></script>
+<script src="js/website-review.js"></script>
+<script src="js/iso19443-drawer.js"></script>
+<script src="js/social-value-drawer.js"></script>
+<script src="js/due-diligence-drawer.js"></script>
+<script src="js/evidence-vault-drawer.js"></script>
+<script src="js/toolbox-talk-drawer.js"></script>
+<script src="js/sop-builder-drawer.js"></script>
+<script src="js/safety-culture-drawer.js"></script>
+<script src="js/cqp-drawer.js"></script>
+<script src="js/sqdcp-drawer.js"></script>
+<script src="js/ncr-drawer.js"></script>
+<script src="js/strategy-drawer.js"></script>
+<script>
+// Authorization notice — check if this user is the linked account in nr_companies
+(async function showAuthNotice() {
+  const userId  = localStorage.getItem('frankieUserId');
+  const token   = localStorage.getItem('frankieUserToken');
+  const company = localStorage.getItem('frankieCompanyName');
+  const notice  = document.getElementById('auth-notice');
+  const nameEl  = document.getElementById('auth-company-name');
+  if (!notice || !nameEl) return;
+  if (!userId || !token) return; // not logged in via members portal
+
+  const SUPA_URL  = 'https://qkyvmtouwrzrcyagkheo.supabase.co';
+  const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFreXZtdG91d3J6cmN5YWdraGVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzODQzNjMsImV4cCI6MjA5MDk2MDM2M30.gKEgkVA-VjOnS_084W79kpzOdZhFQkhFp63MAe_FTd4';
+
+  // Check if this UUID is the linked member for any company
+  let linked = null;
+  try {
+    const r = await fetch(
+      `${SUPA_URL}/rest/v1/nr_companies?member_user_id=eq.${userId}&select=name,status&limit=1`,
+      { headers: { 'Authorization': `Bearer ${token}`, 'apikey': SUPA_ANON } }
+    );
+    if (r.ok) {
+      const rows = await r.json();
+      if (rows.length) linked = rows[0].name;
+    }
+  } catch(e) { /* offline or CORS — fall back to localStorage */ }
+
+  notice.style.display = 'block';
+
+  if (linked) {
+    // This user IS the linked account
+    nameEl.textContent = linked;
+    notice.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="color:#4ade80;font-size:.8rem">&#10003;</span>
+        <span style="font-weight:700;letter-spacing:.04em;color:rgba(255,255,255,.9);text-transform:uppercase;font-size:.65rem">Authorized Account</span>
+      </div>
+      <div style="font-weight:700;color:#fff;font-size:.82rem;margin-bottom:3px">${linked}</div>
+      <div style="color:rgba(255,255,255,.55);font-size:.68rem">Only this account can upload evidence and undertake assessments.</div>`;
+  } else {
+    // Logged in but not the linked account
+    const co = company || 'your company';
+    notice.style.background = 'rgba(251,191,36,.1)';
+    notice.style.borderColor = 'rgba(251,191,36,.3)';
+    notice.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="color:#fbbf24;font-size:.8rem">&#9888;</span>
+        <span style="font-weight:700;letter-spacing:.04em;color:rgba(255,255,255,.9);text-transform:uppercase;font-size:.65rem">Not the primary account</span>
+      </div>
+      <div style="font-weight:700;color:#fff;font-size:.82rem;margin-bottom:3px">${co}</div>
+      <div style="color:rgba(255,255,255,.6);font-size:.68rem">Evidence uploads are locked to the linked account. Contact your SCC to update.</div>`;
+  }
+})();
+
+// Tool visibility — controlled from SCC Settings
+(function applyToolFlags() {
+  // Per-tool button visibility
+  document.querySelectorAll('[data-tool]').forEach(btn => {
+    const key = 'frankieTool_' + btn.dataset.tool;
+    if (localStorage.getItem(key) === 'false') btn.style.display = 'none';
+  });
+  // Hide whole sections if all buttons inside are hidden
+  ['section-supplierTools', 'section-selfAssess'].forEach(id => {
+    const section = document.getElementById(id);
+    if (!section) return;
+    const visible = section.querySelectorAll('[data-tool]:not([style*="display: none"])');
+    if (!visible.length) section.style.display = 'none';
+  });
+
+})();
+</script>
+<script src="js/faq-drawer.js"></script>
+</body>
+</html>
