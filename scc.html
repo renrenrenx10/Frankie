@@ -863,6 +863,26 @@ button{cursor:pointer}
       </div>
     </div>
 
+    <!-- LINK EXISTING CRM COMPANY TO SUPPLIER DATABASE -->
+    <div id="sdb-pick-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:760;align-items:center;justify-content:center">
+      <div style="background:var(--panel);border-radius:10px;padding:26px 28px 20px;width:460px;max-width:95vw;max-height:88vh;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink)" id="sdb-pick-title">Link to Supplier Database</div>
+          <button onclick="sdbPickClose()" style="background:none;border:none;cursor:pointer;font-size:1.1rem;color:var(--muted)">✕</button>
+        </div>
+
+        <div id="sdb-pick-signin" style="display:none;text-align:center;padding:16px 0">
+          <p style="font-size:.8rem;color:var(--muted);margin-bottom:10px">Sign in with Microsoft to search the Supplier Database.</p>
+          <button class="btn primary" onclick="sdbPickSignIn()">Sign in with Microsoft</button>
+        </div>
+        <div id="sdb-pick-ui">
+          <input id="sdb-pick-search-input" type="text" placeholder="Search supplier name…" oninput="sdbPickFilter()"
+            style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:8px">
+          <div id="sdb-pick-results" style="max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:6px"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ──────────── F4N TRACKER -->
     <div class="screen" id="screen-f4ntracker">
       <div style="max-width:1400px">
@@ -3982,7 +4002,7 @@ async function coRenderInteractionBadges() {
       return;
     }
     const n = counts[String(co.sharepoint_company_id)] || 0;
-    el.innerHTML = `<span onclick="event.stopPropagation();window.open('rolodex.html?companyId=${co.sharepoint_company_id}','_blank')" style="cursor:pointer;color:var(--muted);font-size:.7rem" title="Open interaction log in Rolodex">💬 ${n} interaction${n === 1 ? '' : 's'}</span>`;
+    el.innerHTML = `<span onclick="event.stopPropagation();window.open(NUCCOL_TOOLS_BASE + 'rolodex.html?companyId=${co.sharepoint_company_id}','_blank')" style="cursor:pointer;color:var(--muted);font-size:.7rem" title="Open interaction log in Rolodex">💬 ${n} interaction${n === 1 ? '' : 's'}</span>`;
   });
 }
 
@@ -3990,6 +4010,98 @@ async function coConnectMicrosoftForInteractions() {
   await spSignIn();
   coInteractionCountsByShareId = null;
   coRenderInteractionBadges();
+}
+
+let sdbPickTargetId = null;
+let sdbPickTargetName = null;
+
+function coShowLinkSupplierModal(crmId, crmName) {
+  sdbPickTargetId = crmId;
+  sdbPickTargetName = crmName;
+  document.getElementById('sdb-pick-title').textContent = 'Link "' + crmName + '" to Supplier Database';
+  const input = document.getElementById('sdb-pick-search-input');
+  if (input) input.value = '';
+  const results = document.getElementById('sdb-pick-results');
+  if (results) results.innerHTML = '';
+  document.getElementById('sdb-pick-modal').style.display = 'flex';
+  sdbPickInit();
+}
+
+function sdbPickClose() {
+  document.getElementById('sdb-pick-modal').style.display = 'none';
+}
+
+async function sdbPickInit() {
+  const signinEl = document.getElementById('sdb-pick-signin');
+  const uiEl = document.getElementById('sdb-pick-ui');
+  await spInitMsal();
+  if (sdbMsalClient.getAllAccounts().length) {
+    sdbCurrentUser = sdbMsalClient.getAllAccounts()[0];
+    signinEl.style.display = 'none';
+    uiEl.style.display = 'block';
+    if (!sdbState.loaded) await sdbLoad(true);
+    sdbPickFilter();
+  } else {
+    signinEl.style.display = 'block';
+    uiEl.style.display = 'none';
+  }
+}
+
+async function sdbPickSignIn() {
+  try {
+    await spInitMsal();
+    const result = await sdbMsalClient.loginPopup({ scopes: SDB_CONFIG.scopes });
+    sdbCurrentUser = result.account;
+    await sdbLoad(true);
+    sdbPickInit();
+  } catch (e) {
+    toast('Sign-in failed: ' + e.message);
+  }
+}
+
+function sdbPickFilter() {
+  const q = (document.getElementById('sdb-pick-search-input')?.value || '').toLowerCase().trim();
+  const results = !q ? [] : sdbState.companies.filter(c => (c.Title || '').toLowerCase().includes(q)).slice(0, 20);
+  const el = document.getElementById('sdb-pick-results');
+  if (!el) return;
+  el.innerHTML = results.map(c => `
+    <div onclick="sdbPickSelect(${c.ID})" style="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.8rem" onmouseover="this.style.background='var(--wash)'" onmouseout="this.style.background=''">
+      <div style="font-weight:600">${escH(c.Title)}</div>
+      <div style="color:var(--muted);font-size:.72rem">${escH([c.City, c.County].filter(Boolean).join(', '))}</div>
+    </div>`).join('') || (q ? '<div style="padding:10px;color:var(--muted);font-size:.78rem">No matches</div>' : '');
+}
+
+async function sdbPickSelect(spId) {
+  if (!sdbPickTargetId) return;
+  await sdbLinkCompany(spId, sdbPickTargetId);
+
+  // Patch local caches so the Companies / NuclearReady screens refresh
+  // immediately without a full reload or losing an open folder's state.
+  const c = sdbState.companies.find(x => x.ID === spId);
+  const tags = c ? sdbTagsFor(c) : { capabilities: [], accreditations: [], markets: [] };
+  const shareId = c ? String(c.CompanyID ?? c.ID) : null;
+  [typeof coAllCompanies !== 'undefined' ? coAllCompanies : null,
+   typeof nrcAll !== 'undefined' ? nrcAll : null].forEach(arr => {
+    if (!arr) return;
+    const row = arr.find(x => String(x.id) === String(sdbPickTargetId));
+    if (row) {
+      row.sharepoint_company_id = shareId;
+      row.capabilities = tags.capabilities;
+      row.accreditations = tags.accreditations;
+      row.markets = tags.markets;
+    }
+  });
+
+  document.getElementById('sdb-pick-modal').style.display = 'none';
+
+  const coRow = (typeof coAllCompanies !== 'undefined') ? coAllCompanies.find(x => String(x.id) === String(sdbPickTargetId)) : null;
+  if (coRow && typeof coLoadDetails === 'function') coLoadDetails(coRow);
+  if (typeof coRenderInteractionBadges === 'function') coRenderInteractionBadges();
+  if (typeof nrcFilter === 'function' && document.getElementById('nrc-list')) nrcFilter();
+
+  toast('✓ Linked — capabilities/accreditations/markets copied in');
+  sdbPickTargetId = null;
+  sdbPickTargetName = null;
 }
 
 function coToggle(id) {
@@ -4228,11 +4340,14 @@ function coLoadDetails(co) {
     </div>
     ${co.description ? `<div style="font-size:.82rem;color:var(--muted);margin-bottom:14px">${esc2(co.description)}</div>` : ''}
     ${coTagChips(co)}
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="co-act-btn" onclick="coShowLinkModal('${co.id}','${esc2(co.name)}')">
         ${co.member_user_id ? '🔗 Re-link member' : '🔗 Link member account'}
       </button>
       ${co.member_user_id ? `<span style="font-size:.72rem;color:var(--muted)">ID: ${esc2(co.member_user_id)}</span>` : ''}
+      <button class="co-act-btn" onclick="coShowLinkSupplierModal('${co.id}','${esc2(co.name)}')">
+        ${co.sharepoint_company_id ? '🔗 Re-link Supplier DB' : '🔗 Link Supplier DB'}
+      </button>
     </div>`;
 }
 
@@ -5219,6 +5334,11 @@ function nrcRender() {
           ${co.website ? `<div style="font-size:.76rem;color:var(--muted);margin-top:1px">${escH(co.website)}</div>` : ''}
           ${nrcTagChips(co)}
         </div>
+        <button onclick="coShowLinkSupplierModal('${safeId}','${safeName}')"
+          title="${co.sharepoint_company_id ? 'Linked to Supplier Database — click to re-link' : 'Link to Supplier Database'}"
+          style="background:none;border:1px solid var(--line);border-radius:6px;padding:4px 8px;cursor:pointer;color:${co.sharepoint_company_id ? 'var(--ok)' : 'var(--muted)'};display:flex;align-items:center;gap:4px;font-size:.73rem;white-space:nowrap">
+          🔗 ${co.sharepoint_company_id ? 'Linked' : 'Link Supplier DB'}
+        </button>
         <button onclick="nrcToggleHide('${safeId}',${!co.hidden})"
           title="${co.hidden ? 'Show in Explorer' : 'Hide from Explorer'}"
           style="background:none;border:1px solid var(--line);border-radius:6px;padding:4px 8px;cursor:pointer;color:${co.hidden ? 'var(--accent)' : 'var(--muted)'};display:flex;align-items:center;gap:4px;font-size:.73rem;white-space:nowrap">
@@ -6415,10 +6535,14 @@ function sdbOpenDetail(id) {
   document.getElementById('sdb-modal').style.display = 'flex';
 }
 
+const NUCCOL_TOOLS_BASE = 'https://renrenrenx10.github.io/nuccol-tools/';
+
 function sdbOpenExternal(tool) {
   if (!sdbSelected) return;
   const companyId = sdbSelected.CompanyID ?? sdbSelected.ID;
-  const url = tool === 'rolodex' ? `rolodex.html?companyId=${companyId}` : `datavault.html?companyId=${companyId}`;
+  const url = tool === 'rolodex'
+    ? `${NUCCOL_TOOLS_BASE}rolodex.html?companyId=${companyId}`
+    : `${NUCCOL_TOOLS_BASE}datavault.html?companyId=${companyId}`;
   window.open(url, '_blank');
 }
 
