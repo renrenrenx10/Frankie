@@ -512,7 +512,7 @@ button{cursor:pointer}
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sb-brand">
-      <div class="sb-bot">
+      <div class="sb-bot" onclick="toggleSidebar()" title="Show/hide menu" style="cursor:pointer">
         <svg viewBox="0 0 44 44" fill="none"><rect x="7" y="8" width="30" height="22" rx="5" fill="rgba(255,255,255,.14)" stroke="white" stroke-width="1.4"/><rect x="13" y="15" width="7" height="4" rx="1.4" fill="white"/><rect x="25" y="15" width="7" height="4" rx="1.4" fill="rgba(255,255,255,.76)"/><path d="M14 23c5 3 11 3 16 0" stroke="white" stroke-width="1.7" stroke-linecap="round"/><path d="M13 31h6v5h-6zM25 31h6v5h-6z" fill="rgba(255,255,255,.28)" stroke="white" stroke-width="1"/></svg>
       </div>
       <div>
@@ -633,9 +633,6 @@ button{cursor:pointer}
 
     <!-- TOPBAR -->
     <div class="topbar">
-      <button class="tb-menu-btn" id="sb-toggle-btn" onclick="toggleSidebar()" title="Show/hide menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
       <div class="tb-dot"></div>
       <div>
         <h2 id="tb-title">F.R.A.N.K.I.E.</h2>
