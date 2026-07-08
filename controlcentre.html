@@ -548,6 +548,16 @@ const msalApp = new msal.PublicClientApplication({
   cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
 });
 
+// Popup requests must land on a blank page, NOT this app itself. If the popup
+// reloads controlcentre.html, the whole app boots up again inside it and
+// calls MSAL APIs a second time — MSAL blocks that with "block_nested_popups"
+// (a window it's already treating as a popup can't open/drive another auth
+// request). auth-redirect.html is a no-op page sitting next to this file;
+// MSAL reads the auth response straight from the popup's URL and doesn't
+// need any code to run there. Must also be registered as a redirect URI
+// (Single-page application platform) in Azure AD alongside this page's own.
+const POPUP_REDIRECT_URI = new URL('auth-redirect.html', window.location.href).href;
+
 // Popup-based auth (not redirect): redirect flows are blocked by MSAL when the
 // app is running inside an iframe (e.g. embedded in the SCC hub), since a
 // redirect happening in a hidden frame is a clickjacking vector. Popups work
@@ -555,7 +565,7 @@ const msalApp = new msal.PublicClientApplication({
 async function getToken() {
   const accounts = msalApp.getAllAccounts();
   if (!accounts.length) {
-    const result = await msalApp.loginPopup({ scopes: [CFG.scope] });
+    const result = await msalApp.loginPopup({ scopes: [CFG.scope], redirectUri: POPUP_REDIRECT_URI });
     msalApp.setActiveAccount(result.account);
     return result.accessToken;
   }
@@ -564,7 +574,7 @@ async function getToken() {
     const r = await msalApp.acquireTokenSilent({ scopes: [CFG.scope], account: accounts[0] });
     return r.accessToken;
   } catch {
-    const r = await msalApp.acquireTokenPopup({ scopes: [CFG.scope] });
+    const r = await msalApp.acquireTokenPopup({ scopes: [CFG.scope], redirectUri: POPUP_REDIRECT_URI });
     return r.accessToken;
   }
 }
@@ -2112,7 +2122,7 @@ async function init() {
           btn.disabled = true;
           btn.textContent = 'Signing in…';
           try {
-            const result = await msalApp.loginPopup({ scopes: [CFG.scope] });
+            const result = await msalApp.loginPopup({ scopes: [CFG.scope], redirectUri: POPUP_REDIRECT_URI });
             msalApp.setActiveAccount(result.account);
             await loadAll();
             viewHome();

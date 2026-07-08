@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Signing in…</title>
+</head>
+<body>
+<!--
+  MSAL popup landing page — intentionally does nothing.
+
+  When TimeSink/ControlCentre call loginPopup()/acquireTokenPopup(), MSAL
+  opens a popup window pointed at this file and reads the auth response
+  straight out of the popup's URL itself — it does not need this page to
+  run any application code.
+
+  The bug this file fixes: without it, the popup's redirectUri pointed back
+  at the full app (timesink.html/controlcentre.html), so the entire app
+  booted up a second time inside the popup and immediately called MSAL APIs
+  again, which MSAL blocks with "block_nested_popups" (a window it's already
+  treating as a popup is not allowed to open another one). This page has no
+  script, so nothing re-triggers auth inside the popup — MSAL's own internal
+  listener closes the popup once it sees the response land here.
+-->
+</body>
+</html>
