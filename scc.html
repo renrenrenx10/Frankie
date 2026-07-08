@@ -1033,6 +1033,7 @@ button{cursor:pointer}
                   <th style="padding:10px 12px;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">RAG</th>
                   <th style="padding:10px 12px;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">F4N</th>
                   <th style="padding:10px 12px;border-bottom:1px solid var(--line);min-width:160px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">CRM Link</th>
+                  <th style="padding:10px 12px;border-bottom:1px solid var(--line);min-width:150px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">Tools</th>
                 </tr>
               </thead>
               <tbody id="sdb-tbody"></tbody>
@@ -3931,15 +3932,17 @@ function coRender(list) {
     const datesMeta  = isGranted
       ? `Granted ${fmt(co.granted_date)} · Expires ${fmt(co.expiry_date)}`
       : 'Assessment in progress';
-    const linked     = co.member_user_id ? '🔗 Linked' : '⚠ Not linked';
+    const linked     = co.member_user_id ? '🔗 Member Linked' : '⚠ Member Not Linked';
     const linkedCls  = co.member_user_id ? 'color:var(--ok)' : 'color:var(--warn)';
+    const sdbLinked    = co.sharepoint_company_id ? '🔗 Supplier DB' : '— Supplier DB';
+    const sdbLinkedCls = co.sharepoint_company_id ? 'color:var(--accent)' : 'color:var(--muted)';
 
     return `<div class="co-folder" id="co-folder-${co.id}">
       <div class="co-folder-head" onclick="coToggle('${co.id}')">
         <span class="co-folder-icon">📁</span>
         <div style="flex:1;min-width:0">
           <div class="co-folder-name">${esc2(co.name)}</div>
-          <div class="co-folder-meta">${datesMeta} &nbsp;·&nbsp; <span style="${linkedCls};font-size:.7rem">${linked}</span> &nbsp;·&nbsp; <span id="co-interactions-${co.id}"></span></div>
+          <div class="co-folder-meta">${datesMeta} &nbsp;·&nbsp; <span style="${linkedCls};font-size:.7rem">${linked}</span> &nbsp;·&nbsp; <span style="${sdbLinkedCls};font-size:.7rem">${sdbLinked}</span> &nbsp;·&nbsp; <span id="co-interactions-${co.id}"></span></div>
         </div>
         <div class="co-folder-right">
           <span class="hcp-badge ${badgeCls}" style="font-size:.7rem;padding:2px 8px;border-radius:3px">${badgeTxt}</span>
@@ -3953,17 +3956,17 @@ function coRender(list) {
       </div>
       <div class="co-folder-body" id="co-body-${co.id}">
         <div class="co-tabs">
-          <button class="co-tab active" onclick="coTab('${co.id}','evidence')">Evidence</button>
+          <button class="co-tab" onclick="coTab('${co.id}','evidence')">Evidence</button>
           <button class="co-tab" onclick="coTab('${co.id}','assessment')">Assessment</button>
           <button class="co-tab" onclick="coTab('${co.id}','internal')">Internal Docs</button>
-          <button class="co-tab" onclick="coTab('${co.id}','details')">Details</button>
+          <button class="co-tab active" onclick="coTab('${co.id}','details')">Details</button>
         </div>
-        <div class="co-tab-panel active" id="co-tab-evidence-${co.id}">
+        <div class="co-tab-panel" id="co-tab-evidence-${co.id}">
           <div style="color:var(--muted);font-size:.8rem">Loading evidence…</div>
         </div>
         <div class="co-tab-panel" id="co-tab-assessment-${co.id}"></div>
         <div class="co-tab-panel" id="co-tab-internal-${co.id}"></div>
-        <div class="co-tab-panel" id="co-tab-details-${co.id}"></div>
+        <div class="co-tab-panel active" id="co-tab-details-${co.id}"></div>
       </div>
     </div>`;
   }).join('');
@@ -6489,6 +6492,10 @@ function sdbRender() {
       <td style="padding:10px 12px">${sdbRagBadge(c.RAGStatus)}</td>
       <td style="padding:10px 12px">${c.F4NCandidate === 'Y' ? '✓' : ''}</td>
       <td style="padding:10px 12px" onclick="event.stopPropagation()">${linkCell}</td>
+      <td style="padding:10px 12px" onclick="event.stopPropagation()">
+        <a href="${NUCCOL_TOOLS_BASE}datavault.html?companyId=${c.CompanyID ?? c.ID}" target="_blank" style="font-size:.72rem;color:var(--accent);text-decoration:none;margin-right:10px">DataVault ↗</a>
+        <a href="${NUCCOL_TOOLS_BASE}rolodex.html?companyId=${c.CompanyID ?? c.ID}" target="_blank" style="font-size:.72rem;color:var(--accent);text-decoration:none">Rolodex ↗</a>
+      </td>
     </tr>`;
   }).join('');
 }
