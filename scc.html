@@ -642,7 +642,7 @@ button{cursor:pointer}
         <p id="tb-sub">Future Readiness And Nuclear Knowledge Intelligence Engine</p>
       </div>
       <div class="tb-actions" id="tb-actions">
-        <button class="tb-btn primary" onclick="openAddCompany()">+ Add Company</button>
+        <button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button>
       </div>
     </div>
 
@@ -816,6 +816,53 @@ button{cursor:pointer}
       </div>
     </div>
 
+    <!-- ADD COMPANY MODAL (used by Companies + NuclearReady Companies "+ Add Company") -->
+    <div id="nrc-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:750;align-items:center;justify-content:center">
+      <div style="background:var(--panel);border-radius:10px;padding:26px 28px 20px;width:480px;max-width:95vw;max-height:88vh;overflow-y:auto">
+        <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);margin-bottom:6px">Add Company</div>
+
+        <div style="display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:14px">
+          <button id="nrc-add-tab-manual" onclick="nrcAddSwitchTab('manual')" style="padding:8px 14px;border:none;background:none;font-family:'Barlow Condensed';font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-1px;cursor:pointer">Manual Entry</button>
+          <button id="nrc-add-tab-search" onclick="nrcAddSwitchTab('search')" style="padding:8px 14px;border:none;background:none;font-family:'Barlow Condensed';font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer">Search Supplier Database</button>
+        </div>
+
+        <!-- Search Supplier Database pane -->
+        <div id="nrc-add-pane-search" style="display:none;margin-bottom:14px">
+          <div id="nrc-add-search-signin" style="display:none;text-align:center;padding:16px 0">
+            <p style="font-size:.8rem;color:var(--muted);margin-bottom:10px">Sign in with Microsoft to search the Supplier Database.</p>
+            <button class="btn primary" onclick="nrcAddSearchSignIn()">Sign in with Microsoft</button>
+          </div>
+          <div id="nrc-add-search-ui">
+            <input id="nrc-add-search-input" type="text" placeholder="Search supplier name…" oninput="nrcAddSearchFilter()"
+              style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:8px">
+            <div id="nrc-add-search-results" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:6px"></div>
+            <div id="nrc-add-search-selected" style="display:none;margin-top:10px;background:var(--wash);border:1px solid var(--accent);border-radius:6px;padding:8px 10px;font-size:.8rem"></div>
+          </div>
+        </div>
+
+        <!-- Manual entry pane -->
+        <div id="nrc-add-pane-manual">
+          <div class="we-field" style="margin-bottom:10px"><label>Company Name *</label><input id="nrc-add-name" type="text" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+          <div class="we-field" style="margin-bottom:10px"><label>Website</label><input id="nrc-add-website" type="text" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+          <div class="we-field" style="margin-bottom:10px"><label>Description</label><textarea id="nrc-add-desc" rows="2" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></textarea></div>
+          <div class="we-field" style="margin-bottom:10px">
+            <label>Status</label>
+            <select id="nrc-add-status" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box">
+              <option value="granted">F4N Granted</option>
+              <option value="in_progress">On Journey</option>
+            </select>
+          </div>
+          <div class="we-field" style="margin-bottom:10px"><label>Member User ID (optional, links evidence folder)</label><input id="nrc-add-uid" type="text" placeholder="UUID" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+        </div>
+
+        <div id="nrc-add-msg" style="display:none;font-size:.78rem;margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn primary" onclick="nrcAddCompany()" style="flex:1">Add Company</button>
+          <button class="btn" onclick="nrcCloseAddModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ──────────── F4N TRACKER -->
     <div class="screen" id="screen-f4ntracker">
       <div style="max-width:1400px">
@@ -916,7 +963,7 @@ button{cursor:pointer}
 
     <!-- ──────────── SUPPLIER DATABASE -->
     <div class="screen" id="screen-supplierdb">
-      <div style="max-width:1400px">
+      <div style="width:100%">
 
         <!-- Sign-in banner -->
         <div id="sdb-signin-banner" style="background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:22px;margin-bottom:16px;text-align:center">
@@ -957,15 +1004,15 @@ button{cursor:pointer}
           <div id="sdb-empty" style="display:none;color:var(--muted);font-size:.88rem;padding:20px 0">No companies match your filters.</div>
 
           <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px" id="sdb-table-wrap">
-            <table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:1000px">
+            <table style="width:100%;border-collapse:collapse;font-size:.92rem;min-width:1000px">
               <thead>
                 <tr style="background:var(--wash);text-align:left">
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:200px">Company</th>
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:150px">Location</th>
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:220px">Description</th>
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--line)">RAG</th>
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--line)">F4N</th>
-                  <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:160px">CRM Link</th>
+                  <th style="padding:10px 12px;border-bottom:1px solid var(--line);min-width:200px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">Company</th>
+                  <th style="padding:10px 12px;border-bottom:1px solid var(--line);min-width:150px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">Location</th>
+                  <th style="padding:10px 12px;border-bottom:1px solid var(--line);min-width:220px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">Description</th>
+                  <th style="padding:10px 12px;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">RAG</th>
+                  <th style="padding:10px 12px;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">F4N</th>
+                  <th style="padding:10px 12px;border-bottom:1px solid var(--line);min-width:160px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">CRM Link</th>
                 </tr>
               </thead>
               <tbody id="sdb-tbody"></tbody>
@@ -2228,7 +2275,7 @@ function renderDashboard() {
     </div>`;
   });
 
-  html += `<button class="add-card" onclick="openAddCompany()">
+  html += `<button class="add-card" onclick="nrcShowAddModal()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     <span>Add Company</span>
   </button>`;
@@ -3822,7 +3869,7 @@ async function coLoad() {
   if (listEl) listEl.innerHTML = '';
 
   const { data, error } = await db.from('nr_companies')
-    .select('id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id')
+    .select('id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets')
     .order('name');
 
   if (loadEl) loadEl.style.display = 'none';
@@ -3830,7 +3877,7 @@ async function coLoad() {
   if (error) {
     // member_user_id column might not exist yet — fall back without it
     const { data: d2, error: e2 } = await db.from('nr_companies')
-      .select('id,name,status,website,description,hidden,granted_date,expiry_date')
+      .select('id,name,status,website,description,hidden,granted_date,expiry_date,sharepoint_company_id,capabilities,accreditations,markets')
       .order('name');
     if (e2) { if (loadEl) { loadEl.style.display='block'; loadEl.textContent='Could not load companies: ' + e2.message; } return; }
     coAllCompanies = (d2 || []).map(c => ({ ...c, member_user_id: null }));
@@ -3872,7 +3919,7 @@ function coRender(list) {
         <span class="co-folder-icon">📁</span>
         <div style="flex:1;min-width:0">
           <div class="co-folder-name">${esc2(co.name)}</div>
-          <div class="co-folder-meta">${datesMeta} &nbsp;·&nbsp; <span style="${linkedCls};font-size:.7rem">${linked}</span></div>
+          <div class="co-folder-meta">${datesMeta} &nbsp;·&nbsp; <span style="${linkedCls};font-size:.7rem">${linked}</span> &nbsp;·&nbsp; <span id="co-interactions-${co.id}"></span></div>
         </div>
         <div class="co-folder-right">
           <span class="hcp-badge ${badgeCls}" style="font-size:.7rem;padding:2px 8px;border-radius:3px">${badgeTxt}</span>
@@ -3900,6 +3947,49 @@ function coRender(list) {
       </div>
     </div>`;
   }).join('');
+
+  coRenderInteractionBadges();
+}
+
+let coInteractionCountsByShareId = null; // null = not loaded this session
+
+async function coLoadInteractionCounts() {
+  if (coInteractionCountsByShareId) return coInteractionCountsByShareId;
+  if (!sdbMsalClient || !sdbMsalClient.getAllAccounts().length) return null;
+  try {
+    const rows = await spGetAll('tblInteractions', 'ID,field_2', 5000, ROLODEX_SITE_URL);
+    const counts = {};
+    rows.forEach(r => {
+      const id = String(r.field_2 || '');
+      if (!id) return;
+      counts[id] = (counts[id] || 0) + 1;
+    });
+    coInteractionCountsByShareId = counts;
+    return counts;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function coRenderInteractionBadges() {
+  const counts = await coLoadInteractionCounts();
+  coAllCompanies.forEach(co => {
+    const el = document.getElementById('co-interactions-' + co.id);
+    if (!el) return;
+    if (!co.sharepoint_company_id) { el.innerHTML = ''; return; }
+    if (!counts) {
+      el.innerHTML = `<span onclick="event.stopPropagation();coConnectMicrosoftForInteractions()" style="cursor:pointer;color:var(--accent);font-size:.7rem;text-decoration:underline">Connect Microsoft for interactions</span>`;
+      return;
+    }
+    const n = counts[String(co.sharepoint_company_id)] || 0;
+    el.innerHTML = `<span onclick="event.stopPropagation();window.open('rolodex.html?companyId=${co.sharepoint_company_id}','_blank')" style="cursor:pointer;color:var(--muted);font-size:.7rem" title="Open interaction log in Rolodex">💬 ${n} interaction${n === 1 ? '' : 's'}</span>`;
+  });
+}
+
+async function coConnectMicrosoftForInteractions() {
+  await spSignIn();
+  coInteractionCountsByShareId = null;
+  coRenderInteractionBadges();
 }
 
 function coToggle(id) {
@@ -4117,6 +4207,13 @@ async function coDeleteInternalDoc(coId, name) {
   await coRefreshInternalDocs(coId);
 }
 
+function coTagChips(co) {
+  const group = (label, items) => (items && items.length)
+    ? `<div style="margin-bottom:8px"><div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6a7a90;margin-bottom:4px">${label}</div>${items.map(t => `<span style="display:inline-block;background:var(--wash);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:.72rem;margin:0 4px 4px 0">${esc2(t)}</span>`).join('')}</div>`
+    : '';
+  return group('Capabilities', co.capabilities) + group('Accreditations', co.accreditations) + group('Markets', co.markets);
+}
+
 function coLoadDetails(co) {
   const panel = document.getElementById('co-tab-details-' + co.id);
   if (!panel) return;
@@ -4130,6 +4227,7 @@ function coLoadDetails(co) {
       <div class="co-detail"><div class="co-detail-lbl">Expires</div><div class="co-detail-val">${fmt(co.expiry_date)}</div></div>
     </div>
     ${co.description ? `<div style="font-size:.82rem;color:var(--muted);margin-bottom:14px">${esc2(co.description)}</div>` : ''}
+    ${coTagChips(co)}
     <div style="display:flex;gap:8px;align-items:center">
       <button class="co-act-btn" onclick="coShowLinkModal('${co.id}','${esc2(co.name)}')">
         ${co.member_user_id ? '🔗 Re-link member' : '🔗 Link member account'}
@@ -5042,7 +5140,7 @@ async function nrcLoad() {
 
   const { data, error } = await db
     .from('nr_companies')
-    .select('id,name,status,website,hidden,granted_date,expiry_date,updated_at')
+    .select('id,name,status,website,hidden,granted_date,expiry_date,updated_at,capabilities,accreditations,markets')
     .order('name');
 
   if (loading) loading.style.display = 'none';
@@ -5079,6 +5177,15 @@ function nrcFilter() {
   nrcRender();
 }
 
+function nrcTagChips(co) {
+  const pill = (t) => `<span style="display:inline-block;background:var(--wash);border:1px solid var(--line);border-radius:999px;padding:1px 8px;font-size:.68rem;margin:3px 4px 0 0">${escH(t)}</span>`;
+  const all = [...(co.capabilities || []), ...(co.accreditations || []), ...(co.markets || [])];
+  if (!all.length) return '';
+  const shown = all.slice(0, 6);
+  const extra = all.length - shown.length;
+  return `<div style="margin-top:3px">${shown.map(pill).join('')}${extra > 0 ? `<span style="font-size:.68rem;color:var(--muted)">+${extra} more</span>` : ''}</div>`;
+}
+
 function nrcRender() {
   const list  = document.getElementById('nrc-list');
   const empty = document.getElementById('nrc-empty');
@@ -5110,6 +5217,7 @@ function nrcRender() {
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:.92rem;color:var(--navy)">${escH(co.name)}</div>
           ${co.website ? `<div style="font-size:.76rem;color:var(--muted);margin-top:1px">${escH(co.website)}</div>` : ''}
+          ${nrcTagChips(co)}
         </div>
         <button onclick="nrcToggleHide('${safeId}',${!co.hidden})"
           title="${co.hidden ? 'Show in Explorer' : 'Hide from Explorer'}"
@@ -5179,17 +5287,94 @@ async function nrcDelete(id, name) {
   toast('Company deleted');
 }
 
+let nrcAddSelectedSp = null;
+
 function nrcShowAddModal() {
   ['nrc-add-name','nrc-add-website','nrc-add-desc','nrc-add-uid'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const sel = document.getElementById('nrc-add-status'); if (sel) sel.value = 'granted';
   const msg = document.getElementById('nrc-add-msg'); if (msg) msg.style.display = 'none';
+  nrcAddSelectedSp = null;
+  const selEl = document.getElementById('nrc-add-search-selected'); if (selEl) selEl.style.display = 'none';
+  const searchInput = document.getElementById('nrc-add-search-input'); if (searchInput) searchInput.value = '';
+  nrcAddSwitchTab('manual');
   document.getElementById('nrc-add-modal').style.display = 'flex';
 }
 
 function nrcCloseAddModal() {
   document.getElementById('nrc-add-modal').style.display = 'none';
+}
+
+function nrcAddSwitchTab(tab) {
+  const manualBtn = document.getElementById('nrc-add-tab-manual');
+  const searchBtn = document.getElementById('nrc-add-tab-search');
+  manualBtn.style.color = tab === 'manual' ? 'var(--accent)' : 'var(--muted)';
+  manualBtn.style.borderBottomColor = tab === 'manual' ? 'var(--accent)' : 'transparent';
+  searchBtn.style.color = tab === 'search' ? 'var(--accent)' : 'var(--muted)';
+  searchBtn.style.borderBottomColor = tab === 'search' ? 'var(--accent)' : 'transparent';
+  document.getElementById('nrc-add-pane-manual').style.display = tab === 'manual' ? 'block' : 'none';
+  document.getElementById('nrc-add-pane-search').style.display = tab === 'search' ? 'block' : 'none';
+  if (tab === 'search') nrcAddSearchInit();
+}
+
+async function nrcAddSearchInit() {
+  const signinEl = document.getElementById('nrc-add-search-signin');
+  const uiEl = document.getElementById('nrc-add-search-ui');
+  await spInitMsal();
+  if (sdbMsalClient.getAllAccounts().length) {
+    sdbCurrentUser = sdbMsalClient.getAllAccounts()[0];
+    signinEl.style.display = 'none';
+    uiEl.style.display = 'block';
+    if (!sdbState.loaded) await sdbLoad(true);
+    nrcAddSearchFilter();
+  } else {
+    signinEl.style.display = 'block';
+    uiEl.style.display = 'none';
+  }
+}
+
+async function nrcAddSearchSignIn() {
+  try {
+    await spInitMsal();
+    const result = await sdbMsalClient.loginPopup({ scopes: SDB_CONFIG.scopes });
+    sdbCurrentUser = result.account;
+    await sdbLoad(true);
+    nrcAddSearchInit();
+  } catch (e) {
+    toast('Sign-in failed: ' + e.message);
+  }
+}
+
+function nrcAddSearchFilter() {
+  const q = (document.getElementById('nrc-add-search-input')?.value || '').toLowerCase().trim();
+  const results = !q ? [] : sdbState.companies.filter(c => (c.Title || '').toLowerCase().includes(q)).slice(0, 20);
+  const el = document.getElementById('nrc-add-search-results');
+  if (!el) return;
+  el.innerHTML = results.map(c => `
+    <div onclick="nrcAddSelectSp(${c.ID})" style="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.8rem" onmouseover="this.style.background='var(--wash)'" onmouseout="this.style.background=''">
+      <div style="font-weight:600">${escH(c.Title)}</div>
+      <div style="color:var(--muted);font-size:.72rem">${escH([c.City, c.County].filter(Boolean).join(', '))}</div>
+    </div>`).join('') || (q ? '<div style="padding:10px;color:var(--muted);font-size:.78rem">No matches</div>' : '');
+}
+
+function nrcAddSelectSp(spId) {
+  const c = sdbState.companies.find(x => x.ID === spId);
+  if (!c) return;
+  nrcAddSelectedSp = c;
+  document.getElementById('nrc-add-name').value = c.Title || '';
+  document.getElementById('nrc-add-website').value = c.Website || '';
+  document.getElementById('nrc-add-desc').value = c.QuickDescription || '';
+  const selEl = document.getElementById('nrc-add-search-selected');
+  selEl.style.display = 'block';
+  selEl.innerHTML = `Selected: <strong>${escH(c.Title)}</strong> — capabilities/accreditations/markets will be copied in. <button onclick="nrcAddClearSp()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;text-decoration:underline;margin-left:6px">Clear</button>`;
+  nrcAddSwitchTab('manual');
+}
+
+function nrcAddClearSp() {
+  nrcAddSelectedSp = null;
+  const selEl = document.getElementById('nrc-add-search-selected');
+  if (selEl) selEl.style.display = 'none';
 }
 
 async function nrcAddCompany() {
@@ -5205,9 +5390,18 @@ async function nrcAddCompany() {
     return;
   }
 
-  const { data, error } = await db.from('nr_companies').insert({
-    name, status, website: website || null, description: desc || null, hidden: false
-  }).select().single();
+  const payload = { name, status, website: website || null, description: desc || null, hidden: false };
+  let shareId = null;
+  if (nrcAddSelectedSp) {
+    const tags = sdbTagsFor(nrcAddSelectedSp);
+    shareId = String(nrcAddSelectedSp.CompanyID ?? nrcAddSelectedSp.ID);
+    payload.sharepoint_company_id = shareId;
+    payload.capabilities = tags.capabilities;
+    payload.accreditations = tags.accreditations;
+    payload.markets = tags.markets;
+  }
+
+  const { data, error } = await db.from('nr_companies').insert(payload).select().single();
 
   if (error) {
     if (msg) { msg.textContent = 'Error: ' + error.message; msg.style.color = 'var(--red)'; msg.style.display = 'block'; }
@@ -5218,6 +5412,9 @@ async function nrcAddCompany() {
   if (uid) {
     folderNote = await nrcLinkMemberAndCreateFolder(data.id, name, uid);
   }
+
+  if (shareId) sdbCrmByShareId[shareId] = data;
+  nrcAddSelectedSp = null;
 
   nrcAll.push({ ...data, member_user_id: uid || null });
   nrcAll.sort((a, b) => a.name.localeCompare(b.name));
@@ -5921,10 +6118,13 @@ async function spGetToken() {
   }
 }
 
-async function spFetch(path, options) {
+const ROLODEX_SITE_URL = 'https://nuccol.sharepoint.com/sites/Rolodex';
+
+async function spFetch(path, options, siteUrl) {
   options = options || {};
+  siteUrl = siteUrl || SDB_CONFIG.siteUrl;
   const token = await spGetToken();
-  const url = path.startsWith('http') ? path : `${SDB_CONFIG.siteUrl}/_api/${path}`;
+  const url = path.startsWith('http') ? path : `${siteUrl}/_api/${path}`;
   const res = await fetch(url, {
     ...options,
     headers: {
@@ -5943,18 +6143,19 @@ async function spFetch(path, options) {
   return text && text.trim() ? JSON.parse(text) : {};
 }
 
-async function spGetAll(listName, select, top) {
+async function spGetAll(listName, select, top, siteUrl) {
   select = select || '';
   top = top || 5000;
+  siteUrl = siteUrl || SDB_CONFIG.siteUrl;
   let items = [];
   let qs = `?$top=${top}`;
   if (select) qs += `&$select=${select}`;
   let url = `web/lists/getbytitle('${encodeURIComponent(listName)}')/items${qs}`;
   while (url) {
-    const data = await spFetch(url);
+    const data = await spFetch(url, {}, siteUrl);
     items = items.concat(data.value || []);
     url = data['odata.nextLink'] || null;
-    if (url) url = url.replace(SDB_CONFIG.siteUrl + '/_api/', '');
+    if (url) url = url.replace(siteUrl + '/_api/', '');
   }
   return items;
 }
@@ -6044,11 +6245,21 @@ async function sdbLoad(force) {
     sdbState.loaded = true;
 
     await sharedCosLoad();
-    const { data: crmLinks } = await db.from('nr_companies').select('id,name,sharepoint_company_id').not('sharepoint_company_id', 'is', null);
+    const { data: crmLinks } = await db.from('nr_companies')
+      .select('id,name,sharepoint_company_id,capabilities,accreditations,markets')
+      .not('sharepoint_company_id', 'is', null);
     sdbCrmByShareId = {};
     (crmLinks || []).forEach(c => { sdbCrmByShareId[String(c.sharepoint_company_id)] = c; });
 
     sdbPopulateFilters();
+
+    // Keep already-linked CRM companies' capability/accreditation/market tags
+    // fresh on every load (not just at link time).
+    for (const c of sdbState.companies) {
+      const shareId = String(c.CompanyID ?? c.ID);
+      const crmRow = sdbCrmByShareId[shareId];
+      if (crmRow) await sdbSyncTagsToCrm(c, crmRow);
+    }
 
     if (banner) banner.style.display = 'none';
     if (content) content.style.display = 'block';
@@ -6152,12 +6363,12 @@ function sdbRender() {
     }
 
     return `<tr style="border-bottom:1px solid var(--line);cursor:pointer" onclick="sdbOpenDetail(${c.ID})">
-      <td style="padding:7px 10px;font-weight:600;color:var(--navy)">${escH(c.Title)}</td>
-      <td style="padding:7px 10px;color:var(--muted)">${escH([c.City, c.County].filter(Boolean).join(', '))}</td>
-      <td style="padding:7px 10px;color:#555">${escH(c.QuickDescription || '')}</td>
-      <td style="padding:7px 10px">${sdbRagBadge(c.RAGStatus)}</td>
-      <td style="padding:7px 10px">${c.F4NCandidate === 'Y' ? '✓' : ''}</td>
-      <td style="padding:7px 10px" onclick="event.stopPropagation()">${linkCell}</td>
+      <td style="padding:10px 12px;font-weight:600;color:var(--navy)">${escH(c.Title)}</td>
+      <td style="padding:10px 12px;color:var(--muted)">${escH([c.City, c.County].filter(Boolean).join(', '))}</td>
+      <td style="padding:10px 12px;color:#555">${escH(c.QuickDescription || '')}</td>
+      <td style="padding:10px 12px">${sdbRagBadge(c.RAGStatus)}</td>
+      <td style="padding:10px 12px">${c.F4NCandidate === 'Y' ? '✓' : ''}</td>
+      <td style="padding:10px 12px" onclick="event.stopPropagation()">${linkCell}</td>
     </tr>`;
   }).join('');
 }
@@ -6211,6 +6422,39 @@ function sdbOpenExternal(tool) {
   window.open(url, '_blank');
 }
 
+function sdbTagsFor(c) {
+  return {
+    capabilities:   sdbJunctions.caps.filter(j => j.CompanyID_Ref === c.ID).map(j => j.CapabilityName_Ref).filter(Boolean),
+    accreditations: sdbJunctions.acreds.filter(j => j.CompanyID_Ref === c.ID).map(j => j.AccreditationName_Ref).filter(Boolean),
+    markets:        sdbJunctions.mkts.filter(j => j.CompanyID_Ref === c.ID).map(j => j.MarketName_Ref).filter(Boolean)
+  };
+}
+
+function sdbArraysEqual(a, b) {
+  a = a || []; b = b || [];
+  if (a.length !== b.length) return false;
+  const as = [...a].sort(), bs = [...b].sort();
+  return as.every((v, i) => v === bs[i]);
+}
+
+// Copies capability/accreditation/market tags from the SharePoint Supplier
+// Database onto a linked nr_companies row — only writes if something changed.
+async function sdbSyncTagsToCrm(spCompany, crmRow) {
+  if (!crmRow) return;
+  const tags = sdbTagsFor(spCompany);
+  const unchanged =
+    sdbArraysEqual(tags.capabilities, crmRow.capabilities) &&
+    sdbArraysEqual(tags.accreditations, crmRow.accreditations) &&
+    sdbArraysEqual(tags.markets, crmRow.markets);
+  if (unchanged) return;
+  const { error } = await db.from('nr_companies').update(tags).eq('id', crmRow.id);
+  if (!error) {
+    crmRow.capabilities = tags.capabilities;
+    crmRow.accreditations = tags.accreditations;
+    crmRow.markets = tags.markets;
+  }
+}
+
 async function sdbLinkCompany(spCompanyRowId, crmId) {
   const c = sdbState.companies.find(x => x.ID === spCompanyRowId);
   if (!c) return;
@@ -6219,6 +6463,7 @@ async function sdbLinkCompany(spCompanyRowId, crmId) {
   if (error) { toast('Error: ' + error.message); return; }
   const crmRow = sharedCos.find(x => x.id === crmId) || { id: crmId, name: c.Title };
   sdbCrmByShareId[shareId] = crmRow;
+  await sdbSyncTagsToCrm(c, crmRow);
   sdbUpdateStats();
   sdbRender();
   toast('✓ Linked to CRM company');
@@ -6244,9 +6489,11 @@ async function sdbCreateCrmCompany(spCompanyRowId) {
   if (!c) return;
   const shareId = String(c.CompanyID ?? c.ID);
   const status = c.F4NCandidate === 'Y' ? 'in_progress' : 'in_progress';
+  const tags = sdbTagsFor(c);
   const { data, error } = await db.from('nr_companies').insert({
     name: c.Title, status, website: c.Website || null, description: c.QuickDescription || null,
-    hidden: false, sharepoint_company_id: shareId
+    hidden: false, sharepoint_company_id: shareId,
+    capabilities: tags.capabilities, accreditations: tags.accreditations, markets: tags.markets
   }).select().single();
   if (error) { toast('Error creating company: ' + error.message); return; }
   sharedCos.push(data);
