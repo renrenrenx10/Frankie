@@ -7,6 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>⚛️</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/token-monitor.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,6 +27,23 @@ button{cursor:pointer}
   --muted:#65758a;--ink:#142132;
   --sb:282px;
 }
+
+/* ── Sidebar collapse (drawer mode) ──────────────────────────────────────── */
+#app{transition:grid-template-columns .18s ease}
+.sidebar{transition:width .18s ease}
+#app.sb-collapsed{--sb:64px}
+#app.sb-collapsed .sb-brand{justify-content:center;padding:18px 8px}
+#app.sb-collapsed .sb-brand > div:last-child{display:none}
+#app.sb-collapsed .sb-section{display:none}
+#app.sb-collapsed .sb-label{display:none}
+#app.sb-collapsed .sb-count{display:none}
+#app.sb-collapsed .sb-item{justify-content:center;padding:9px 0}
+#app.sb-collapsed .sb-foot{justify-content:center;padding:14px 4px}
+#app.sb-collapsed .sb-foot > div{display:none}
+#app.sb-collapsed .sb-signout{display:none}
+.tb-menu-btn{background:none;border:1px solid var(--line);border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink);flex-shrink:0;padding:0}
+.tb-menu-btn:hover{background:var(--wash)}
+.tb-menu-btn svg{width:17px;height:17px}
 
 /* ── LOGIN GATE ─────────────────────────────────────────────────────────── */
 #gate{position:fixed;inset:0;background:var(--brand);display:flex;align-items:center;justify-content:center;z-index:999}
@@ -507,86 +525,96 @@ button{cursor:pointer}
       <div class="sb-section">Workspace</div>
       <button class="sb-item" data-screen="companies" onclick="nav('companies')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-        Companies
+        <span class="sb-label">Companies</span>
         <span class="sb-count" id="sb-company-count">0</span>
+      </button>
+      <button class="sb-item" data-screen="f4ntracker" onclick="nav('f4ntracker')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="18"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="16" y1="14" x2="16" y2="18"/></svg>
+        <span class="sb-label">F4N Tracker</span>
+        <span class="sb-count" id="sb-f4n-count">0</span>
+      </button>
+      <button class="sb-item" data-screen="supplierdb" onclick="nav('supplierdb')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <span class="sb-label">Supplier Database</span>
+        <span class="sb-count" id="sb-sdb-count">—</span>
       </button>
       <button class="sb-item" data-screen="assessment" onclick="nav('assessment')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-        Run Assessment
+        <span class="sb-label">Run Assessment</span>
       </button>
       <button class="sb-item" data-screen="reports" onclick="nav('reports')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        Generate Reports
+        <span class="sb-label">Generate Reports</span>
       </button>
       <button class="sb-item" data-screen="certgen" onclick="nav('certgen')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
-        F4N Certificates
+        <span class="sb-label">F4N Certificates</span>
       </button>
 
       <div class="sb-section" style="margin-top:8px">Content</div>
       <button class="sb-item" data-screen="newsletter" onclick="navWithContent('newsletter')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        Content Editor
+        <span class="sb-label">Content Editor</span>
       </button>
       <button class="sb-item" data-screen="nl" onclick="navWithContent('nl')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
-        Newsletter Builder
+        <span class="sb-label">Newsletter Builder</span>
       </button>
       <button class="sb-item" data-screen="website" onclick="nav('website')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 014-10z"/></svg>
-        Website Editor
+        <span class="sb-label">Website Editor</span>
       </button>
 
       <button class="sb-item" data-screen="scraper" onclick="nav('scraper')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-        Run Scraper
+        <span class="sb-label">Run Scraper</span>
       </button>
 
       <button class="sb-item" data-screen="evidence" onclick="nav('evidence')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-        Evidence Vault
+        <span class="sb-label">Evidence Vault</span>
       </button>
 
       <div class="sb-section" style="margin-top:8px">NuclearReady</div>
       <button class="sb-item" data-screen="nuclearready" onclick="nav('nuclearready')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9" ry="3.5"/><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(120 12 12)"/></svg>
-        Profile Updates
+        <span class="sb-label">Profile Updates</span>
         <span class="sb-count" id="sb-nr-count">—</span>
       </button>
       <button class="sb-item" data-screen="nrcompanies" onclick="nav('nrcompanies')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-        Companies
+        <span class="sb-label">Companies</span>
         <span class="sb-count" id="sb-nrc-count">—</span>
       </button>
 
 
       <button class="sb-item" data-screen="pcv" onclick="nav('pcv')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
-        Programme Briefings
+        <span class="sb-label">Programme Briefings</span>
       </button>
       <button class="sb-item" data-screen="settings" onclick="nav('settings')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        Settings
+        <span class="sb-label">Settings</span>
       </button>
 
       <div class="sb-section" style="margin-top:8px">Project Tools</div>
       <button class="sb-item" data-screen="timesink" onclick="nav('timesink')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        TimeSink
+        <span class="sb-label">TimeSink</span>
       </button>
       <button class="sb-item" data-screen="controlcentre" onclick="nav('controlcentre')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        Control Centre
+        <span class="sb-label">Control Centre</span>
       </button>
 
       <div class="sb-section" style="margin-top:8px">Tools</div>
       <a class="sb-item" href="index.html" target="_blank">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        Open Frankie Chat
+        <span class="sb-label">Open Frankie Chat</span>
       </a>
       <button class="sb-item" onclick="apiMonitor.open()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        API Monitor
+        <span class="sb-label">API Monitor</span>
       </button>
     </nav>
 
@@ -605,6 +633,9 @@ button{cursor:pointer}
 
     <!-- TOPBAR -->
     <div class="topbar">
+      <button class="tb-menu-btn" id="sb-toggle-btn" onclick="toggleSidebar()" title="Show/hide menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
       <div class="tb-dot"></div>
       <div>
         <h2 id="tb-title">F.R.A.N.K.I.E.</h2>
@@ -784,6 +815,191 @@ button{cursor:pointer}
         </div>
       </div>
     </div>
+
+    <!-- ──────────── F4N TRACKER -->
+    <div class="screen" id="screen-f4ntracker">
+      <div style="max-width:1400px">
+
+        <!-- Stats -->
+        <div class="stats-row" id="f4n-stats" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px">
+          <div class="stat-card"><div class="val" id="f4n-stat-total">0</div><div class="lbl">Total Bookings</div></div>
+          <div class="stat-card"><div class="val" id="f4n-stat-new" style="color:#075985">0</div><div class="lbl">New</div></div>
+          <div class="stat-card"><div class="val" id="f4n-stat-partway" style="color:#92400e">0</div><div class="lbl">Part Way</div></div>
+          <div class="stat-card"><div class="val" id="f4n-stat-granted" style="color:#166534">0</div><div class="lbl">Granted</div></div>
+          <div class="stat-card"><div class="val" id="f4n-stat-linked" style="color:var(--accent)">0</div><div class="lbl">Linked to CRM</div></div>
+          <div class="stat-card"><div class="val" id="f4n-stat-novisit" style="color:var(--red)">0</div><div class="lbl">No Site Visit Yet</div></div>
+        </div>
+
+        <!-- Seed banner -->
+        <div id="f4n-seed-banner" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.82rem;color:#92400e;align-items:center;justify-content:space-between;gap:10px">
+          <span>The tracker table is empty. Import the 52 legacy bookings from the SharePoint spreadsheet?</span>
+          <button class="tb-btn primary" onclick="f4nSeedImport()" id="f4n-seed-btn">Import 52 rows</button>
+        </div>
+
+        <!-- Filters -->
+        <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <input id="f4n-search" type="text" placeholder="Search company or contact…" oninput="f4nFilter()"
+            style="flex:1;min-width:200px;background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;color:var(--navy);outline:none">
+          <select id="f4n-owner-filter" onchange="f4nFilter()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;outline:none;cursor:pointer">
+            <option value="all">All SCC owners</option>
+          </select>
+          <select id="f4n-status-filter" onchange="f4nFilter()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;outline:none;cursor:pointer">
+            <option value="all">All F4N statuses</option>
+            <option value="New">New</option>
+            <option value="Part way">Part way</option>
+            <option value="Granted - M&S">Granted - M&S</option>
+          </select>
+          <select id="f4n-link-filter" onchange="f4nFilter()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;outline:none;cursor:pointer">
+            <option value="all">Linked + unlinked</option>
+            <option value="linked">Linked only</option>
+            <option value="unlinked">Unlinked only</option>
+          </select>
+        </div>
+
+        <div id="f4n-loading" style="color:var(--muted);font-size:.88rem;padding:20px 0">Loading tracker…</div>
+        <div id="f4n-empty" style="display:none;color:var(--muted);font-size:.88rem;padding:20px 0">No bookings match your filters.</div>
+
+        <!-- Table -->
+        <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px" id="f4n-table-wrap">
+          <table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:1200px">
+            <thead>
+              <tr style="background:var(--wash);text-align:left">
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">#</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">SCC</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:220px">Company</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:170px">Contact</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:150px">Site Visit</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:130px">Invoice</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Paid</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Invite</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Website</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:140px">F4N Status</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)"></th>
+              </tr>
+            </thead>
+            <tbody id="f4n-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Add/Edit booking modal -->
+      <div id="f4n-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;align-items:center;justify-content:center">
+        <div style="background:var(--panel);border-radius:10px;padding:26px 28px 20px;width:460px;max-width:95vw;max-height:88vh;overflow-y:auto">
+          <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);margin-bottom:16px" id="f4n-modal-title">Add Booking</div>
+          <input type="hidden" id="f4n-edit-id">
+          <div class="we-field" style="margin-bottom:10px"><label>SCC Owner</label><input id="f4n-f-owner" type="text" placeholder="e.g. John" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+          <div class="we-field" style="margin-bottom:10px"><label>Company Name *</label><input id="f4n-f-company" type="text" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+          <div class="we-field" style="margin-bottom:10px"><label>Contact Email</label><input id="f4n-f-contact" type="text" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+          <div class="we-field" style="margin-bottom:10px"><label>Site Visit</label><input id="f4n-f-visit" type="text" placeholder="e.g. Tuesday 8th July, or Company have been emailed" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+          <div class="we-field" style="margin-bottom:10px"><label>Invoice Status</label><input id="f4n-f-invoice" type="text" placeholder="e.g. Invoiced 1 of 2" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+          <div style="display:flex;gap:10px;margin-bottom:10px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:.82rem"><input type="checkbox" id="f4n-f-paid"> Paid</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:.82rem"><input type="checkbox" id="f4n-f-invite"> Members invite</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:.82rem"><input type="checkbox" id="f4n-f-website"> Website done</label>
+          </div>
+          <div class="we-field" style="margin-bottom:14px">
+            <label>F4N Status</label>
+            <select id="f4n-f-status" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box">
+              <option value="New">New</option>
+              <option value="Part way">Part way</option>
+              <option value="Granted - M&S">Granted - M&S</option>
+            </select>
+          </div>
+          <div id="f4n-modal-msg" style="font-size:.76rem;margin-bottom:10px;min-height:1rem;color:var(--red)"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn primary" onclick="f4nSaveModal()" style="flex:1">Save</button>
+            <button class="btn" onclick="document.getElementById('f4n-modal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /screen-f4ntracker -->
+
+    <!-- ──────────── SUPPLIER DATABASE -->
+    <div class="screen" id="screen-supplierdb">
+      <div style="max-width:1400px">
+
+        <!-- Sign-in banner -->
+        <div id="sdb-signin-banner" style="background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:22px;margin-bottom:16px;text-align:center">
+          <div style="font-family:'Barlow Condensed';font-size:1rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);margin-bottom:6px">Sign in with Microsoft</div>
+          <p style="font-size:.84rem;color:var(--muted);max-width:520px;margin:0 auto 14px">This screen pulls live data from the NuCCoL SharePoint supplier database (the same data behind DataVault, Rolodex and the Supplier Map). Sign in with your NuCCoL Microsoft account to load it.</p>
+          <button class="tb-btn primary" onclick="spSignIn()" id="sdb-signin-btn">Sign in with Microsoft</button>
+          <div id="sdb-signin-error" style="color:var(--red);font-size:.78rem;margin-top:10px;display:none"></div>
+        </div>
+
+        <!-- Loaded content -->
+        <div id="sdb-content" style="display:none">
+
+          <!-- Stats -->
+          <div class="stats-row" id="sdb-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+            <div class="stat-card"><div class="val" id="sdb-stat-total">0</div><div class="lbl">Companies (SharePoint)</div></div>
+            <div class="stat-card"><div class="val" id="sdb-stat-f4n" style="color:#166534">0</div><div class="lbl">F4N Candidates</div></div>
+            <div class="stat-card"><div class="val" id="sdb-stat-linked" style="color:var(--accent)">0</div><div class="lbl">Linked to CRM</div></div>
+            <div class="stat-card"><div class="val" id="sdb-stat-signedin" style="color:var(--muted);font-size:.85rem">—</div><div class="lbl">Signed in as</div></div>
+          </div>
+
+          <!-- Filters -->
+          <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+            <input id="sdb-search" type="text" placeholder="Search company name…" oninput="sdbApplyFilters()"
+              style="flex:1;min-width:200px;background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;color:var(--navy);outline:none">
+            <select id="sdb-capability" onchange="sdbApplyFilters()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-size:.8rem;outline:none;cursor:pointer"><option value="">All capabilities</option></select>
+            <select id="sdb-commodity" onchange="sdbApplyFilters()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-size:.8rem;outline:none;cursor:pointer"><option value="">All commodities</option></select>
+            <select id="sdb-accreditation" onchange="sdbApplyFilters()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-size:.8rem;outline:none;cursor:pointer"><option value="">All accreditations</option></select>
+            <select id="sdb-region" onchange="sdbApplyFilters()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-size:.8rem;outline:none;cursor:pointer"><option value="">All regions</option></select>
+            <select id="sdb-market" onchange="sdbApplyFilters()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-size:.8rem;outline:none;cursor:pointer"><option value="">All markets</option></select>
+            <select id="sdb-link-filter" onchange="sdbApplyFilters()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-size:.8rem;outline:none;cursor:pointer">
+              <option value="all">Linked + unlinked</option>
+              <option value="linked">Linked only</option>
+              <option value="unlinked">Unlinked only</option>
+            </select>
+          </div>
+
+          <div id="sdb-loading" style="display:none;color:var(--muted);font-size:.88rem;padding:20px 0">Loading supplier database from SharePoint…</div>
+          <div id="sdb-empty" style="display:none;color:var(--muted);font-size:.88rem;padding:20px 0">No companies match your filters.</div>
+
+          <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px" id="sdb-table-wrap">
+            <table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:1000px">
+              <thead>
+                <tr style="background:var(--wash);text-align:left">
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:200px">Company</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:150px">Location</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:220px">Description</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--line)">RAG</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--line)">F4N</th>
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:160px">CRM Link</th>
+                </tr>
+              </thead>
+              <tbody id="sdb-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Company detail modal -->
+      <div id="sdb-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;align-items:center;justify-content:center">
+        <div style="background:var(--panel);border-radius:10px;padding:26px 28px 22px;width:620px;max-width:95vw;max-height:88vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+            <div>
+              <div style="font-family:'Barlow Condensed';font-size:1.15rem;font-weight:700;letter-spacing:.04em;color:var(--ink)" id="sdb-modal-name">—</div>
+              <div style="font-size:.78rem;color:var(--muted)" id="sdb-modal-location">—</div>
+            </div>
+            <button onclick="document.getElementById('sdb-modal').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--muted)">✕</button>
+          </div>
+
+          <div id="sdb-modal-crm" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:14px;font-size:.8rem"></div>
+
+          <div style="font-size:.83rem;color:var(--navy);margin-bottom:12px" id="sdb-modal-desc"></div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:.78rem;margin-bottom:14px" id="sdb-modal-fields"></div>
+
+          <div style="margin-bottom:6px" id="sdb-modal-tags"></div>
+
+          <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+            <button class="tb-btn" onclick="sdbOpenExternal('datavault')">Open in DataVault ↗</button>
+            <button class="tb-btn" onclick="sdbOpenExternal('rolodex')">Open in Rolodex ↗</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /screen-supplierdb -->
 
     <!-- ──────────── ASSESSMENT -->
     <div class="screen" id="screen-assessment">
@@ -1713,6 +1929,8 @@ function showApp() {
 const TOPBAR = {
   dashboard:   {title:'F.R.A.N.K.I.E.', sub:'Future Readiness And Nuclear Knowledge Intelligence Engine', actions:''},
   companies:   {title:'Companies', sub:'All managed companies — evidence, assessments and certificates', actions:`<button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button>`},
+  f4ntracker:  {title:'F4N Tracker', sub:'Booking pipeline for Fit For Nuclear assessments — linked to CRM companies', actions:`<button class="tb-btn primary" onclick="f4nShowAddModal()">+ Add Booking</button><button class="tb-btn" onclick="f4nLoad()" style="margin-left:8px">↻ Refresh</button>`},
+  supplierdb:  {title:'Supplier Database', sub:'Live NuCCoL SharePoint supplier database (DataVault/Rolodex/SupplierMap) — linked to CRM companies', actions:`<button class="tb-btn" onclick="sdbLoad(true)" style="margin-left:8px">↻ Refresh</button>`},
   assessment:  {title:'Run Assessment', sub:'F4N or Business Excellence scoring', actions:''},
   reports:     {title:'Generate Reports', sub:'AI-powered BE, Action Plan and Sector Specific reports', actions:''},
   newsletter:  {title:'Content Editor', sub:'Manage news, events, tenders, NucCol updates and webinars', actions:`<button class="tb-btn primary" onclick="saveAllContent()">&#9650; Save to Blob</button>`},
@@ -1729,9 +1947,19 @@ const TOPBAR = {
   controlcentre: {title:'Control Centre', sub:'Project delivery, budgets and the sales pipeline', actions:`<button class="tb-btn" onclick="document.getElementById('frm-controlcentre').src=document.getElementById('frm-controlcentre').src">↻ Refresh</button>`}
 };
 
-let navPrev = null;
-function nav(screen) {
-  navPrev = document.querySelector('.screen.active')?.id?.replace('screen-','') || null;
+// ── Navigation history (real back-stack, not just a single "previous screen") ──
+let navHistory = [];
+let sidebarCollapsed = false;
+
+function nav(screen, opts) {
+  opts = opts || {};
+  const activeEl = document.querySelector('.screen.active');
+  const prevScreen = activeEl ? activeEl.id.replace('screen-', '') : null;
+
+  if (!opts.isBack && prevScreen && prevScreen !== screen) {
+    navHistory.push(prevScreen);
+  }
+
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.sb-item[data-screen]').forEach(b => b.classList.remove('active'));
   document.getElementById('screen-' + screen).classList.add('active');
@@ -1739,8 +1967,8 @@ function nav(screen) {
   const tb = TOPBAR[screen] || {};
   document.getElementById('tb-title').textContent = tb.title || '';
   document.getElementById('tb-sub').textContent   = tb.sub || '';
-  const backBtn = (navPrev === 'companies' && ['assessment','reports','certgen'].includes(screen))
-    ? `<button class="tb-btn" onclick="nav('companies')" style="margin-right:8px">← Companies</button>`
+  const backBtn = navHistory.length
+    ? `<button class="tb-btn" onclick="navBack()" style="margin-right:8px">← Back</button>`
     : '';
   document.getElementById('tb-actions').innerHTML = backBtn + (tb.actions || '');
   if (screen === 'companies') coLoad();
@@ -1751,6 +1979,8 @@ function nav(screen) {
   if (screen === 'evidence') evRefresh();
   if (screen === 'nuclearready') nrLoadUpdates();
   if (screen === 'nrcompanies') nrcLoad();
+  if (screen === 'f4ntracker') f4nLoad();
+  if (screen === 'supplierdb') sdbOpen();
   if (screen === 'settings') apiCtrlRestore();
   if (screen === 'pcv') pcvLoad();
   if (screen === 'certgen') certInit();
@@ -1761,7 +1991,38 @@ function nav(screen) {
     g('stat-tm-calls', s.total_calls);
     g('stat-tm-tokens', (s.total_tokens >= 1000 ? (s.total_tokens/1000).toFixed(1)+'k' : s.total_tokens) + ' tokens');
   }
+
+  // Every navigation collapses the sidebar so the content screen gets full width.
+  // The user can reopen it any time via the menu button in the topbar.
+  setSidebarCollapsed(true);
 }
+
+function navBack() {
+  if (!navHistory.length) return;
+  const prev = navHistory.pop();
+  nav(prev, { isBack: true });
+}
+
+function setSidebarCollapsed(collapsed) {
+  sidebarCollapsed = collapsed;
+  document.getElementById('app').classList.toggle('sb-collapsed', collapsed);
+}
+
+function toggleSidebar() {
+  setSidebarCollapsed(!sidebarCollapsed);
+}
+
+// Give every sidebar item a native tooltip (its label) so icon-only mode
+// while collapsed is still identifiable on hover.
+function sbInitTooltips() {
+  document.querySelectorAll('.sb-item').forEach(btn => {
+    if (btn.title) return;
+    const label = btn.querySelector('.sb-label');
+    if (label) btn.title = label.textContent.trim();
+  });
+}
+document.addEventListener('DOMContentLoaded', sbInitTooltips);
+if (document.readyState === 'complete' || document.readyState === 'interactive') sbInitTooltips();
 
 // ═══════════════════════════════════════════════════════════
 // PROJECT TOOLS — TimeSink / Control Centre (embedded iframes)
@@ -3842,8 +4103,16 @@ async function coOpenInternalDoc(coId, name) {
 async function coDeleteInternalDoc(coId, name) {
   if (!confirm(`Delete "${name}"?`)) return;
   const path = `${CO_INT_PREFIX}/${coId}/${name}`;
-  const { error } = await db.storage.from(EV_BUCKET).remove([path]);
-  if (error) { toast('Delete failed: ' + error.message); return; }
+  const { data, error } = await db.storage.from(EV_BUCKET).remove([path]);
+
+  // Supabase quirk: if a storage RLS DELETE policy blocks the row, the call
+  // returns no error and an empty data[] instead of failing — so check data too.
+  if (error || !data || !data.length) {
+    toast('Delete blocked — missing storage DELETE policy for _staff/ paths');
+    await coRefreshInternalDocs(coId);
+    return;
+  }
+
   toast('Document deleted');
   await coRefreshInternalDocs(coId);
 }
@@ -5170,143 +5439,832 @@ function certDateChanged() {
   certUpdate();
 }
 
+// ═══════════════════════════════════════════════════════════
+// F4N CERTIFICATE GENERATOR — pdf-lib powered preview + download
+// (rebuilt 2026-07-08: previous version was truncated mid-write)
+// ═══════════════════════════════════════════════════════════
+let __certPreviewUrl = null;
+
+function certFields() {
+  const g = id => (document.getElementById(id)?.value || '').trim();
+  return {
+    company: g('cert-company'),
+    addr1: g('cert-addr1'), addr2: g('cert-addr2'), addr3: g('cert-addr3'), addr4: g('cert-addr4'),
+    award: g('cert-award'), expiry: g('cert-expiry')
+  };
+}
+
+async function certBuildPdfBytes(f) {
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([842, 595]); // A4 landscape
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const reg  = await doc.embedFont(StandardFonts.Helvetica);
+  const navy = rgb(0.043, 0.129, 0.247);
+  const accent = rgb(0.145, 0.663, 0.847);
+
+  page.drawRectangle({ x: 0, y: 0, width: 842, height: 595, borderColor: navy, borderWidth: 6 });
+  page.drawRectangle({ x: 18, y: 18, width: 806, height: 559, borderColor: accent, borderWidth: 1.5 });
+
+  const centerText = (text, y, size, font, color) => {
+    const w = font.widthOfTextAtSize(text, size);
+    page.drawText(text, { x: (842 - w) / 2, y, size, font, color });
+  };
+
+  centerText('FIT FOR NUCLEAR', 480, 16, bold, accent);
+  centerText('F4N GRANTED STATUS CERTIFICATE', 445, 26, bold, navy);
+  centerText('This certifies that', 390, 13, reg, navy);
+  centerText(f.company || 'Company Name', 355, 30, bold, navy);
+
+  const addrLine = [f.addr1, f.addr2, f.addr3, f.addr4].filter(Boolean).join(', ');
+  if (addrLine) centerText(addrLine, 325, 12, reg, navy);
+
+  centerText('has achieved F4N Granted Status under the NuCCoL Fit For Nuclear programme,', 285, 12, reg, navy);
+  centerText('demonstrating readiness to supply into the UK civil nuclear sector.', 267, 12, reg, navy);
+
+  const fmt = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
+  centerText(`Awarded: ${fmt(f.award)}      Valid until: ${fmt(f.expiry)}`, 220, 12, bold, navy);
+  centerText('NuCCoL — Nuclear Cumbria Chamber of Leadership', 60, 10, reg, navy);
+
+  return doc.save();
+}
+
 async function certUpdate() {
   const frame = document.getElementById('cert-preview-frame');
   const status = document.getElementById('cert-status');
   if (!frame) return;
   try {
-    if (status) status.textContent = 'Rendering…';
-    const bytes = await _certBuild();
-    const blob  = new Blob([bytes], { type: 'application/pdf' });
-    const prev  = frame.src;
-    frame.src   = URL.createObjectURL(blob);
-    if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
-    if (status) status.textContent = '';
-  } catch(e) {
-    if (status) status.textContent = '⚠ ' + e.message;
+    const f = certFields();
+    const bytes = await certBuildPdfBytes(f);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    if (__certPreviewUrl) URL.revokeObjectURL(__certPreviewUrl);
+    __certPreviewUrl = URL.createObjectURL(blob);
+    frame.src = __certPreviewUrl;
+    if (status) status.textContent = 'Preview updated';
+  } catch (e) {
+    if (status) status.textContent = 'Preview error: ' + e.message;
   }
-}
-
-async function _certBuild() {
-  const { PDFDocument, rgb, StandardFonts } = PDFLib;
-
-  const company = (document.getElementById('cert-company')?.value || '').toUpperCase().trim();
-  const addr1   = (document.getElementById('cert-addr1')?.value   || '').toUpperCase().trim();
-  const addr2   = (document.getElementById('cert-addr2')?.value   || '').toUpperCase().trim();
-  const addr3   = (document.getElementById('cert-addr3')?.value   || '').toUpperCase().trim();
-  const addr4   = (document.getElementById('cert-addr4')?.value   || '').toUpperCase().trim();
-
-  const awardRaw  = document.getElementById('cert-award')?.value  || '';
-  const expiryRaw = document.getElementById('cert-expiry')?.value || '';
-
-  function fmtDate(iso) {
-    if (!iso) return '';
-    const d = new Date(iso + 'T12:00:00');
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  }
-  const awardText = fmtDate(awardRaw);
-  const expText   = fmtDate(expiryRaw);
-
-  // Load blank template
-  const tmplUrl  = 'v2Cert_Blank.pdf';
-  const tmplResp = await fetch(tmplUrl);
-  if (!tmplResp.ok) throw new Error('Could not load certificate template');
-  const tmplBytes = await tmplResp.arrayBuffer();
-
-  const pdfDoc = await PDFDocument.load(tmplBytes);
-  const page   = pdfDoc.getPages()[0];
-  const { width: W, height: H } = page.getSize();
-
-  const bold   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-  // Company name — centred horizontally at ~50%, ~58% from bottom
-  if (company) {
-    const compSize = company.length > 40 ? 13 : company.length > 28 ? 15 : 17;
-    const compTw   = bold.widthOfTextAtSize(company, compSize);
-    page.drawText(company, { x: W / 2 - compTw / 2, y: H * 0.576, size: compSize, font: bold, color: rgb(0.06, 0.14, 0.23) });
-  }
-
-  // Address lines — centred, stacked below company name
-  const addrLines = [addr1, addr2, addr3, addr4].filter(Boolean);
-  addrLines.forEach((line, i) => {
-    const tw = regular.widthOfTextAtSize(line, 10);
-    page.drawText(line, { x: W / 2 - tw / 2, y: H * 0.540 - i * 14, size: 10, font: regular, color: rgb(0.1, 0.2, 0.3) });
-  });
-
-  // Award date — centred under "Awarded" label (31.9% of width)
-  if (awardText) {
-    const awardTw = bold.widthOfTextAtSize(awardText, 15);
-    page.drawText(awardText, { x: W * 0.319 - awardTw / 2, y: H * 0.295, size: 15, font: bold, color: rgb(0, 0, 0) });
-  }
-
-  // Expiry date — centred under "Expires" label (70.1% of width)
-  if (expText) {
-    const expTw = bold.widthOfTextAtSize(expText, 15);
-    page.drawText(expText, { x: W * 0.701 - expTw / 2, y: H * 0.295, size: 15, font: bold, color: rgb(0, 0, 0) });
-  }
-
-  return await pdfDoc.save();
 }
 
 async function certDownload() {
-  const company = (document.getElementById('cert-company')?.value || '').trim();
-  if (!company) { toast('Enter a company name first'); return; }
-  const msgEl = document.getElementById('cert-msg');
-  if (msgEl) msgEl.textContent = 'Generating…';
+  const msg = document.getElementById('cert-msg');
   try {
-    const bytes  = await _certBuild();
-    const blob   = new Blob([bytes], { type: 'application/pdf' });
-    const anchor = document.createElement('a');
-    anchor.href     = URL.createObjectURL(blob);
-    anchor.download = `${company.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim()} F4N Certificate.pdf`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    if (msgEl) { msgEl.textContent = '✓ Downloaded'; setTimeout(() => { if (msgEl) msgEl.textContent = ''; }, 3000); }
-  } catch(e) {
-    if (msgEl) msgEl.textContent = '⚠ ' + e.message;
-    console.error('[certgen download]', e);
+    const f = certFields();
+    if (!f.company) { if (msg) { msg.textContent = 'Enter a company name first.'; msg.style.color = 'var(--red)'; } return; }
+    const bytes = await certBuildPdfBytes(f);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `F4N_Certificate_${f.company.replace(/[^a-z0-9]+/gi, '_')}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    if (msg) { msg.textContent = '✓ Downloaded'; msg.style.color = 'var(--ok)'; }
+  } catch (e) {
+    if (msg) { msg.textContent = 'Download failed: ' + e.message; msg.style.color = 'var(--red)'; }
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+// F4N TRACKER — replaces the SharePoint booking spreadsheet.
+// Table: nr_f4n_tracker (see nr_f4n_tracker.sql). Links to nr_companies
+// via company_id so bookings connect straight through to CRM records.
+// ═══════════════════════════════════════════════════════════
+const F4N_SEED = [{"seq_no": 1, "scc_owner": "John", "company_name": "Preformed windings", "contact_email": "jstevens@preformedwindings.com", "site_visit": "Company have been emailed", "invoice_status": "Invoiced 1 of 3", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "New"}, {"seq_no": 2, "scc_owner": "John", "company_name": "Wright Engineering", "contact_email": "josh@wrighteng.co.uk", "site_visit": "Company have been emailed", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "New"}, {"seq_no": 3, "scc_owner": "John", "company_name": "Caunton Engineering", "contact_email": "stevenw@caunton.co.uk", "site_visit": "Wednesday 17th September", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 4, "scc_owner": "John", "company_name": "Extract Technologies", "contact_email": "victoria.rushforth@extract-technology.com", "site_visit": "Monday 30th June", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 5, "scc_owner": "John", "company_name": "BEP Surface Technologies", "contact_email": "connor.gill@bep-st.com", "site_visit": "Wednesday 25th June", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 6, "scc_owner": "Dug", "company_name": "Landguard Engineering", "contact_email": "yvonne@landguardengineering.co.uk", "site_visit": "Thursday 10th July", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 7, "scc_owner": "Brian", "company_name": "RTR GmbH & Co", "contact_email": "LynleyRobb@rtr.co.uk", "site_visit": "Wednesday 16th July", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 8, "scc_owner": "Dug", "company_name": "MSCM Ltd", "contact_email": "Neil.Jeffrey@mscmltd.co.uk", "site_visit": "", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Part way"}, {"seq_no": 9, "scc_owner": "John", "company_name": "Oldham Engineering", "contact_email": "jonathan.bentley@oldham-eng.com", "site_visit": "Thursday 24th July", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 10, "scc_owner": "Dug", "company_name": "Robert Stuart Ltd", "contact_email": "david.kerley@robert-stuart.co.uk", "site_visit": "Thursday 31st July", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Part way"}, {"seq_no": 11, "scc_owner": "John", "company_name": "Syspal Ltd", "contact_email": "Lee.Greenway@syspal.com", "site_visit": "Tuesday 8th July", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 12, "scc_owner": "Dug", "company_name": "Rivencore Global Solutions (was Trident Maritime Systems)", "contact_email": "scott.fallon@rivencoreglobal.com", "site_visit": "Tuesday 22nd July", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 13, "scc_owner": "John", "company_name": "C2 Construction Limited", "contact_email": "jake@c2-construction.co.uk", "site_visit": "Tuesday 1st July", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 14, "scc_owner": "John", "company_name": "Special Piping Materials", "contact_email": "Anthony@specialpipingmaterials.com", "site_visit": "Company have been emailed", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "New"}, {"seq_no": 15, "scc_owner": "John", "company_name": "Xl Engineering", "contact_email": "johnG@xl-eng.co.uk", "site_visit": "Tuesday 26th August", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 16, "scc_owner": "John", "company_name": "Koso Kent", "contact_email": "Stuart.Billingham@Kentintrol.com", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 17, "scc_owner": "John", "company_name": "Exalto Bearings", "contact_email": "mike@exalto.co.uk", "site_visit": "Tuesday 19th August", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 18, "scc_owner": "John", "company_name": "Score group", "contact_email": "Kenneth.Delaney@score-group.com", "site_visit": "Date offered - 27/11/25", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 19, "scc_owner": "Dug", "company_name": "Amazon Filters", "contact_email": "DavidRidealgh@amazonfilters.co.uk", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 20, "scc_owner": "Dug", "company_name": "Teledyne / Valeport", "contact_email": "Jerry.Law@Teledyne.com", "site_visit": "Company emailed - dates offered in November", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 21, "scc_owner": "John", "company_name": "Graham Hart", "contact_email": "charles.byrne@graham-hart.com", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 22, "scc_owner": "John", "company_name": "Agemaspark", "contact_email": "paul@agemaspark.co.uk", "site_visit": "Tuesday 23rd September", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 23, "scc_owner": "John", "company_name": "Mayflower Engineering", "contact_email": "jwright@mayflower-engineering.co.uk", "site_visit": "Wednesday 3rd September", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Part way"}, {"seq_no": 24, "scc_owner": "John", "company_name": "Ellis Patents", "contact_email": "rgalavan@ellispatents.co.uk", "site_visit": "Wednesday  24th September", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 25, "scc_owner": "Dug", "company_name": "Hydrobolt Group", "contact_email": "brad.collins@hydroboltgroup.com", "site_visit": "Asked for dates in new year", "invoice_status": "Invoiced  1 of 2", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 26, "scc_owner": "John", "company_name": "Fort Vale Nuclear", "contact_email": "pstaveley@fortvale.com", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 27, "scc_owner": "Dug", "company_name": "Prism Power Group", "contact_email": "richard.russell-hogg@prismpower.co.uk", "site_visit": "11/11 - email push back - portal access", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Part way"}, {"seq_no": 28, "scc_owner": "John", "company_name": "Trillium Flow", "contact_email": "Ged.Chauveau@trilliumflow.com", "site_visit": "Wednesday 15th October", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 29, "scc_owner": "Brian", "company_name": "BHC", "contact_email": "gsnarskyte@bhc.ltd.uk", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 30, "scc_owner": "John", "company_name": "Backer Heatrod", "contact_email": "john.cole@heatrod.com", "site_visit": "", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 31, "scc_owner": "Dug", "company_name": "Rhyal Engineering", "contact_email": "hywel.dyer@rhyalengineering.com", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 32, "scc_owner": "Dug", "company_name": "Parc A Pave", "contact_email": "asussex@parctest.co.uk", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 33, "scc_owner": "John", "company_name": "Euro Fabs", "contact_email": "Michael.Hanson@eurofabs.co.uk", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 34, "scc_owner": "John", "company_name": "Ace Polishing Services", "contact_email": "accounts@acepolishingservices.co.uk", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 35, "scc_owner": "Dug", "company_name": "BFS", "contact_email": "f.wade@bfs-fabs.com", "site_visit": "", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "Yes", "website_reviewed": "Yes", "f4n_status": "Granted - M&S"}, {"seq_no": 36, "scc_owner": "Dug", "company_name": "ASD", "contact_email": "kevin.maddison@asd.ltd", "site_visit": "", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 37, "scc_owner": "John", "company_name": "Dynamic Aerospace Fabrication", "contact_email": "aclift@dynamicfabs.co.uk", "site_visit": "", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 38, "scc_owner": "John", "company_name": "VE Com", "contact_email": "e.mccoy@vecom.co.uk", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 39, "scc_owner": "Brian", "company_name": "MCE Group", "contact_email": "lisa.venter@mce-group.com", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 40, "scc_owner": "Dug", "company_name": "Amarinth", "contact_email": "Nicholas.Metcalf@Amarinth.com", "site_visit": "7th July 2026", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 41, "scc_owner": "John", "company_name": "Hawke International (Hubbell Group)", "contact_email": "rnaylor@hubbell", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 42, "scc_owner": "Dug", "company_name": "Orbital Fabrications", "contact_email": "freddy.carter@orbitalfl.com", "site_visit": "", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "Yes", "members_invite": "", "website_reviewed": "", "f4n_status": "New"}, {"seq_no": 43, "scc_owner": "Dug", "company_name": "HMD Sealless Pumps", "contact_email": "Darren.Martin@Honeywell.com", "site_visit": "", "invoice_status": "Invoiced 1 of 2", "invoice_paid": "No", "members_invite": "", "website_reviewed": "", "f4n_status": "New"}, {"seq_no": 44, "scc_owner": "Dug", "company_name": "DPV-UK Ltd", "contact_email": "gary@dpv-uk.com", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "Yes", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 45, "scc_owner": "Brian", "company_name": "Forsyths", "contact_email": "craig.scott@forsyths.com", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "No", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 46, "scc_owner": "John", "company_name": "Longcliffe Quarries Limited", "contact_email": "DarrenMooney@longcliffe.co.uk", "site_visit": "", "invoice_status": "Invoice 1 of 2 to be raised", "invoice_paid": "No", "members_invite": "", "website_reviewed": "", "f4n_status": "New"}, {"seq_no": 47, "scc_owner": "Dug", "company_name": "Somers Forge", "contact_email": "andrew.kempton@somersforge.com", "site_visit": "", "invoice_status": "Invoiced in full", "invoice_paid": "No", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 48, "scc_owner": "Dug", "company_name": "Navantia", "contact_email": "michael.canham@navantia.co.uk", "site_visit": "", "invoice_status": "To be invoiced", "invoice_paid": "No", "members_invite": "", "website_reviewed": "", "f4n_status": "New"}, {"seq_no": 49, "scc_owner": "John", "company_name": "Exentec Hargreaves", "contact_email": "kenneth.flatters@working-with.exyte-hargreaves.net", "site_visit": "SZC", "invoice_status": "", "invoice_paid": "", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 50, "scc_owner": "Dug", "company_name": "GC Carr", "contact_email": "dj@grcarr.com", "site_visit": "SZC", "invoice_status": "", "invoice_paid": "", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}, {"seq_no": 51, "scc_owner": "Dug", "company_name": "Ovivo", "contact_email": "peter.nicholls@ovivowater.com", "site_visit": "SZC", "invoice_status": "", "invoice_paid": "", "members_invite": "", "website_reviewed": "", "f4n_status": "New"}, {"seq_no": 52, "scc_owner": "John", "company_name": "Evenort", "contact_email": "craig@evenort.co.uk", "site_visit": "SZC", "invoice_status": "", "invoice_paid": "", "members_invite": "", "website_reviewed": "", "f4n_status": "Granted - M&S"}];
+
+let f4nAll = [];
+let f4nFiltered = [];
+
+function f4nNormalize(name) {
+  return String(name || '').toLowerCase()
+    .replace(/\(.*?\)/g, ' ')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\b(ltd|limited|group|plc|llp|inc|co|gmbh|company|the|technologies|technology|engineering|solutions|global)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function f4nFindMatch(name) {
+  const n = f4nNormalize(name);
+  if (!n) return null;
+  let m = sharedCos.find(c => f4nNormalize(c.name) === n);
+  if (m) return m;
+  m = sharedCos.find(c => {
+    const cn = f4nNormalize(c.name);
+    return cn && (cn.includes(n) || n.includes(cn));
+  });
+  return m || null;
+}
+
+function f4nStatusColor(status) {
+  const s = (status || '').toLowerCase();
+  if (s.startsWith('granted')) return { bg: '#dcfce7', fg: '#166534' };
+  if (s.startsWith('part'))    return { bg: '#fef3c7', fg: '#92400e' };
+  return { bg: '#e0f2fe', fg: '#075985' };
+}
+
+function f4nMapStatusToCrm(f4nStatus) {
+  return (f4nStatus || '').toLowerCase().startsWith('granted') ? 'granted' : 'in_progress';
+}
+
+async function f4nLoad() {
+  const loading = document.getElementById('f4n-loading');
+  const banner  = document.getElementById('f4n-seed-banner');
+  if (loading) loading.style.display = 'block';
+
+  await sharedCosLoad();
+
+  const { data, error } = await db.from('nr_f4n_tracker').select('*').order('seq_no', { ascending: true });
+  if (loading) loading.style.display = 'none';
+
+  if (error) {
+    toast('Could not load F4N tracker: ' + error.message + ' — has nr_f4n_tracker.sql been run in Supabase?');
+    f4nAll = [];
+  } else {
+    f4nAll = data || [];
+  }
+
+  if (banner) banner.style.display = (f4nAll.length === 0) ? 'flex' : 'none';
+
+  f4nPopulateOwnerFilter();
+  f4nUpdateStats();
+  f4nFilter();
+}
+
+function f4nPopulateOwnerFilter() {
+  const sel = document.getElementById('f4n-owner-filter');
+  if (!sel) return;
+  const current = sel.value;
+  const owners = [...new Set(f4nAll.map(r => r.scc_owner).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="all">All SCC owners</option>' + owners.map(o => `<option value="${escH(o)}">${escH(o)}</option>`).join('');
+  if (owners.includes(current)) sel.value = current;
+}
+
+function f4nUpdateStats() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('f4n-stat-total', f4nAll.length);
+  set('f4n-stat-new', f4nAll.filter(r => (r.f4n_status || '').toLowerCase() === 'new').length);
+  set('f4n-stat-partway', f4nAll.filter(r => (r.f4n_status || '').toLowerCase().startsWith('part')).length);
+  set('f4n-stat-granted', f4nAll.filter(r => (r.f4n_status || '').toLowerCase().startsWith('granted')).length);
+  set('f4n-stat-linked', f4nAll.filter(r => r.company_id).length);
+  set('f4n-stat-novisit', f4nAll.filter(r => !r.site_visit).length);
+  const badge = document.getElementById('sb-f4n-count');
+  if (badge) badge.textContent = f4nAll.length || '0';
+}
+
+function f4nFilter() {
+  const q      = (document.getElementById('f4n-search')?.value || '').toLowerCase().trim();
+  const owner  = document.getElementById('f4n-owner-filter')?.value || 'all';
+  const status = document.getElementById('f4n-status-filter')?.value || 'all';
+  const link   = document.getElementById('f4n-link-filter')?.value || 'all';
+
+  f4nFiltered = f4nAll.filter(r => {
+    if (owner !== 'all' && r.scc_owner !== owner) return false;
+    if (status !== 'all' && r.f4n_status !== status) return false;
+    if (link === 'linked' && !r.company_id) return false;
+    if (link === 'unlinked' && r.company_id) return false;
+    if (q && !(r.company_name || '').toLowerCase().includes(q) && !(r.contact_email || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  f4nRender();
+}
+
+function f4nYesNoChip(id, field, val) {
+  const on = String(val || '').toLowerCase() === 'yes';
+  return `<span onclick="f4nToggleYesNo('${id}','${field}')" style="cursor:pointer;display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:600;background:${on ? '#dcfce7' : '#f1f5f9'};color:${on ? '#166534' : '#94a3b8'}">${on ? 'Yes' : '—'}</span>`;
+}
+
+function f4nRender() {
+  const tbody = document.getElementById('f4n-tbody');
+  const empty = document.getElementById('f4n-empty');
+  const wrap  = document.getElementById('f4n-table-wrap');
+  if (!tbody) return;
+
+  if (!f4nFiltered.length) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    if (wrap) wrap.style.display = 'none';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (wrap) wrap.style.display = 'block';
+
+  tbody.innerHTML = f4nFiltered.map(r => {
+    const sc = f4nStatusColor(r.f4n_status);
+    const match = !r.company_id ? f4nFindMatch(r.company_name) : null;
+
+    let nameHtml, linkCell = '';
+    if (r.company_id) {
+      nameHtml = `<span onclick="f4nOpenCompany('${r.company_id}')" title="Open in CRM" style="font-weight:600;color:var(--accent);cursor:pointer;text-decoration:underline">${escH(r.company_name)}</span>
+        <button onclick="event.stopPropagation();f4nUnlink('${r.id}')" title="Unlink from CRM" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.68rem;vertical-align:middle;margin-left:4px">✕</button>`;
+    } else if (match) {
+      nameHtml = `<span style="font-weight:600;color:var(--navy)">${escH(r.company_name)}</span>`;
+      linkCell = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="font-size:.7rem;color:var(--muted)">Match: ${escH(match.name)}</span>
+        <button onclick="f4nLinkCompany('${r.id}','${match.id}')" style="background:none;border:1px solid var(--accent);color:var(--accent);border-radius:4px;padding:1px 7px;cursor:pointer;font-size:.7rem">Link</button>
+      </div>`;
+    } else {
+      nameHtml = `<span style="font-weight:600;color:var(--navy)">${escH(r.company_name)}</span>`;
+      linkCell = `<button onclick="f4nCreateCompany('${r.id}')" style="background:none;border:1px solid var(--line);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:.7rem;color:var(--muted)">+ Create in CRM</button>`;
+    }
+
+    return `<tr style="border-bottom:1px solid var(--line)">
+      <td style="padding:7px 10px;color:var(--muted)">${r.seq_no ?? ''}</td>
+      <td style="padding:7px 10px">
+        <input value="${escH(r.scc_owner || '')}" onchange="f4nUpdateField('${r.id}','scc_owner',this.value)"
+          style="width:64px;border:1px solid transparent;background:transparent;font-size:.8rem;padding:2px 4px;border-radius:4px" onfocus="this.style.border='1px solid var(--line)'" onblur="this.style.border='1px solid transparent'">
+      </td>
+      <td style="padding:7px 10px">
+        <div>${nameHtml}</div>
+        ${linkCell ? `<div style="margin-top:2px">${linkCell}</div>` : ''}
+      </td>
+      <td style="padding:7px 10px">
+        <input value="${escH(r.contact_email || '')}" onchange="f4nUpdateField('${r.id}','contact_email',this.value)"
+          style="width:100%;border:1px solid transparent;background:transparent;font-size:.78rem;padding:2px 4px;border-radius:4px;box-sizing:border-box" onfocus="this.style.border='1px solid var(--line)'" onblur="this.style.border='1px solid transparent'">
+      </td>
+      <td style="padding:7px 10px">
+        <input value="${escH(r.site_visit || '')}" onchange="f4nUpdateField('${r.id}','site_visit',this.value)"
+          style="width:100%;border:1px solid transparent;background:transparent;font-size:.78rem;padding:2px 4px;border-radius:4px;box-sizing:border-box" onfocus="this.style.border='1px solid var(--line)'" onblur="this.style.border='1px solid transparent'">
+      </td>
+      <td style="padding:7px 10px">
+        <input value="${escH(r.invoice_status || '')}" onchange="f4nUpdateField('${r.id}','invoice_status',this.value)"
+          style="width:100%;border:1px solid transparent;background:transparent;font-size:.78rem;padding:2px 4px;border-radius:4px;box-sizing:border-box" onfocus="this.style.border='1px solid var(--line)'" onblur="this.style.border='1px solid transparent'">
+      </td>
+      <td style="padding:7px 10px;text-align:center">${f4nYesNoChip(r.id, 'invoice_paid', r.invoice_paid)}</td>
+      <td style="padding:7px 10px;text-align:center">${f4nYesNoChip(r.id, 'members_invite', r.members_invite)}</td>
+      <td style="padding:7px 10px;text-align:center">${f4nYesNoChip(r.id, 'website_reviewed', r.website_reviewed)}</td>
+      <td style="padding:7px 10px">
+        <select onchange="f4nUpdateField('${r.id}','f4n_status',this.value)"
+          style="width:100%;background:${sc.bg};color:${sc.fg};border:1px solid var(--line);border-radius:5px;padding:4px 6px;font-size:.76rem;font-weight:600;cursor:pointer;outline:none">
+          <option value="New" ${r.f4n_status === 'New' ? 'selected' : ''}>New</option>
+          <option value="Part way" ${r.f4n_status === 'Part way' ? 'selected' : ''}>Part way</option>
+          <option value="Granted - M&S" ${r.f4n_status === 'Granted - M&S' ? 'selected' : ''}>Granted - M&S</option>
+        </select>
+      </td>
+      <td style="padding:7px 10px">
+        <button onclick="f4nDeleteRow('${r.id}','${escH(r.company_name).replace(/'/g, "\\'")}')" title="Delete row" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.85rem">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function f4nUpdateField(id, field, value) {
+  const { error } = await db.from('nr_f4n_tracker').update({ [field]: value || null }).eq('id', id);
+  if (error) { toast('Error: ' + error.message); return; }
+  const row = f4nAll.find(r => r.id === id);
+  if (row) {
+    row[field] = value || null;
+    if (field === 'f4n_status') {
+      f4nUpdateStats();
+      f4nFilter();
+      // keep linked CRM record's status in sync
+      if (row.company_id) {
+        const mapped = f4nMapStatusToCrm(value);
+        db.from('nr_companies').update({ status: mapped }).eq('id', row.company_id).then(({ error: e2 }) => {
+          if (!e2) { const co = sharedCos.find(c => c.id === row.company_id); if (co) co.status = mapped; }
+        });
+      }
+    }
+  }
+  toast('Saved');
+}
+
+async function f4nToggleYesNo(id, field) {
+  const row = f4nAll.find(r => r.id === id);
+  if (!row) return;
+  const newVal = String(row[field] || '').toLowerCase() === 'yes' ? '' : 'Yes';
+  await f4nUpdateField(id, field, newVal);
+  f4nFilter();
+}
+
+async function f4nLinkCompany(rowId, companyId) {
+  const { error } = await db.from('nr_f4n_tracker').update({ company_id: companyId }).eq('id', rowId);
+  if (error) { toast('Error: ' + error.message); return; }
+  const row = f4nAll.find(r => r.id === rowId);
+  if (row) row.company_id = companyId;
+  f4nUpdateStats();
+  f4nFilter();
+  toast('✓ Linked to CRM company');
+}
+
+async function f4nUnlink(rowId) {
+  const { error } = await db.from('nr_f4n_tracker').update({ company_id: null }).eq('id', rowId);
+  if (error) { toast('Error: ' + error.message); return; }
+  const row = f4nAll.find(r => r.id === rowId);
+  if (row) row.company_id = null;
+  f4nUpdateStats();
+  f4nFilter();
+  toast('Unlinked');
+}
+
+async function f4nCreateCompany(rowId) {
+  const row = f4nAll.find(r => r.id === rowId);
+  if (!row) return;
+  const status = f4nMapStatusToCrm(row.f4n_status);
+  const { data, error } = await db.from('nr_companies').insert({ name: row.company_name, status, hidden: false }).select().single();
+  if (error) { toast('Error creating company: ' + error.message); return; }
+  sharedCos.push(data);
+  if (typeof coAllCompanies !== 'undefined') coAllCompanies.push(data);
+  await f4nLinkCompany(rowId, data.id);
+  toast('✓ Company created in CRM and linked');
+}
+
+function f4nOpenCompany(companyId) {
+  nav('companies');
+  setTimeout(() => {
+    coSearch('');
+    const el = document.getElementById('co-folder-' + companyId);
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); coToggle(companyId); }
+  }, 250);
+}
+
+async function f4nDeleteRow(id, name) {
+  if (!confirm(`Delete the F4N tracker row for "${name}"?\n\nThis only removes the tracker entry — it will not delete the linked CRM company.`)) return;
+  const { error } = await db.from('nr_f4n_tracker').delete().eq('id', id);
+  if (error) { toast('Error: ' + error.message); return; }
+  f4nAll = f4nAll.filter(r => r.id !== id);
+  f4nUpdateStats();
+  f4nFilter();
+  toast('Row deleted');
+}
+
+function f4nShowAddModal() {
+  document.getElementById('f4n-edit-id').value = '';
+  document.getElementById('f4n-modal-title').textContent = 'Add Booking';
+  ['f4n-f-owner', 'f4n-f-company', 'f4n-f-contact', 'f4n-f-visit', 'f4n-f-invoice'].forEach(id => { document.getElementById(id).value = ''; });
+  ['f4n-f-paid', 'f4n-f-invite', 'f4n-f-website'].forEach(id => { document.getElementById(id).checked = false; });
+  document.getElementById('f4n-f-status').value = 'New';
+  document.getElementById('f4n-modal-msg').textContent = '';
+  document.getElementById('f4n-modal').style.display = 'flex';
+}
+
+async function f4nSaveModal() {
+  const id = document.getElementById('f4n-edit-id').value;
+  const company = document.getElementById('f4n-f-company').value.trim();
+  const msg = document.getElementById('f4n-modal-msg');
+  if (!company) { msg.textContent = 'Company name is required.'; return; }
+
+  const payload = {
+    scc_owner: document.getElementById('f4n-f-owner').value.trim() || null,
+    company_name: company,
+    contact_email: document.getElementById('f4n-f-contact').value.trim() || null,
+    site_visit: document.getElementById('f4n-f-visit').value.trim() || null,
+    invoice_status: document.getElementById('f4n-f-invoice').value.trim() || null,
+    invoice_paid: document.getElementById('f4n-f-paid').checked ? 'Yes' : null,
+    members_invite: document.getElementById('f4n-f-invite').checked ? 'Yes' : null,
+    website_reviewed: document.getElementById('f4n-f-website').checked ? 'Yes' : null,
+    f4n_status: document.getElementById('f4n-f-status').value
+  };
+
+  if (id) {
+    const { error } = await db.from('nr_f4n_tracker').update(payload).eq('id', id);
+    if (error) { msg.textContent = error.message; return; }
+  } else {
+    payload.seq_no = (Math.max(0, ...f4nAll.map(r => r.seq_no || 0)) + 1);
+    const { error } = await db.from('nr_f4n_tracker').insert(payload);
+    if (error) { msg.textContent = error.message; return; }
+  }
+
+  document.getElementById('f4n-modal').style.display = 'none';
+  toast(id ? '✓ Booking updated' : '✓ Booking added');
+  f4nLoad();
+}
+
+async function f4nSeedImport() {
+  const btn = document.getElementById('f4n-seed-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; }
+  try {
+    const { error } = await db.from('nr_f4n_tracker').insert(F4N_SEED);
+    if (error) throw error;
+    toast(`✓ Imported ${F4N_SEED.length} legacy bookings`);
+    await f4nLoad();
+    // auto-link exact/near matches against existing CRM companies
+    let linked = 0;
+    for (const row of f4nAll) {
+      if (row.company_id) continue;
+      const m = f4nFindMatch(row.company_name);
+      if (m) { await f4nLinkCompany(row.id, m.id); linked++; }
+    }
+    if (linked) toast(`✓ Auto-linked ${linked} bookings to existing CRM companies`);
+  } catch (e) {
+    toast('Import failed: ' + e.message + ' — has nr_f4n_tracker.sql been run in Supabase?');
+    if (btn) { btn.disabled = false; btn.textContent = 'Import 52 rows'; }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SUPPLIER DATABASE — native view over the live NuCCoL SharePoint
+// "Companies" list (site: SCRLDatabase), the same data behind the
+// standalone DataVault / Rolodex / NuccolSupplierMap tools.
+// Read-only here by design: editing still happens in DataVault/
+// Rolodex (linked out via "Open in ..." buttons). This screen adds
+// search/filter + a link to the Supabase CRM (nr_companies.sharepoint_company_id).
+// Auth: MSAL/Azure AD, separate from the Supabase auth used for staff login.
+// SQL needed: nr_companies_sharepoint.sql (adds sharepoint_company_id column).
+// ═══════════════════════════════════════════════════════════
+const SDB_CONFIG = {
+  tenantId: 'd44192f5-1023-458c-9cb3-9ff7e9c6d4ad',
+  clientId: 'ec0a6806-59e8-4ea9-8ff5-6bdb1ba87baf',
+  siteUrl:  'https://nuccol.sharepoint.com/sites/SCRLDatabase',
+  scopes:   ['https://nuccol.sharepoint.com/AllSites.Write']
+};
+
+let sdbMsalClient = null;
+let sdbMsalReady = false;
+let sdbCurrentUser = null;
+
+async function spInitMsal() {
+  if (sdbMsalClient) return;
+  sdbMsalClient = new msal.PublicClientApplication({
+    auth: {
+      clientId: SDB_CONFIG.clientId,
+      authority: `https://login.microsoftonline.com/${SDB_CONFIG.tenantId}`,
+      redirectUri: window.location.origin + window.location.pathname
+    },
+    cache: { cacheLocation: 'sessionStorage' }
+  });
+  await sdbMsalClient.initialize();
+  sdbMsalReady = true;
+  await sdbMsalClient.handleRedirectPromise();
+  const accounts = sdbMsalClient.getAllAccounts();
+  if (accounts.length) sdbCurrentUser = accounts[0];
+}
+
+async function spSignIn() {
+  const errEl = document.getElementById('sdb-signin-error');
+  const btn = document.getElementById('sdb-signin-btn');
+  if (errEl) errEl.style.display = 'none';
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+  try {
+    await spInitMsal();
+    const result = await sdbMsalClient.loginPopup({ scopes: SDB_CONFIG.scopes });
+    sdbCurrentUser = result.account;
+    await sdbLoad(true);
+  } catch (e) {
+    if (errEl) { errEl.textContent = 'Sign-in failed: ' + e.message; errEl.style.display = 'block'; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sign in with Microsoft'; }
+  }
+}
+
+async function spGetToken() {
+  await spInitMsal();
+  const accounts = sdbMsalClient.getAllAccounts();
+  if (!accounts.length) throw new Error('Not signed in to Microsoft');
+  try {
+    const res = await sdbMsalClient.acquireTokenSilent({ scopes: SDB_CONFIG.scopes, account: accounts[0] });
+    return res.accessToken;
+  } catch {
+    const res = await sdbMsalClient.acquireTokenPopup({ scopes: SDB_CONFIG.scopes });
+    return res.accessToken;
+  }
+}
+
+async function spFetch(path, options) {
+  options = options || {};
+  const token = await spGetToken();
+  const url = path.startsWith('http') ? path : `${SDB_CONFIG.siteUrl}/_api/${path}`;
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json;odata=nometadata',
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`SharePoint ${res.status}: ${text.substring(0, 200)}`);
+  }
+  if (res.status === 204) return {};
+  const text = await res.text();
+  return text && text.trim() ? JSON.parse(text) : {};
+}
+
+async function spGetAll(listName, select, top) {
+  select = select || '';
+  top = top || 5000;
+  let items = [];
+  let qs = `?$top=${top}`;
+  if (select) qs += `&$select=${select}`;
+  let url = `web/lists/getbytitle('${encodeURIComponent(listName)}')/items${qs}`;
+  while (url) {
+    const data = await spFetch(url);
+    items = items.concat(data.value || []);
+    url = data['odata.nextLink'] || null;
+    if (url) url = url.replace(SDB_CONFIG.siteUrl + '/_api/', '');
+  }
+  return items;
+}
+
+function sdbNormaliseCompany(c) {
+  return {
+    ...c,
+    City:               c.field_2  ?? c.City,
+    County:             c.field_3  ?? c.County,
+    Postcode:           c.field_4  ?? c.Postcode,
+    Website:            c.field_6  ?? c.Website,
+    Email:              c.field_7  ?? c.Email,
+    RegionalIA:         c.field_9  ?? c.RegionalIA,
+    QuickDescription:   c.field_10 ?? c.QuickDescription,
+    MainCommodityGroup: c.field_11 ?? c.MainCommodityGroup,
+    RAGStatus:          c.field_13 ?? c.RAGStatus,
+    Turnover:           c.field_14 ?? c.Turnover,
+    Employees:          c.field_15 ?? c.Employees,
+    Size:               c.field_16 ?? c.Size,
+    F4NCandidate:       c.field_19 ?? c.F4NCandidate,
+    F4H2Candidate:      c.field_20 ?? c.F4H2Candidate,
+    Address:            c.field_25 ?? c.Address,
+    Notes:              c.field_30 ?? c.Notes,
+    CompanyID:          c.field_1  ?? c.ID
+  };
+}
+
+let sdbState = {
+  companies: [], capabilities: [], commodities: [], accreditations: [], markets: [],
+  counties: [], loaded: false
+};
+let sdbJunctions = { caps: [], coms: [], acreds: [], mkts: [] };
+let sdbCrmByShareId = {};   // sharepoint_company_id -> nr_companies row
+let sdbFiltered = [];
+let sdbSelected = null;
+
+function sdbOpen() {
+  const banner = document.getElementById('sdb-signin-banner');
+  const content = document.getElementById('sdb-content');
+  if (sdbCurrentUser) {
+    if (banner) banner.style.display = 'none';
+    if (content) content.style.display = 'block';
+    if (!sdbState.loaded) sdbLoad();
+  } else {
+    // try silent restore of an existing MSAL session before showing the sign-in prompt
+    spInitMsal().then(() => {
+      if (sdbMsalClient.getAllAccounts().length) {
+        sdbCurrentUser = sdbMsalClient.getAllAccounts()[0];
+        sdbOpen();
+      } else {
+        if (banner) banner.style.display = 'block';
+        if (content) content.style.display = 'none';
+      }
+    });
+  }
+}
+
+async function sdbLoad(force) {
+  if (sdbState.loaded && !force) { sdbApplyFilters(); return; }
+  const loading = document.getElementById('sdb-loading');
+  const banner = document.getElementById('sdb-signin-banner');
+  const content = document.getElementById('sdb-content');
+  if (loading) loading.style.display = 'block';
+
+  try {
+    const [caps, coms, acreds, mkts, companies] = await Promise.all([
+      spGetAll('Capabilities', 'ID,Title', 2000),
+      spGetAll('Commodities', 'ID,Title', 2000),
+      spGetAll('Accreditations', 'ID,Title', 2000),
+      spGetAll('Markets', 'ID,Title', 2000),
+      spGetAll('Companies', '', 5000)
+    ]);
+    const [capsJ, comsJ, acredsJ, mktsJ] = await Promise.all([
+      spGetAll('Company_Capabilities', 'CompanyID_Ref,CapabilityName_Ref', 5000),
+      spGetAll('Company_Commodities', 'CompanyID_Ref,CommodityName_Ref', 5000),
+      spGetAll('Company_Accreditations', 'CompanyID_Ref,AccreditationName_Ref', 5000),
+      spGetAll('Company_Markets', 'CompanyID_Ref,MarketName_Ref', 5000)
+    ]);
+
+    sdbState.capabilities = caps.sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
+    sdbState.commodities = coms.sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
+    sdbState.accreditations = acreds.sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
+    sdbState.markets = mkts.sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
+    sdbState.companies = companies.map(sdbNormaliseCompany).sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
+    sdbState.counties = [...new Set(sdbState.companies.map(c => c.County).filter(Boolean))].sort();
+    sdbJunctions = { caps: capsJ, coms: comsJ, acreds: acredsJ, mkts: mktsJ };
+    sdbState.loaded = true;
+
+    await sharedCosLoad();
+    const { data: crmLinks } = await db.from('nr_companies').select('id,name,sharepoint_company_id').not('sharepoint_company_id', 'is', null);
+    sdbCrmByShareId = {};
+    (crmLinks || []).forEach(c => { sdbCrmByShareId[String(c.sharepoint_company_id)] = c; });
+
+    sdbPopulateFilters();
+
+    if (banner) banner.style.display = 'none';
+    if (content) content.style.display = 'block';
+    const userLbl = document.getElementById('sdb-stat-signedin');
+    if (userLbl) userLbl.textContent = (sdbCurrentUser && (sdbCurrentUser.name || sdbCurrentUser.username)) || '—';
+
+    sdbApplyFilters();
+  } catch (e) {
+    toast('Failed to load Supplier Database: ' + e.message);
+  } finally {
+    if (loading) loading.style.display = 'none';
+  }
+}
+
+function sdbPopulateFilters() {
+  const opts = arr => arr.map(i => `<option value="${escH(i.Title)}">${escH(i.Title)}</option>`).join('');
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  set('sdb-capability', '<option value="">All capabilities</option>' + opts(sdbState.capabilities));
+  set('sdb-commodity', '<option value="">All commodities</option>' + opts(sdbState.commodities));
+  set('sdb-accreditation', '<option value="">All accreditations</option>' + opts(sdbState.accreditations));
+  set('sdb-market', '<option value="">All markets</option>' + opts(sdbState.markets));
+  set('sdb-region', '<option value="">All regions</option>' + sdbState.counties.map(c => `<option value="${escH(c)}">${escH(c)}</option>`).join(''));
+}
+
+function sdbCrmLinkFor(c) {
+  const shareId = String(c.CompanyID ?? c.ID);
+  if (sdbCrmByShareId[shareId]) return sdbCrmByShareId[shareId];
+  return f4nFindMatch(c.Title) || null;
+}
+
+function sdbApplyFilters() {
+  const txt = (document.getElementById('sdb-search')?.value || '').toLowerCase();
+  const cap = document.getElementById('sdb-capability')?.value || '';
+  const com = document.getElementById('sdb-commodity')?.value || '';
+  const acr = document.getElementById('sdb-accreditation')?.value || '';
+  const reg = document.getElementById('sdb-region')?.value || '';
+  const mkt = document.getElementById('sdb-market')?.value || '';
+  const linkFilter = document.getElementById('sdb-link-filter')?.value || 'all';
+
+  sdbFiltered = sdbState.companies.filter(c => {
+    if (txt && !(c.Title || '').toLowerCase().includes(txt)) return false;
+    if (reg && c.County !== reg) return false;
+    if (cap && !sdbJunctions.caps.some(j => j.CompanyID_Ref === c.ID && j.CapabilityName_Ref === cap)) return false;
+    if (com && !sdbJunctions.coms.some(j => j.CompanyID_Ref === c.ID && j.CommodityName_Ref === com)) return false;
+    if (acr && !sdbJunctions.acreds.some(j => j.CompanyID_Ref === c.ID && j.AccreditationName_Ref === acr)) return false;
+    if (mkt && !sdbJunctions.mkts.some(j => j.CompanyID_Ref === c.ID && j.MarketName_Ref === mkt)) return false;
+    const isLinked = !!sdbCrmByShareId[String(c.CompanyID ?? c.ID)];
+    if (linkFilter === 'linked' && !isLinked) return false;
+    if (linkFilter === 'unlinked' && isLinked) return false;
+    return true;
+  });
+
+  sdbUpdateStats();
+  sdbRender();
+}
+
+function sdbUpdateStats() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('sdb-stat-total', sdbState.companies.length);
+  set('sdb-stat-f4n', sdbState.companies.filter(c => c.F4NCandidate === 'Y').length);
+  set('sdb-stat-linked', Object.keys(sdbCrmByShareId).length);
+  const badge = document.getElementById('sb-sdb-count');
+  if (badge) badge.textContent = sdbState.companies.length || '—';
+}
+
+function sdbRagBadge(val) {
+  const v = (val || '').toUpperCase();
+  const map = { R: ['#fee2e2', '#991b1b'], A: ['#fef3c7', '#92400e'], G: ['#dcfce7', '#166534'] };
+  const [bg, fg] = map[v] || ['#f1f5f9', '#94a3b8'];
+  return `<span style="background:${bg};color:${fg};padding:1px 8px;border-radius:4px;font-size:.72rem;font-weight:700">${v || '—'}</span>`;
+}
+
+function sdbRender() {
+  const tbody = document.getElementById('sdb-tbody');
+  const empty = document.getElementById('sdb-empty');
+  const wrap = document.getElementById('sdb-table-wrap');
+  if (!tbody) return;
+
+  if (!sdbFiltered.length) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    if (wrap) wrap.style.display = 'none';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (wrap) wrap.style.display = 'block';
+
+  tbody.innerHTML = sdbFiltered.map(c => {
+    const crm = sdbCrmLinkFor(c);
+    const isConfirmedLink = !!sdbCrmByShareId[String(c.CompanyID ?? c.ID)];
+    let linkCell;
+    if (isConfirmedLink) {
+      linkCell = `<span onclick="sdbOpenCrmCompany('${crm.id}')" style="color:var(--accent);cursor:pointer;text-decoration:underline;font-weight:600">🔗 ${escH(crm.name)}</span>`;
+    } else if (crm) {
+      linkCell = `<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+        <span style="font-size:.7rem;color:var(--muted)">Match: ${escH(crm.name)}</span>
+        <button onclick="sdbLinkCompany(${c.ID},'${crm.id}')" style="background:none;border:1px solid var(--accent);color:var(--accent);border-radius:4px;padding:1px 6px;cursor:pointer;font-size:.7rem">Link</button>
+      </div>`;
+    } else {
+      linkCell = `<button onclick="sdbCreateCrmCompany(${c.ID})" style="background:none;border:1px solid var(--line);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:.7rem;color:var(--muted)">+ Create in CRM</button>`;
+    }
+
+    return `<tr style="border-bottom:1px solid var(--line);cursor:pointer" onclick="sdbOpenDetail(${c.ID})">
+      <td style="padding:7px 10px;font-weight:600;color:var(--navy)">${escH(c.Title)}</td>
+      <td style="padding:7px 10px;color:var(--muted)">${escH([c.City, c.County].filter(Boolean).join(', '))}</td>
+      <td style="padding:7px 10px;color:#555">${escH(c.QuickDescription || '')}</td>
+      <td style="padding:7px 10px">${sdbRagBadge(c.RAGStatus)}</td>
+      <td style="padding:7px 10px">${c.F4NCandidate === 'Y' ? '✓' : ''}</td>
+      <td style="padding:7px 10px" onclick="event.stopPropagation()">${linkCell}</td>
+    </tr>`;
+  }).join('');
+}
+
+function sdbOpenDetail(id) {
+  const c = sdbState.companies.find(x => x.ID === id);
+  if (!c) return;
+  sdbSelected = c;
+
+  document.getElementById('sdb-modal-name').textContent = c.Title || '';
+  document.getElementById('sdb-modal-location').textContent = [c.Address, c.City, c.County, c.Postcode].filter(Boolean).join(', ');
+  document.getElementById('sdb-modal-desc').textContent = c.QuickDescription || '';
+
+  const crm = sdbCrmLinkFor(c);
+  const isConfirmedLink = !!sdbCrmByShareId[String(c.CompanyID ?? c.ID)];
+  const crmEl = document.getElementById('sdb-modal-crm');
+  if (isConfirmedLink) {
+    crmEl.innerHTML = `🔗 Linked to CRM company <strong>${escH(crm.name)}</strong> &nbsp; <button onclick="sdbUnlink(${c.ID})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;text-decoration:underline">Unlink</button>`;
+  } else if (crm) {
+    crmEl.innerHTML = `Possible match in CRM: <strong>${escH(crm.name)}</strong> &nbsp; <button onclick="sdbLinkCompany(${c.ID},'${crm.id}');sdbOpenDetail(${c.ID})" style="background:none;border:1px solid var(--accent);color:var(--accent);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:.75rem">Confirm link</button>`;
+  } else {
+    crmEl.innerHTML = `Not in CRM yet. &nbsp; <button onclick="sdbCreateCrmCompany(${c.ID});sdbOpenDetail(${c.ID})" style="background:none;border:1px solid var(--line);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:.75rem;color:var(--muted)">+ Create in CRM</button>`;
+  }
+
+  const fields = [
+    ['Website', c.Website], ['Email', c.Email], ['Registered No.', c.RegisteredNumber],
+    ['Regional IA', c.RegionalIA], ['Turnover', c.Turnover], ['Employees', c.Employees],
+    ['Size', c.Size], ['Main Commodity Group', c.MainCommodityGroup]
+  ].filter(([, v]) => v);
+  document.getElementById('sdb-modal-fields').innerHTML = fields.map(([k, v]) =>
+    `<div><div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#6a7a90">${k}</div><div>${escH(String(v))}</div></div>`
+  ).join('');
+
+  const tagGroup = (label, items) => items.length
+    ? `<div style="margin-bottom:8px"><div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#6a7a90;margin-bottom:4px">${label}</div>${items.map(t => `<span style="display:inline-block;background:var(--wash);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:.72rem;margin:0 4px 4px 0">${escH(t)}</span>`).join('')}</div>`
+    : '';
+  const caps = sdbJunctions.caps.filter(j => j.CompanyID_Ref === c.ID).map(j => j.CapabilityName_Ref);
+  const coms = sdbJunctions.coms.filter(j => j.CompanyID_Ref === c.ID).map(j => j.CommodityName_Ref);
+  const acreds = sdbJunctions.acreds.filter(j => j.CompanyID_Ref === c.ID).map(j => j.AccreditationName_Ref);
+  const mkts = sdbJunctions.mkts.filter(j => j.CompanyID_Ref === c.ID).map(j => j.MarketName_Ref);
+  document.getElementById('sdb-modal-tags').innerHTML =
+    tagGroup('Capabilities', caps) + tagGroup('Commodities', coms) + tagGroup('Accreditations', acreds) + tagGroup('Markets', mkts);
+
+  document.getElementById('sdb-modal').style.display = 'flex';
+}
+
+function sdbOpenExternal(tool) {
+  if (!sdbSelected) return;
+  const companyId = sdbSelected.CompanyID ?? sdbSelected.ID;
+  const url = tool === 'rolodex' ? `rolodex.html?companyId=${companyId}` : `datavault.html?companyId=${companyId}`;
+  window.open(url, '_blank');
+}
+
+async function sdbLinkCompany(spCompanyRowId, crmId) {
+  const c = sdbState.companies.find(x => x.ID === spCompanyRowId);
+  if (!c) return;
+  const shareId = String(c.CompanyID ?? c.ID);
+  const { error } = await db.from('nr_companies').update({ sharepoint_company_id: shareId }).eq('id', crmId);
+  if (error) { toast('Error: ' + error.message); return; }
+  const crmRow = sharedCos.find(x => x.id === crmId) || { id: crmId, name: c.Title };
+  sdbCrmByShareId[shareId] = crmRow;
+  sdbUpdateStats();
+  sdbRender();
+  toast('✓ Linked to CRM company');
+}
+
+async function sdbUnlink(spCompanyRowId) {
+  const c = sdbState.companies.find(x => x.ID === spCompanyRowId);
+  if (!c) return;
+  const shareId = String(c.CompanyID ?? c.ID);
+  const crm = sdbCrmByShareId[shareId];
+  if (!crm) return;
+  const { error } = await db.from('nr_companies').update({ sharepoint_company_id: null }).eq('id', crm.id);
+  if (error) { toast('Error: ' + error.message); return; }
+  delete sdbCrmByShareId[shareId];
+  sdbUpdateStats();
+  sdbRender();
+  document.getElementById('sdb-modal').style.display = 'none';
+  toast('Unlinked');
+}
+
+async function sdbCreateCrmCompany(spCompanyRowId) {
+  const c = sdbState.companies.find(x => x.ID === spCompanyRowId);
+  if (!c) return;
+  const shareId = String(c.CompanyID ?? c.ID);
+  const status = c.F4NCandidate === 'Y' ? 'in_progress' : 'in_progress';
+  const { data, error } = await db.from('nr_companies').insert({
+    name: c.Title, status, website: c.Website || null, description: c.QuickDescription || null,
+    hidden: false, sharepoint_company_id: shareId
+  }).select().single();
+  if (error) { toast('Error creating company: ' + error.message); return; }
+  sharedCos.push(data);
+  if (typeof coAllCompanies !== 'undefined') coAllCompanies.push(data);
+  sdbCrmByShareId[shareId] = data;
+  sdbUpdateStats();
+  sdbRender();
+  toast('✓ Company created in CRM and linked');
+}
+
+function sdbOpenCrmCompany(companyId) {
+  nav('companies');
+  setTimeout(() => {
+    coSearch('');
+    const el = document.getElementById('co-folder-' + companyId);
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); coToggle(companyId); }
+  }, 250);
+}
 </script>
-
-<!-- Add Company Modal — at body level so it works from any screen -->
-<div class="modal-overlay" id="nrc-add-modal" onclick="if(event.target===this)nrcCloseAddModal()" style="display:none">
-  <div class="modal" style="max-width:520px;padding:28px 32px">
-    <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;text-transform:uppercase;color:var(--navy);margin:0 0 20px">Add Company</h3>
-    <div style="margin-bottom:13px">
-      <label class="we-section-hd" style="margin-top:0">Company Name *</label>
-      <input id="nrc-add-name" type="text" class="we-field input" placeholder="e.g. Acme Engineering Ltd" style="width:100%"/>
-    </div>
-    <div style="margin-bottom:13px">
-      <label class="we-section-hd" style="margin-top:0">Status *</label>
-      <select id="nrc-add-status" class="we-field input" style="width:100%">
-        <option value="granted">F4N Granted</option>
-        <option value="in_progress">On Journey</option>
-      </select>
-    </div>
-    <div style="margin-bottom:13px">
-      <label class="we-section-hd" style="margin-top:0">Website</label>
-      <input id="nrc-add-website" type="url" class="we-field input" placeholder="https://..." style="width:100%"/>
-    </div>
-    <div style="margin-bottom:13px">
-      <label class="we-section-hd" style="margin-top:0">Description</label>
-      <textarea id="nrc-add-desc" rows="3" class="we-field input" placeholder="Short public-facing description…" style="width:100%;resize:vertical;font-family:inherit"></textarea>
-    </div>
-    <div style="margin-bottom:20px">
-      <label class="we-section-hd" style="margin-top:0">Supabase Member User ID (optional)</label>
-      <input id="nrc-add-uid" type="text" class="we-field input" placeholder="e.g. 3a2b1c4d-… — paste to create their evidence folder now" style="width:100%"/>
-      <div style="font-size:.72rem;color:var(--muted);margin-top:4px">If you have the member's Supabase auth UUID, paste it here and their evidence upload folder will be created immediately. Otherwise leave blank — you can link it later via "🔗 Link member account" on the company row.</div>
-    </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button class="tb-btn" onclick="nrcCloseAddModal()">Cancel</button>
-      <button class="tb-btn primary" onclick="nrcAddCompany()">Add Company</button>
-    </div>
-    <div id="nrc-add-msg" style="margin-top:12px;font-size:.82rem;display:none"></div>
-  </div>
-</div>
-
 </body>
 </html>
