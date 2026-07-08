@@ -200,6 +200,16 @@ button{cursor:pointer}
 .co-cert-meta{font-size:.75rem;color:var(--muted)}
 .co-cert-actions{margin-left:auto;display:flex;gap:8px}
 .co-empty-folder{text-align:center;padding:20px;color:var(--muted);font-size:.82rem}
+.co-int-upload{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.co-int-upload label{border:1px solid var(--line);background:var(--wash);color:#40566c;border-radius:6px;padding:8px 14px;font-size:.8rem;font-weight:600;cursor:pointer;transition:.15s}
+.co-int-upload label:hover{border-color:var(--accent);color:var(--accent)}
+.co-int-upload input[type=file]{display:none}
+.co-int-status{font-size:.76rem;color:var(--muted)}
+.co-int-file{display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line);border-radius:6px;font-size:.82rem;color:var(--ink);margin-bottom:6px}
+.co-int-file .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;background:none;border:none;color:inherit;font:inherit;cursor:pointer;padding:0}
+.co-int-file .name:hover{color:var(--accent)}
+.co-int-file .del{border:none;background:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:2px 4px;flex-shrink:0}
+.co-int-file .del:hover{color:var(--red)}
 
 /* ── MODALS ─────────────────────────────────────────────────────────────── */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center}
@@ -3617,12 +3627,14 @@ function coRender(list) {
         <div class="co-tabs">
           <button class="co-tab active" onclick="coTab('${co.id}','evidence')">Evidence</button>
           <button class="co-tab" onclick="coTab('${co.id}','assessment')">Assessment</button>
+          <button class="co-tab" onclick="coTab('${co.id}','internal')">Internal Docs</button>
           <button class="co-tab" onclick="coTab('${co.id}','details')">Details</button>
         </div>
         <div class="co-tab-panel active" id="co-tab-evidence-${co.id}">
           <div style="color:var(--muted);font-size:.8rem">Loading evidence…</div>
         </div>
         <div class="co-tab-panel" id="co-tab-assessment-${co.id}"></div>
+        <div class="co-tab-panel" id="co-tab-internal-${co.id}"></div>
         <div class="co-tab-panel" id="co-tab-details-${co.id}"></div>
       </div>
     </div>`;
@@ -3647,6 +3659,8 @@ async function coLoadFolderContent(co) {
   await coLoadEvidence(co);
   // Assessment tab
   coLoadAssessment(co);
+  // Internal Docs tab (staff-only files — SOWs, invoices, contracts etc.)
+  coLoadInternalDocs(co);
   // Details tab
   coLoadDetails(co);
 }
@@ -3749,6 +3763,91 @@ function coLoadAssessment(co) {
     </div>`;
 }
 
+// ── Internal Docs tab — staff-uploaded files (SOWs, invoices, contracts etc.) ──
+// Stored separately from member evidence, keyed by company id (not member_user_id),
+// so it works whether or not the company has a linked member account.
+// Path: evidence-docs/_staff/{companyId}/{filename}
+const CO_INT_PREFIX = '_staff';
+
+async function coLoadInternalDocs(co) {
+  const panel = document.getElementById('co-tab-internal-' + co.id);
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="co-int-upload">
+      <label for="co-int-input-${co.id}">📎 Upload document</label>
+      <input id="co-int-input-${co.id}" type="file" multiple onchange="coUploadInternalDoc(this,'${co.id}','${esc2(co.name)}')">
+      <span class="co-int-status" id="co-int-status-${co.id}"></span>
+    </div>
+    <div id="co-int-list-${co.id}"><div style="color:var(--muted);font-size:.8rem">Loading documents…</div></div>`;
+  await coRefreshInternalDocs(co.id);
+}
+
+async function coRefreshInternalDocs(coId) {
+  const listEl = document.getElementById('co-int-list-' + coId);
+  if (!listEl) return;
+
+  const res = await fetch(`${SUPA_URL}/storage/v1/object/list/${EV_BUCKET}`, {
+    method: 'POST',
+    headers: { ...evAuthHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prefix: `${CO_INT_PREFIX}/${coId}/`, limit: 100, offset: 0 })
+  });
+
+  if (!res.ok) {
+    listEl.innerHTML = `<div class="co-empty-folder">Could not load documents — check sign-in or storage policy.</div>`;
+    return;
+  }
+
+  const files = (await res.json()).filter(f => f.name);
+  if (!files.length) {
+    listEl.innerHTML = `<div class="co-empty-folder">No internal documents yet — upload a statement of work, invoice, contract etc.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = files.map(f => `
+    <div class="co-int-file">
+      <span>📄</span>
+      <button class="name" onclick="coOpenInternalDoc('${coId}','${esc2(f.name)}')">${esc2(f.name)}</button>
+      <button class="del" title="Delete" onclick="coDeleteInternalDoc('${coId}','${esc2(f.name)}')">✕</button>
+    </div>`).join('');
+}
+
+async function coUploadInternalDoc(input, coId, coName) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  const statusEl = document.getElementById('co-int-status-' + coId);
+  if (statusEl) statusEl.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}…`;
+
+  let failed = 0;
+  for (const file of files) {
+    const path = `${CO_INT_PREFIX}/${coId}/${file.name}`;
+    const { error } = await db.storage.from(EV_BUCKET).upload(path, file, { upsert: true });
+    if (error) failed++;
+  }
+
+  input.value = '';
+  if (statusEl) statusEl.textContent = failed
+    ? `${failed} of ${files.length} failed to upload — check storage policy for _staff/ paths.`
+    : '';
+  await coRefreshInternalDocs(coId);
+  if (!failed) toast(`✓ Uploaded to ${coName}`);
+}
+
+async function coOpenInternalDoc(coId, name) {
+  const path = `${CO_INT_PREFIX}/${coId}/${name}`;
+  const { data, error } = await db.storage.from(EV_BUCKET).createSignedUrl(path, 60);
+  if (error || !data?.signedUrl) { toast('Could not open file'); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
+async function coDeleteInternalDoc(coId, name) {
+  if (!confirm(`Delete "${name}"?`)) return;
+  const path = `${CO_INT_PREFIX}/${coId}/${name}`;
+  const { error } = await db.storage.from(EV_BUCKET).remove([path]);
+  if (error) { toast('Delete failed: ' + error.message); return; }
+  toast('Document deleted');
+  await coRefreshInternalDocs(coId);
+}
+
 function coLoadDetails(co) {
   const panel = document.getElementById('co-tab-details-' + co.id);
   if (!panel) return;
@@ -3771,13 +3870,13 @@ function coLoadDetails(co) {
 }
 
 function coTab(coId, tab) {
-  ['evidence','assessment','details'].forEach(t => {
+  ['evidence','assessment','internal','details'].forEach(t => {
     const panel = document.getElementById('co-tab-' + t + '-' + coId);
     if (panel) panel.classList.toggle('active', t === tab);
   });
   const folder = document.getElementById('co-folder-' + coId);
   if (folder) folder.querySelectorAll('.co-tab').forEach((btn, i) => {
-    btn.classList.toggle('active', ['evidence','assessment','details'][i] === tab);
+    btn.classList.toggle('active', ['evidence','assessment','internal','details'][i] === tab);
   });
 }
 
@@ -3816,33 +3915,17 @@ async function coLinkSave() {
 
   msgEl.style.color = 'var(--muted)'; msgEl.textContent = 'Saving…';
 
-  // 1. Update nr_companies.member_user_id
-  const { error: dbErr } = await db.from('nr_companies')
-    .update({ member_user_id: uid })
-    .eq('id', coLinkTarget.id);
-
-  if (dbErr) {
+  // Shared with nrcAddCompany(): updates nr_companies.member_user_id and writes
+  // _profile.json to evidence-docs/{uid}/ — this is what creates the folder.
+  const result = await nrcLinkMemberAndCreateFolder(coLinkTarget.id, coLinkTarget.name, uid);
+  if (result.startsWith('company saved')) {
     msgEl.style.color = 'var(--red)';
-    msgEl.textContent = dbErr.message.includes('member_user_id')
-      ? 'Column missing — run: ALTER TABLE nr_companies ADD COLUMN member_user_id uuid;'
-      : 'DB error: ' + dbErr.message;
+    msgEl.textContent = result.replace('company saved, but folder link failed', 'Failed');
     return;
   }
+  const folderNote = '✓ Linked — ' + result;
 
-  // 2. Write _profile.json to evidence-docs to create/confirm the folder
-  const profile = JSON.stringify({ userId: uid, company: coLinkTarget.name, updated: new Date().toISOString() });
-  const blob    = new Blob([profile], { type: 'application/json' });
-  const res = await fetch(`${SUPA_URL}/storage/v1/object/evidence-docs/${uid}/_profile.json`, {
-    method: 'POST',
-    headers: { ...evAuthHeaders(), 'Content-Type': 'application/json', 'x-upsert': 'true' },
-    body: blob
-  });
-
-  // Storage write may fail if RLS prevents admin writing to member folders —
-  // that's fine, the folder is auto-created when the member uploads their first file.
-  const folderNote = res.ok ? '✓ Linked and folder created' : '✓ Linked — folder will be created on first member upload';
-
-  // 3. Update local array
+  // Update local array
   const co = coAllCompanies.find(c => String(c.id) === String(coLinkTarget.id));
   if (co) co.member_user_id = uid;
 
@@ -4828,7 +4911,7 @@ async function nrcDelete(id, name) {
 }
 
 function nrcShowAddModal() {
-  ['nrc-add-name','nrc-add-website','nrc-add-desc'].forEach(id => {
+  ['nrc-add-name','nrc-add-website','nrc-add-desc','nrc-add-uid'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const sel = document.getElementById('nrc-add-status'); if (sel) sel.value = 'granted';
@@ -4845,6 +4928,7 @@ async function nrcAddCompany() {
   const status  = document.getElementById('nrc-add-status')?.value;
   const website = document.getElementById('nrc-add-website')?.value.trim();
   const desc    = document.getElementById('nrc-add-desc')?.value.trim();
+  const uid     = document.getElementById('nrc-add-uid')?.value.trim();
   const msg     = document.getElementById('nrc-add-msg');
 
   if (!name) {
@@ -4860,12 +4944,45 @@ async function nrcAddCompany() {
     if (msg) { msg.textContent = 'Error: ' + error.message; msg.style.color = 'var(--red)'; msg.style.display = 'block'; }
     return;
   }
-  nrcAll.push({ ...data });
+
+  let folderNote = '';
+  if (uid) {
+    folderNote = await nrcLinkMemberAndCreateFolder(data.id, name, uid);
+  }
+
+  nrcAll.push({ ...data, member_user_id: uid || null });
   nrcAll.sort((a, b) => a.name.localeCompare(b.name));
   nrcUpdateStats();
   nrcFilter();
   nrcCloseAddModal();
-  toast('✓ Company added');
+  toast('✓ Company added' + (folderNote ? ' — ' + folderNote : ''));
+}
+
+// Shared with coLinkSave(): assigns a Supabase auth user ID to a company row and
+// writes _profile.json into evidence-docs/{uid}/ — this is what actually creates
+// the member's evidence upload folder.
+async function nrcLinkMemberAndCreateFolder(companyId, companyName, uid) {
+  const { error: dbErr } = await db.from('nr_companies')
+    .update({ member_user_id: uid })
+    .eq('id', companyId);
+
+  if (dbErr) {
+    return dbErr.message.includes('member_user_id')
+      ? 'company saved, but folder link failed — column missing (ALTER TABLE nr_companies ADD COLUMN member_user_id uuid;)'
+      : 'company saved, but folder link failed: ' + dbErr.message;
+  }
+
+  const profile = JSON.stringify({ userId: uid, company: companyName, updated: new Date().toISOString() });
+  const blob    = new Blob([profile], { type: 'application/json' });
+  const res = await fetch(`${SUPA_URL}/storage/v1/object/evidence-docs/${uid}/_profile.json`, {
+    method: 'POST',
+    headers: { ...evAuthHeaders(), 'Content-Type': 'application/json', 'x-upsert': 'true' },
+    body: blob
+  });
+
+  // Storage write may fail if RLS prevents admin writing to member folders —
+  // that's fine, the folder is auto-created when the member uploads their first file.
+  return res.ok ? 'folder created' : 'linked — folder will be created on first member upload';
 }
 
 
@@ -5174,9 +5291,14 @@ async function certDownload() {
       <label class="we-section-hd" style="margin-top:0">Website</label>
       <input id="nrc-add-website" type="url" class="we-field input" placeholder="https://..." style="width:100%"/>
     </div>
-    <div style="margin-bottom:20px">
+    <div style="margin-bottom:13px">
       <label class="we-section-hd" style="margin-top:0">Description</label>
       <textarea id="nrc-add-desc" rows="3" class="we-field input" placeholder="Short public-facing description…" style="width:100%;resize:vertical;font-family:inherit"></textarea>
+    </div>
+    <div style="margin-bottom:20px">
+      <label class="we-section-hd" style="margin-top:0">Supabase Member User ID (optional)</label>
+      <input id="nrc-add-uid" type="text" class="we-field input" placeholder="e.g. 3a2b1c4d-… — paste to create their evidence folder now" style="width:100%"/>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:4px">If you have the member's Supabase auth UUID, paste it here and their evidence upload folder will be created immediately. Otherwise leave blank — you can link it later via "🔗 Link member account" on the company row.</div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="tb-btn" onclick="nrcCloseAddModal()">Cancel</button>
