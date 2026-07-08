@@ -1,0 +1,2518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataVault — NuCCoL</title>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<style>
+/* ─── RESET & BASE ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: 'Courier New', Courier, monospace; background: #f0f2f5; color: #1e1e1e; font-size: 13px; }
+
+/* ─── CSS VARIABLES ─────────────────────────────────────────────────────── */
+:root {
+  --navy:   #00126b;
+  --blue:   #3860b9;
+  --blue2:  #1b2a6b;
+  --blue3:  #2771c2;
+  --light:  #f0f2f5;
+  --white:  #ffffff;
+  --border: #dce1eb;
+  --muted:  #787878;
+  --green:  #28a745;
+  --amber:  #ffc107;
+  --red:    #dc3545;
+  --grey:   #969696;
+  --hover:  #bacce2;
+  --tag-bg: #dce6ff;
+  --banner-h: 70px;
+  --nav-h: 36px;
+}
+
+/* ─── AUTH OVERLAY ──────────────────────────────────────────────────────── */
+#auth-overlay {
+  position: fixed; inset: 0; background: var(--navy);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 9999; gap: 24px;
+}
+#auth-overlay h1 { color: #fff; font-size: 28px; letter-spacing: 2px; }
+#auth-overlay p  { color: rgba(255,255,255,0.6); font-size: 12px; letter-spacing: 1px; }
+#btn-login {
+  background: var(--blue); color: #fff; border: none; padding: 14px 40px;
+  font-family: inherit; font-size: 13px; letter-spacing: 2px; cursor: pointer;
+  text-transform: uppercase; transition: background 0.2s;
+}
+#btn-login:hover { background: var(--blue2); }
+#auth-error { color: #ff8080; font-size: 11px; display: none; }
+
+/* ─── APP SHELL ─────────────────────────────────────────────────────────── */
+#app { display: none; flex-direction: column; min-height: 100vh; }
+
+/* ─── HEADER ────────────────────────────────────────────────────────────── */
+header {
+  background: var(--blue); height: var(--banner-h); display: flex;
+  align-items: center; padding: 0 20px; position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.header-brand { flex: 1; }
+.header-brand h1 { color: #fff; font-size: 22px; font-weight: 700; letter-spacing: 1px; line-height: 1; }
+.header-brand p  { color: rgba(255,255,255,0.75); font-size: 11px; letter-spacing: 1px; margin-top: 2px; }
+.header-nav { display: flex; align-items: center; gap: 6px; }
+.nav-btn {
+  background: rgba(255,255,255,0.15); border: none; color: #fff; padding: 7px 16px;
+  font-family: inherit; font-size: 12px; cursor: pointer; letter-spacing: 1px;
+  text-transform: uppercase; transition: background 0.2s; white-space: nowrap;
+}
+.nav-btn:hover, .nav-btn.active { background: rgba(255,255,255,0.28); }
+.header-user { display: flex; align-items: center; gap: 10px; margin-left: 12px; }
+.header-user span { color: rgba(255,255,255,0.7); font-size: 11px; }
+.header-user button {
+  background: none; border: 1px solid rgba(255,255,255,0.3); color: #fff;
+  padding: 4px 10px; font-family: inherit; font-size: 11px; cursor: pointer;
+}
+.header-user button:hover { border-color: #fff; }
+.home-btn {
+  background: none; border: none; color: #fff; font-size: 18px; cursor: pointer;
+  padding: 6px; line-height: 1; margin-left: 4px; opacity: 0.8;
+}
+.home-btn:hover { opacity: 1; }
+
+/* ─── MAIN CONTENT ──────────────────────────────────────────────────────── */
+main { flex: 1; padding: 20px; max-width: 1366px; width: 100%; margin: 0 auto; }
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ─── LOADING / TOAST ───────────────────────────────────────────────────── */
+#loading {
+  position: fixed; top: var(--banner-h); left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--blue) 0%, var(--blue3) 50%, var(--blue) 100%);
+  background-size: 200% 100%; animation: shimmer 1.2s infinite; display: none; z-index: 200;
+}
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+#toast {
+  position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
+  font-family: inherit; font-size: 12px; letter-spacing: 1px; border-radius: 0;
+  display: none; z-index: 999; min-width: 260px; text-transform: uppercase;
+  animation: slideIn 0.2s ease;
+}
+@keyframes slideIn { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+#toast.success { background: var(--green); color: #fff; }
+#toast.error   { background: var(--red);   color: #fff; }
+#toast.warning { background: var(--amber); color: #1e1e1e; }
+
+/* ─── SCRAPE OVERLAY ────────────────────────────────────────────────────── */
+#scrape-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  display: none; align-items: center; justify-content: center;
+  flex-direction: column; gap: 16px; z-index: 500;
+}
+#scrape-overlay.active { display: flex; }
+#scrape-overlay p { color: #fff; font-size: 16px; letter-spacing: 2px; }
+.spinner {
+  width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.2);
+  border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── CARDS (DASHBOARD) ─────────────────────────────────────────────────── */
+.dashboard-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px; }
+.dash-card {
+  background: var(--white); border: 1px solid var(--border); padding: 32px 24px;
+  cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; text-align: center;
+  position: relative;
+}
+.dash-card:hover { border-color: var(--blue); box-shadow: 0 4px 16px rgba(56,96,185,0.15); }
+.dash-card-icon { font-size: 36px; margin-bottom: 16px; color: var(--blue); }
+.dash-card h3 { font-size: 15px; font-weight: 700; color: #1e1e1e; letter-spacing: 1px; margin-bottom: 8px; }
+.dash-card p  { font-size: 11px; color: var(--muted); line-height: 1.5; }
+.stats-bar {
+  background: var(--white); border: 1px solid var(--border);
+  display: flex; justify-content: space-around; padding: 16px;
+}
+.stat-item { text-align: center; }
+.stat-num  { font-size: 24px; font-weight: 700; color: var(--navy); display: block; }
+.stat-lbl  { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+
+/* ─── PANEL / CARDS ─────────────────────────────────────────────────────── */
+.panel { background: var(--white); border: 1px solid var(--border); }
+.panel-header {
+  background: var(--blue2); color: #fff; padding: 8px 14px;
+  display: flex; align-items: center; gap: 10px; font-size: 12px;
+  font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+}
+.panel-header .col { flex: 1; }
+
+/* ─── GALLERY / TABLE ───────────────────────────────────────────────────── */
+.gallery { overflow-y: auto; }
+.gallery-row {
+  display: flex; align-items: center; padding: 6px 14px; cursor: pointer;
+  border-bottom: 1px solid var(--blue3) ; transition: background 0.1s;
+  font-size: 12px; min-height: 32px;
+}
+.gallery-row:last-child { border-bottom: none; }
+.gallery-row:hover { background: rgba(56,96,185,0.07); }
+.gallery-row.selected { background: rgba(56,96,185,0.12); border-left: 3px solid var(--navy); }
+.gallery-row .col { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+.gallery-row .col.name { color: var(--blue2); font-weight: 600; }
+
+/* ─── RAG BADGE ─────────────────────────────────────────────────────────── */
+.rag { display: inline-block; padding: 2px 10px; font-size: 11px; font-weight: 700;
+       letter-spacing: 1px; color: #fff; min-width: 64px; text-align: center; }
+.rag.Green  { background: var(--green); }
+.rag.Amber  { background: var(--amber); color: #1e1e1e; }
+.rag.Red    { background: var(--red); }
+.rag.Grey   { background: var(--grey); }
+.rag.empty  { background: #ddd; color: #999; }
+
+/* ─── SEARCH LAYOUT ─────────────────────────────────────────────────────── */
+.search-layout { display: grid; grid-template-columns: 260px 1fr; gap: 0; }
+.search-sidebar {
+  background: var(--white); border: 1px solid var(--border); border-right: none;
+  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.search-main { border: 1px solid var(--border); }
+
+/* ─── FORM ELEMENTS ─────────────────────────────────────────────────────── */
+.field-group { display: flex; flex-direction: column; gap: 3px; }
+.field-label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+input[type=text], input[type=email], input[type=date], textarea, select {
+  font-family: inherit; font-size: 12px; border: 1px solid var(--border);
+  padding: 7px 10px; background: var(--white); color: #1e1e1e; width: 100%;
+  outline: none; transition: border-color 0.15s;
+}
+input:focus, textarea:focus, select:focus { border-color: var(--navy); background: var(--hover); }
+input:hover, textarea:hover, select:hover { background: var(--hover); }
+select { cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%233860b9' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px;
+}
+textarea { resize: vertical; min-height: 60px; }
+
+/* ─── TOGGLE ────────────────────────────────────────────────────────────── */
+.toggle-wrap { display: flex; align-items: center; gap: 10px; }
+.toggle-wrap span { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+.toggle {
+  position: relative; display: inline-block; width: 52px; height: 24px; cursor: pointer;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; inset: 0; background: #ccc; transition: 0.2s;
+  display: flex; align-items: center; font-size: 9px; font-weight: 700; letter-spacing: 1px;
+}
+.toggle-slider::before {
+  content: ''; position: absolute; left: 3px; width: 18px; height: 18px;
+  background: white; transition: 0.2s; top: 3px;
+}
+.toggle input:checked + .toggle-slider { background: var(--blue); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(28px); }
+.toggle-label-off { position: absolute; right: 5px; color: #999; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.toggle-label-on  { position: absolute; left: 5px;  color: #fff; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; top: 50%; transform: translateY(-50%); pointer-events: none; display: none; }
+.toggle input:checked ~ .toggle-label-off { display: none; }
+.toggle input:checked ~ .toggle-label-on  { display: block; }
+
+/* ─── BUTTONS ───────────────────────────────────────────────────────────── */
+.btn {
+  font-family: inherit; font-size: 12px; padding: 8px 18px; border: none; cursor: pointer;
+  letter-spacing: 1px; text-transform: uppercase; transition: background 0.2s; white-space: nowrap;
+}
+.btn-primary   { background: var(--blue);  color: #fff; }
+.btn-primary:hover   { background: var(--blue2); }
+.btn-dark      { background: var(--blue2); color: #fff; }
+.btn-dark:hover      { background: var(--navy); }
+.btn-secondary { background: var(--blue3); color: #fff; }
+.btn-secondary:hover { background: var(--blue); }
+.btn-muted     { background: #969696; color: #fff; }
+.btn-muted:hover     { background: #777; }
+.btn-danger    { background: var(--red); color: #fff; }
+.btn-danger:hover    { background: #b02030; }
+.btn-outline   { background: none; border: 1px solid var(--border); color: var(--muted); }
+.btn-outline:hover   { border-color: var(--navy); color: var(--navy); }
+.btn-sm { padding: 5px 12px; font-size: 11px; }
+.btn-icon { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 16px; padding: 3px 6px; line-height: 1; transition: color 0.15s; }
+.btn-icon:hover { color: var(--red); }
+.btn-icon.edit:hover { color: var(--blue); }
+
+/* ─── TABS ──────────────────────────────────────────────────────────────── */
+.tab-bar { display: flex; gap: 0; margin-bottom: 0; }
+.tab-btn {
+  background: var(--blue3); color: #fff; border: none; padding: 7px 18px;
+  font-family: inherit; font-size: 11px; cursor: pointer; letter-spacing: 1px;
+  text-transform: uppercase; transition: background 0.15s;
+}
+.tab-btn.active { background: var(--blue2); }
+.tab-btn:hover:not(.active) { background: var(--blue); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ─── COMPANY EDIT ──────────────────────────────────────────────────────── */
+.edit-panel {
+  background: var(--white); border: 1px solid var(--border); border-top: none;
+  padding: 20px; min-height: 520px;
+}
+.form-grid   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 30px; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px 20px; }
+.span-2 { grid-column: span 2; }
+
+/* ─── CLASSIFICATION TAGS ───────────────────────────────────────────────── */
+.tag-section { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.tag-col h4 { font-size: 12px; color: var(--blue2); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+.tag-add-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.tag-add-row select, .tag-add-row input { flex: 1; }
+.tag-list { display: flex; flex-direction: column; gap: 4px; max-height: 380px; overflow-y: auto; }
+.tag-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 10px; border-left: 3px solid var(--blue3); background: #f8f9fc;
+  font-size: 12px;
+}
+
+/* ─── SCRL DETAIL ───────────────────────────────────────────────────────── */
+.scrl-companies-list { display: flex; flex-direction: column; }
+.scrl-firm-row {
+  display: flex; align-items: center; padding: 7px 14px; border-bottom: 1px solid var(--border);
+  cursor: pointer; font-size: 12px; gap: 0; transition: background 0.1s;
+}
+.scrl-firm-row:hover { background: rgba(56,96,185,0.06); }
+.scrl-firm-row.selected { background: rgba(56,96,185,0.1); border-left: 3px solid var(--navy); }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+  font-size: 11px; font-weight: 700; color: #fff; margin: 2px;
+}
+.chip.Green  { background: var(--green); }
+.chip.Amber  { background: var(--amber); color: #1e1e1e; }
+.chip.Red    { background: var(--red); }
+.chip.Grey   { background: var(--grey); }
+.chip.empty  { background: #ccc; color: #666; }
+.chip-remove { background: none; border: none; color: inherit; cursor: pointer; font-size: 13px; line-height: 1; opacity: 0.8; padding: 0; }
+.chip-remove:hover { opacity: 1; }
+.chips-wrap { display: flex; flex-wrap: wrap; padding: 6px 8px; min-height: 36px; align-items: center; }
+
+/* ─── SCRAPE REVIEW ─────────────────────────────────────────────────────── */
+.review-row {
+  display: flex; align-items: stretch; border-bottom: 1px solid var(--border);
+  min-height: 50px;
+}
+.review-row.accepted { background: rgba(40,167,69,0.06); }
+.review-cell { padding: 10px 14px; font-size: 12px; display: flex; align-items: center; }
+.review-cell.field { width: 150px; background: #f8f9fc; font-weight: 600; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; font-size: 10px; }
+.review-cell.current { width: 420px; border-right: 1px solid var(--border); color: #1e1e1e; }
+.review-cell.scraped { flex: 1; border-right: 1px solid var(--border); color: #1e1e1e; }
+.review-cell.scraped.empty { color: var(--muted); font-style: italic; }
+.review-cell.accept { width: 120px; justify-content: center; }
+.free-form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0; }
+.free-form-col { padding: 12px 14px; border-right: 1px solid var(--border); }
+.free-form-col:last-child { border-right: none; }
+.free-form-col h4 { font-size: 10px; font-weight: 700; color: var(--blue2); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+.free-form-col p  { font-size: 11px; color: #333; line-height: 1.6; white-space: pre-wrap; max-height: 160px; overflow-y: auto; }
+
+/* ─── COMPONENT FORM ────────────────────────────────────────────────────── */
+.comp-form-grid { display: grid; grid-template-columns: 60px 1fr 200px 180px 100px; gap: 8px 12px; align-items: end; }
+.comp-form-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.comp-form-row3 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 12px; }
+
+/* ─── PANEL FIRM COMPONENTS ─────────────────────────────────────────────── */
+.firm-panel {
+  border: 2px solid var(--blue3); background: var(--light);
+  margin-top: 10px; padding: 14px;
+}
+.firm-panel h4 { font-size: 12px; font-weight: 700; color: var(--blue2); letter-spacing: 1px; margin-bottom: 10px; }
+
+/* ─── MISC ──────────────────────────────────────────────────────────────── */
+.section-title { font-size: 12px; font-weight: 700; color: var(--blue2); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+.toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.divider { height: 1px; background: var(--border); margin: 16px 0; }
+.text-muted { color: var(--muted); font-size: 11px; }
+.empty-state { padding: 40px; text-align: center; color: var(--muted); font-size: 12px; letter-spacing: 1px; }
+.action-bar { display: flex; gap: 8px; padding: 10px 0; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<!-- AUTH OVERLAY -->
+<div id="auth-overlay">
+  <p style="letter-spacing:3px;color:rgba(255,255,255,0.4);font-size:10px;text-transform:uppercase">NuCCoL — Nuclear Supply Chain</p>
+  <h1>DATAVAULT</h1>
+  <p style="margin-top:-16px">Supply Chain Database &amp; SCRL Projects</p>
+  <button id="btn-login" onclick="signIn()">Sign in with Microsoft</button>
+  <span id="auth-error"></span>
+</div>
+
+<!-- LOADING BAR -->
+<div id="loading"></div>
+
+<!-- SCRAPE OVERLAY -->
+<div id="scrape-overlay">
+  <div class="spinner"></div>
+  <p>Analysing company… please wait</p>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-brand">
+      <h1>DATAVAULT</h1>
+      <p>Supply Chain Database &amp; SCRL Projects</p>
+    </div>
+    <nav class="header-nav">
+      <button class="nav-btn" onclick="navigate('search')">Search</button>
+      <button class="nav-btn" onclick="navigate('scrlList')">SCRLs</button>
+      <button class="nav-btn" onclick="navigate('company', {company: null})">+ Firm</button>
+      <button class="home-btn" onclick="navigate('dashboard')" title="Home">⌂</button>
+    </nav>
+    <div class="header-user">
+      <span id="user-name"></span>
+      <button onclick="signOut()">Sign out</button>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- SCREEN: DASHBOARD                                                   -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="screen-dashboard" class="screen">
+      <div class="dashboard-grid" style="margin-top:10px">
+        <div class="dash-card" onclick="navigate('search')">
+          <div class="dash-card-icon">⌕</div>
+          <h3>Search Firms</h3>
+          <p>Find and filter companies by capability, commodity, region and more</p>
+        </div>
+        <div class="dash-card" onclick="navigate('scrlList')">
+          <div class="dash-card-icon">≡</div>
+          <h3>SCRL Projects</h3>
+          <p>Browse or start a Supply Chain Readiness Level assessment</p>
+        </div>
+        <div class="dash-card" onclick="navigate('company', {company: null})">
+          <div class="dash-card-icon">+</div>
+          <h3>Add New Firm</h3>
+          <p>Add a new firm to the database</p>
+        </div>
+      </div>
+      <div class="stats-bar panel">
+        <div class="stat-item">
+          <span class="stat-num" id="stat-companies">—</span>
+          <span class="stat-lbl">Companies</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num" id="stat-scrls">—</span>
+          <span class="stat-lbl">SCRL Projects</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num" id="stat-caps">—</span>
+          <span class="stat-lbl">Capabilities</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- SCREEN: SEARCH                                                      -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="screen-search" class="screen">
+      <div class="search-layout">
+        <!-- Sidebar filters -->
+        <div class="search-sidebar">
+          <div class="field-group">
+            <input type="text" id="s-search" placeholder="Search by company name…" oninput="applySearchFilters()" style="font-size:12px">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Capability</label>
+            <select id="s-capability" onchange="applySearchFilters()"><option value="">All</option></select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Commodity</label>
+            <select id="s-commodity" onchange="applySearchFilters()"><option value="">All</option></select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Accreditations</label>
+            <select id="s-accreditation" onchange="applySearchFilters()"><option value="">All</option></select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Region / County</label>
+            <select id="s-region" onchange="applySearchFilters()"><option value="">All</option></select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Market</label>
+            <select id="s-market" onchange="applySearchFilters()"><option value="">All</option></select>
+          </div>
+          <button class="btn btn-dark" onclick="clearSearchFilters()" style="margin-top:4px">Clear Filters</button>
+          <div id="s-count" class="text-muted" style="text-align:center;margin-top:4px"></div>
+        </div>
+
+        <!-- Results panel -->
+        <div class="search-main">
+          <div class="panel-header">
+            <span class="col" style="flex:2">Firm</span>
+            <span class="col" style="flex:1.5">Location</span>
+            <span class="col" style="flex:2">Description</span>
+            <span class="col" style="flex:0 0 80px;text-align:center">RAG</span>
+          </div>
+          <div class="gallery" id="s-gallery" style="max-height:calc(100vh - 200px)">
+            <div class="empty-state">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- SCREEN: COMPANY EDIT                                                -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="screen-company" class="screen">
+      <div class="action-bar">
+        <button class="btn btn-secondary" onclick="saveCompany()">Save</button>
+        <button class="btn btn-primary" id="btn-analyse" onclick="startScrape()" style="display:none">Analyse Firm</button>
+        <button class="btn btn-outline" id="btn-view-scrape" onclick="viewLastScrape()" style="display:none">View Last Scrape</button>
+        <button class="btn btn-outline" id="btn-open-rolodex" onclick="openInRolodex()" style="display:none">📇 RoloDex</button>
+        <button class="btn btn-outline" onclick="navigateBack()">← Back</button>
+      </div>
+      <div class="tab-bar" id="company-tabs">
+        <button class="tab-btn active" data-tab="c1" onclick="switchTab('company','c1',this)">Core Data</button>
+        <button class="tab-btn" data-tab="c2" onclick="switchTab('company','c2',this)">Classification</button>
+        <button class="tab-btn" data-tab="c3" onclick="switchTab('company','c3',this)">Status</button>
+        <button class="tab-btn" data-tab="c4" onclick="switchTab('company','c4',this)">Capabilities</button>
+        <button class="tab-btn" data-tab="c5" onclick="switchTab('company','c5',this)">Accreditations</button>
+        <button class="tab-btn" data-tab="c6" onclick="switchTab('company','c6',this)">SCRLs</button>
+        <button class="tab-btn" data-tab="c7" onclick="switchTab('company','c7',this)">Location</button>
+      </div>
+
+      <!-- TAB: Core Data -->
+      <div class="edit-panel tab-content active" id="tab-c1">
+        <div class="form-grid">
+          <div class="field-group">
+            <label class="field-label">Company Name *</label>
+            <input type="text" id="c-name">
+          </div>
+          <div class="field-group">
+            <label class="field-label">City</label>
+            <input type="text" id="c-city">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Website</label>
+            <input type="text" id="c-website">
+          </div>
+          <div class="field-group">
+            <label class="field-label">County</label>
+            <input type="text" id="c-county">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Email</label>
+            <input type="text" id="c-email">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Postcode</label>
+            <input type="text" id="c-postcode">
+          </div>
+          <div class="field-group">
+            <label class="field-label">CH Number</label>
+            <input type="text" id="c-regno">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Regional SCC</label>
+            <input type="text" id="c-regional">
+          </div>
+          <div class="field-group span-2">
+            <label class="field-label">Other Addresses</label>
+            <textarea id="c-other-addr" style="min-height:60px"></textarea>
+          </div>
+          <div class="field-group span-2">
+            <label class="field-label">Quick Description</label>
+            <textarea id="c-quickdesc" style="min-height:60px"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Classification -->
+      <div class="edit-panel tab-content" id="tab-c2">
+        <div class="form-grid">
+          <div class="field-group">
+            <label class="field-label">Main Commodity Group</label>
+            <input type="text" id="c-maincommodity">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Size</label>
+            <select id="c-size">
+              <option value="">—</option>
+              <option>Micro</option><option>Small</option><option>Medium</option><option>Large</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Turnover</label>
+            <input type="text" id="c-turnover">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Employees</label>
+            <input type="text" id="c-employees">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Data Confidence Level</label>
+            <select id="c-dataconf">
+              <option value="">—</option>
+              <option>High</option><option>Medium</option><option>Low</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Updated By</label>
+            <input type="text" id="c-updatedby">
+          </div>
+          <div class="field-group">
+            <label class="field-label">F4N Candidate?</label>
+            <div class="toggle-wrap">
+              <label class="toggle">
+                <input type="checkbox" id="c-f4n">
+                <span class="toggle-slider"></span>
+                <span class="toggle-label-off">NO</span>
+                <span class="toggle-label-on">YES</span>
+              </label>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">F4H2 Candidate?</label>
+            <div class="toggle-wrap">
+              <label class="toggle">
+                <input type="checkbox" id="c-f4h2">
+                <span class="toggle-slider"></span>
+                <span class="toggle-label-off">NO</span>
+                <span class="toggle-label-on">YES</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Status -->
+      <div class="edit-panel tab-content" id="tab-c3">
+        <div class="form-grid">
+          <div class="field-group">
+            <label class="field-label">RAG Status</label>
+            <select id="c-rag">
+              <option value="">—</option>
+              <option>Red</option><option>Amber</option><option>Green</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Flag</label>
+            <select id="c-flag">
+              <option value="">—</option>
+              <option>Duplicate</option><option>Inactive</option><option>Review</option>
+            </select>
+          </div>
+          <div class="field-group span-2">
+            <label class="field-label">Flag Comment</label>
+            <input type="text" id="c-flagcomment">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Nuclear Reference?</label>
+            <div class="toggle-wrap">
+              <label class="toggle">
+                <input type="checkbox" id="c-nuclear">
+                <span class="toggle-slider"></span>
+                <span class="toggle-label-off">NO</span>
+                <span class="toggle-label-on">YES</span>
+              </label>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Nuclear Ref Date</label>
+            <input type="date" id="c-nucdate">
+          </div>
+          <div class="field-group span-2">
+            <label class="field-label">Nuclear Ref URL</label>
+            <input type="text" id="c-nucurl">
+          </div>
+          <div class="field-group span-2">
+            <label class="field-label">Notes</label>
+            <textarea id="c-notes" style="min-height:100px"></textarea>
+          </div>
+          <div class="field-group span-2">
+            <label class="field-label">Market Notes</label>
+            <textarea id="c-marketnotes" style="min-height:100px"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Capabilities (+ Commodities) -->
+      <div class="edit-panel tab-content" id="tab-c4">
+        <div class="tag-section">
+          <div class="tag-col">
+            <h4>Capabilities</h4>
+            <div class="tag-add-row">
+              <select id="c-add-cap-sel"></select>
+              <button class="btn btn-dark btn-sm" onclick="addCompanyTag('cap')">Add</button>
+            </div>
+            <div class="tag-list" id="c-caps-list"></div>
+          </div>
+          <div class="tag-col">
+            <h4>Commodities</h4>
+            <div class="tag-add-row">
+              <select id="c-add-com-sel"></select>
+              <button class="btn btn-dark btn-sm" onclick="addCompanyTag('com')">Add</button>
+            </div>
+            <div class="tag-list" id="c-coms-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Accreditations (+ Markets + Services) -->
+      <div class="edit-panel tab-content" id="tab-c5">
+        <div class="tag-section">
+          <div class="tag-col">
+            <h4>Accreditations</h4>
+            <div class="tag-add-row">
+              <select id="c-add-acred-sel"></select>
+              <button class="btn btn-dark btn-sm" onclick="addCompanyTag('acred')">Add</button>
+            </div>
+            <div class="tag-list" id="c-acreds-list"></div>
+          </div>
+          <div class="tag-col">
+            <h4>Markets</h4>
+            <div class="tag-add-row">
+              <select id="c-add-mkt-sel"></select>
+              <button class="btn btn-dark btn-sm" onclick="addCompanyTag('mkt')">Add</button>
+            </div>
+            <div class="tag-list" id="c-mkts-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: SCRLs -->
+      <div class="edit-panel tab-content" id="tab-c6">
+        <div class="toolbar" style="margin-bottom:10px">
+          <select id="c-add-scrl-sel" style="width:300px"></select>
+          <select id="c-scrl-level" style="width:80px">
+            <option value="">Level</option>
+            <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+          </select>
+          <select id="c-scrl-rag" style="width:100px">
+            <option value="">RAG</option>
+            <option>Grey</option><option>Red</option><option>Amber</option><option>Green</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="addCompanyToSCRL()">Add to SCRL</button>
+        </div>
+        <div class="panel-header">
+          <span class="col" style="flex:3">SCRL</span>
+          <span class="col" style="flex:1">Level</span>
+          <span class="col" style="flex:1">RAG</span>
+          <span class="col" style="flex:2">Components</span>
+          <span class="col" style="flex:0 0 100px">Action</span>
+        </div>
+        <div id="c-scrls-list"></div>
+      </div>
+
+      <!-- TAB: Location -->
+      <div class="edit-panel tab-content" id="tab-c7">
+        <div style="margin-bottom:12px">
+          <p class="text-muted" id="c-location-label"></p>
+        </div>
+        <div id="c-map-container" style="width:600px;height:400px;border:1px solid var(--border);overflow:hidden">
+          <img id="c-map-img" src="" alt="Map preview" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn btn-primary btn-sm" onclick="openGoogleMaps()">Open in Google Maps</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- SCREEN: SCRL LIST                                                   -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="screen-scrlList" class="screen">
+      <div class="toolbar">
+        <input type="text" id="sl-search" placeholder="Search by name or client…" oninput="renderScrlList()" style="width:280px">
+        <select id="sl-status" onchange="renderScrlList()" style="width:160px">
+          <option value="">All Statuses</option>
+          <option>Planning</option><option>Active</option><option>Complete</option><option>On Hold</option>
+        </select>
+        <select id="sl-rag" onchange="renderScrlList()" style="width:120px">
+          <option value="">All RAG</option>
+          <option>Red</option><option>Amber</option><option>Green</option>
+        </select>
+        <button class="btn btn-secondary" onclick="navigate('scrlDetail', {scrl: null})">+ SCRL</button>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="col" style="flex:2.5">SCRL Name</span>
+          <span class="col" style="flex:1.5">Client</span>
+          <span class="col" style="flex:1">PM</span>
+          <span class="col" style="flex:1">Tech Lead</span>
+          <span class="col" style="flex:0.8">Status</span>
+          <span class="col" style="flex:0.6;text-align:center">RAG</span>
+          <span class="col" style="flex:0.8">Start</span>
+          <span class="col" style="flex:0.5;text-align:center">#Comp</span>
+          <span class="col" style="flex:0.5;text-align:center">#Firms</span>
+        </div>
+        <div class="gallery" id="sl-gallery" style="max-height:calc(100vh - 220px)">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- SCREEN: SCRL DETAIL                                                 -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="screen-scrlDetail" class="screen">
+      <div class="action-bar">
+        <button class="btn btn-secondary" onclick="saveSCRL()">Save</button>
+        <button class="btn btn-outline" onclick="navigate('scrlList')">← SCRLs</button>
+      </div>
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="sd1" onclick="switchTab('scrl','sd1',this)">SCRL Detail</button>
+        <button class="tab-btn" data-tab="sd2" onclick="switchTab('scrl','sd2',this)">Components</button>
+        <button class="tab-btn" data-tab="sd3" onclick="switchTab('scrl','sd3',this)">Firms</button>
+      </div>
+
+      <!-- TAB: SCRL Detail -->
+      <div class="edit-panel tab-content active" id="tab-sd1">
+        <div class="form-grid">
+          <div class="field-group">
+            <label class="field-label">SCRL Name *</label>
+            <input type="text" id="sd-name">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Status</label>
+            <select id="sd-status">
+              <option value="">—</option>
+              <option>Planning</option><option>Active</option><option>Complete</option><option>On Hold</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Client</label>
+            <input type="text" id="sd-client">
+          </div>
+          <div class="field-group">
+            <label class="field-label">RAG Status</label>
+            <select id="sd-rag">
+              <option value="">—</option>
+              <option>Red</option><option>Amber</option><option>Green</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Client Contact</label>
+            <input type="text" id="sd-clientcontact">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Client Email</label>
+            <input type="text" id="sd-clientemail">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Start Date</label>
+            <input type="date" id="sd-start">
+          </div>
+          <div class="field-group">
+            <label class="field-label">End Date</label>
+            <input type="date" id="sd-end">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Assessment Date</label>
+            <input type="date" id="sd-assessdate">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Version</label>
+            <input type="text" id="sd-version" placeholder="e.g. V1">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Project Manager</label>
+            <input type="text" id="sd-pm">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Tech Lead</label>
+            <input type="text" id="sd-techlead">
+          </div>
+          <div class="field-group span-2">
+            <label class="field-label">Supported By</label>
+            <input type="text" id="sd-supportedby">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Hours Allocated</label>
+            <input type="text" id="sd-hours">
+          </div>
+          <div class="field-group">
+            <label class="field-label">PO Value (£)</label>
+            <input type="text" id="sd-value">
+          </div>
+          <div class="field-group span-2">
+            <label class="field-label">Overview</label>
+            <textarea id="sd-overview" style="min-height:80px"></textarea>
+          </div>
+          <div class="field-group span-2">
+            <label class="field-label">Observations</label>
+            <textarea id="sd-observation" style="min-height:80px"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Components -->
+      <div class="edit-panel tab-content" id="tab-sd2">
+        <div class="toolbar">
+          <span class="section-title" style="margin-bottom:0">
+            <span id="sd-comp-editing-label">New Component</span>
+          </span>
+          <button class="btn btn-secondary btn-sm" onclick="saveComponent()">
+            <span id="sd-comp-btn-label">Add Component</span>
+          </button>
+          <button class="btn btn-outline btn-sm" id="btn-new-comp" onclick="clearComponentForm()" style="display:none">
+            + New Component
+          </button>
+        </div>
+        <div class="comp-form-grid">
+          <div class="field-group">
+            <label class="field-label">#</label>
+            <input type="text" id="sd-comp-num" placeholder="No.">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Component Name</label>
+            <input type="text" id="sd-comp-name" placeholder="Enter component name">
+          </div>
+          <div class="field-group">
+            <label class="field-label">System/Plant Area</label>
+            <select id="sd-comp-area">
+              <option value="">—</option>
+              <option>Primary Circuit</option><option>Secondary Circuit</option>
+              <option>Containment</option><option>Fuel Handling</option>
+              <option>I&amp;C</option><option>Electrical</option>
+              <option>Civil/Structural</option><option>BOP</option><option>Other</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Assessment Status</label>
+            <select id="sd-comp-status">
+              <option value="">—</option>
+              <option>Not Started</option><option>In Progress</option><option>Complete</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">RAG</label>
+            <select id="sd-comp-rag">
+              <option value="">—</option>
+              <option>Red</option><option>Amber</option><option>Green</option><option>Grey</option>
+            </select>
+          </div>
+        </div>
+        <div class="comp-form-row2">
+          <div class="field-group">
+            <label class="field-label">Description</label>
+            <textarea id="sd-comp-desc" placeholder="Component description…" style="min-height:50px"></textarea>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Spec / Additional Detail</label>
+            <textarea id="sd-comp-spec" placeholder="Additional spec notes…" style="min-height:50px"></textarea>
+          </div>
+        </div>
+        <div class="comp-form-row3">
+          <div class="field-group">
+            <label class="field-label">Materials</label>
+            <input type="text" id="sd-comp-materials" placeholder="e.g. SA-508">
+          </div>
+          <div class="field-group">
+            <label class="field-label">MFG Methods</label>
+            <input type="text" id="sd-comp-mfg" placeholder="e.g. Forging, SAW">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Codes &amp; Standards</label>
+            <input type="text" id="sd-comp-codes" placeholder="e.g. ASME III">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Mass</label>
+            <input type="text" id="sd-comp-mass" placeholder="e.g. >150T">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Key Dimensions</label>
+            <input type="text" id="sd-comp-dims" placeholder="Major dims (mm)">
+          </div>
+        </div>
+        <div class="comp-form-row3" style="grid-template-columns:1fr 1fr 1fr auto auto">
+          <div class="field-group">
+            <label class="field-label">Notes</label>
+            <input type="text" id="sd-comp-notes">
+          </div>
+          <div class="field-group">
+            <label class="field-label">QTY (Units)</label>
+            <input type="text" id="sd-comp-qty">
+          </div>
+          <div class="field-group">
+            <label class="field-label">QTY (Systems)</label>
+            <input type="text" id="sd-comp-qtysys">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Identified COS</label>
+            <input type="text" id="sd-comp-cos" style="width:80px">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Author</label>
+            <input type="text" id="sd-comp-author" style="width:160px">
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="panel-header">
+          <span class="col" style="flex:0 0 40px">#</span>
+          <span class="col" style="flex:2">Component / System</span>
+          <span class="col" style="flex:1.5">Area</span>
+          <span class="col" style="flex:1">Status</span>
+          <span class="col" style="flex:2">Description</span>
+          <span class="col" style="flex:0 0 80px;text-align:center">RAG</span>
+          <span class="col" style="flex:0 0 50px"></span>
+        </div>
+        <div id="sd-components-gallery" style="max-height:260px;overflow-y:auto"></div>
+      </div>
+
+      <!-- TAB: Firms -->
+      <div class="edit-panel tab-content" id="tab-sd3">
+        <!-- Add firm row -->
+        <div class="toolbar">
+          <select id="sd-add-firm-sel" style="width:320px"></select>
+          <select id="sd-firm-level" style="width:80px">
+            <option value="">Level</option>
+            <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+          </select>
+          <select id="sd-firm-rag" style="width:100px">
+            <option value="">RAG</option>
+            <option>Grey</option><option>Red</option><option>Amber</option><option>Green</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="addFirmToSCRL()">Add Firm</button>
+          <div style="flex:1"></div>
+          <label class="field-label" style="margin-bottom:0">Filter by component:</label>
+          <select id="sd-filter-comp" onchange="renderSCRLFirms()" style="width:200px">
+            <option value="">All components</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="clearFirmFilter()">✕ Clear</button>
+        </div>
+        <!-- Firm notes row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+          <div class="field-group">
+            <label class="field-label">Notes</label>
+            <input type="text" id="sd-firm-notes" placeholder="Notes on this firm's involvement…">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Capability Notes</label>
+            <input type="text" id="sd-firm-capnotes" placeholder="Why selected / what they can do…">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Citation URL</label>
+            <input type="text" id="sd-firm-citation" placeholder="https://…">
+          </div>
+        </div>
+        <div class="panel-header">
+          <span class="col" style="flex:2">Firm Name</span>
+          <span class="col" style="flex:0.6;text-align:center">Level</span>
+          <span class="col" style="flex:0.8;text-align:center">RAG</span>
+          <span class="col" style="flex:1">Added By</span>
+          <span class="col" style="flex:1.5">Notes</span>
+          <span class="col" style="flex:1.5">Capability</span>
+          <span class="col" style="flex:1.5">Citation</span>
+          <span class="col" style="flex:0 0 50px"></span>
+        </div>
+        <div id="sd-firms-gallery" style="max-height:200px;overflow-y:auto"></div>
+
+        <!-- Selected firm panel -->
+        <div id="sd-firm-panel" class="firm-panel" style="display:none">
+          <h4 id="sd-firm-panel-title"></h4>
+          <div id="sd-firm-chips" class="chips-wrap"></div>
+          <div id="sd-add-comp-row" style="display:flex;gap:8px;margin-top:8px;align-items:center">
+            <select id="sd-panel-comp-sel" style="width:240px"></select>
+            <select id="sd-panel-comp-rag" style="width:100px">
+              <option value="">RAG</option>
+              <option>Grey</option><option>Red</option><option>Amber</option><option>Green</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="addComponentToFirm()">Add</button>
+          </div>
+          <!-- Chip edit strip -->
+          <div id="sd-chip-edit" style="display:none;margin-top:10px;padding:10px;background:#f8f9fc;border:1px solid var(--border)">
+            <div style="display:grid;grid-template-columns:160px 240px 1fr auto auto;gap:10px;align-items:end">
+              <div class="field-group">
+                <label class="field-label">RAG Status</label>
+                <select id="sd-chip-rag">
+                  <option value="">—</option>
+                  <option>Grey</option><option>Red</option><option>Amber</option><option>Green</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Citation URL</label>
+                <input type="text" id="sd-chip-citation">
+              </div>
+              <div class="field-group">
+                <label class="field-label">Capability Notes</label>
+                <input type="text" id="sd-chip-capnotes">
+              </div>
+              <button class="btn btn-dark btn-sm" onclick="updateChip()">Update</button>
+              <button class="btn btn-muted btn-sm" onclick="closeChipEdit()">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- SCREEN: SCRAPE REVIEW                                               -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="screen-scrapeReview" class="screen">
+      <div class="action-bar">
+        <button class="btn btn-secondary" onclick="applyScrapedData()">Apply Changes</button>
+        <button class="btn btn-outline" onclick="navigateBack()">Back to Record</button>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="col" style="flex:0 0 150px">Field</span>
+          <span class="col" style="flex:1">Current Value</span>
+          <span class="col" style="flex:1">Scraped Value</span>
+          <span class="col" style="flex:0 0 120px;text-align:center">Accept?</span>
+        </div>
+        <!-- Review rows -->
+        <div id="review-rows"></div>
+      </div>
+
+      <!-- Scraped intelligence section -->
+      <div style="margin-top:16px">
+        <div style="background:var(--blue2);color:#fff;padding:8px 14px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase">
+          Scraped Intelligence — for reference only. Use manually to update Capabilities / Markets / Accreditations tabs.
+        </div>
+        <div class="panel free-form-grid" id="review-freeform"></div>
+      </div>
+    </div>
+
+  </main>
+</div><!-- /#app -->
+
+<script>
+'use strict';
+
+/* ──────────────────────────────────────────────────────────────────────────
+   CONFIG — fill these in before deploying
+   ────────────────────────────────────────────────────────────────────────── */
+const CONFIG = {
+  tenantId:  'd44192f5-1023-458c-9cb3-9ff7e9c6d4ad',
+  clientId:  'ec0a6806-59e8-4ea9-8ff5-6bdb1ba87baf',
+  siteUrl:   'https://nuccol.sharepoint.com/sites/SCRLDatabase',
+  scopes:    ['https://nuccol.sharepoint.com/AllSites.Write'],
+};
+
+/* ──────────────────────────────────────────────────────────────────────────
+   MSAL SETUP
+   ────────────────────────────────────────────────────────────────────────── */
+const msalConfig = {
+  auth: {
+    clientId:    CONFIG.clientId,
+    authority:   `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+    redirectUri: window.location.origin + window.location.pathname,
+  },
+  cache: { cacheLocation: 'sessionStorage' },
+};
+const msalClient = new msal.PublicClientApplication(msalConfig);
+
+let currentUser = null;
+let msalReady = false;
+
+// Initialise MSAL once and then attempt auto-login (main window only — not inside the popup)
+(async () => {
+  await msalClient.initialize();
+  msalReady = true;
+  if (window.opener) return; // we're the MSAL popup — do nothing
+  await msalClient.handleRedirectPromise();
+  const accounts = msalClient.getAllAccounts();
+  if (accounts.length) { currentUser = accounts[0]; onSignedIn(); }
+})();
+
+async function signIn() {
+  try {
+    if (!msalReady) await msalClient.initialize();
+    const result = await msalClient.loginPopup({ scopes: CONFIG.scopes });
+    currentUser = result.account;
+    onSignedIn();
+  } catch (e) {
+    const el = document.getElementById('auth-error');
+    el.textContent = e.message || 'Sign in failed';
+    el.style.display = 'block';
+  }
+}
+
+async function signOut() {
+  await msalClient.logoutPopup();
+  location.reload();
+}
+
+async function getToken() {
+  const accounts = msalClient.getAllAccounts();
+  if (!accounts.length) throw new Error('Not signed in');
+  try {
+    const res = await msalClient.acquireTokenSilent({ scopes: CONFIG.scopes, account: accounts[0] });
+    return res.accessToken;
+  } catch {
+    if (window.opener) throw new Error('Session expired — please reload and sign in again');
+    const res = await msalClient.acquireTokenPopup({ scopes: CONFIG.scopes });
+    return res.accessToken;
+  }
+}
+
+async function onSignedIn() {
+  document.getElementById('auth-overlay').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  const accounts = msalClient.getAllAccounts();
+  if (accounts.length) {
+    currentUser = accounts[0];
+    document.getElementById('user-name').textContent = currentUser.name || currentUser.username;
+  }
+  await loadLookupData();
+
+  // Deep-link: ?companyId=123 jumps straight to that company
+  const params   = new URLSearchParams(window.location.search);
+  const deepId   = params.get('companyId');
+  if (deepId) {
+    // state.companies uses SharePoint ID (c.ID), field_1 is the NuCCoL CompanyID
+    const match = state.companies.find(c => String(c.field_1) === String(deepId) || String(c.ID) === String(deepId));
+    if (match) {
+      await openCompany(match.ID);
+      return;
+    }
+  }
+  navigate('dashboard');
+}
+
+function openInRolodex() {
+  const c = state.selectedCompany;
+  if (!c) return;
+  // field_1 = NuCCoL CompanyID (survives normaliseCompany as raw field)
+  // Fall back to SP ID if field_1 absent
+  const companyId = c.field_1 || c.ID;
+  window.open(`rolodex.html?companyId=${companyId}`, '_blank');
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   SHAREPOINT REST API
+   ────────────────────────────────────────────────────────────────────────── */
+async function spFetch(path, options = {}) {
+  const token = await getToken();
+  const url = path.startsWith('http') ? path : `${CONFIG.siteUrl}/_api/${path}`;
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json;odata=nometadata',
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`SP ${res.status}: ${text.substring(0,200)}`);
+  }
+  if (res.status === 204) return {};
+  const text = await res.text();
+  if (!text || !text.trim()) return {};
+  return JSON.parse(text);
+}
+
+async function spGetAll(listName, select = '', filter = '', top = 5000) {
+  let items = [];
+  let qs = `?$top=${top}`;
+  if (select) qs += `&$select=${select}`;
+  if (filter) qs += `&$filter=${encodeURIComponent(filter)}`;
+  let url = `web/lists/getbytitle('${encodeURIComponent(listName)}')/items${qs}`;
+  while (url) {
+    const data = await spFetch(url);
+    items = items.concat(data.value || []);
+    url = data['odata.nextLink'] || null;
+    if (url) url = url.replace(CONFIG.siteUrl + '/_api/', '');
+  }
+  return items;
+}
+
+async function spPatch(listName, id, body) {
+  return spFetch(`web/lists/getbytitle('${encodeURIComponent(listName)}')/items(${id})`, {
+    method: 'PATCH',
+    headers: { 'IF-MATCH': '*', 'X-HTTP-Method': 'MERGE' },
+    body: JSON.stringify(body),
+  });
+}
+
+async function spPost(listName, body) {
+  return spFetch(`web/lists/getbytitle('${encodeURIComponent(listName)}')/items`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+async function spDelete(listName, id) {
+  return spFetch(`web/lists/getbytitle('${encodeURIComponent(listName)}')/items(${id})`, {
+    method: 'DELETE',
+    headers: { 'IF-MATCH': '*' },
+  });
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   APP STATE
+   ────────────────────────────────────────────────────────────────────────── */
+const state = {
+  screen: 'dashboard',
+  navHistory: [],
+  // data caches
+  companies: [],
+  capabilities: [],
+  commodities: [],
+  accreditations: [],
+  markets: [],
+  counties: [],
+  scrls: [],
+  // current records
+  selectedCompany: null,
+  selectedSCRL: null,
+  selectedComponent: null,
+  selectedSCRLCompanyRow: null,
+  selectedSCRLCompanyComponent: null,
+  // scrape
+  varScrapeRow: null,
+  scrapeAccept: {},
+  scrapeInterval: null,
+  scrapePollCount: 0,
+  // filtered results cache
+  companyCapabilities: [],
+  companyCommodities: [],
+  companyAccreditations: [],
+  companyMarkets: [],
+  scrlComponents: [],
+  scrlCompanies: [],
+  scrlCompanyComponents: [],
+};
+
+/* ──────────────────────────────────────────────────────────────────────────
+   UI HELPERS
+   ────────────────────────────────────────────────────────────────────────── */
+function showLoading(on) { document.getElementById('loading').style.display = on ? 'block' : 'none'; }
+
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = type;
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 3500);
+}
+
+function ragBadge(val) {
+  const v = val || '';
+  return `<span class="rag ${v || 'empty'}">${v || '—'}</span>`;
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  return isNaN(dt) ? d : dt.toLocaleDateString('en-GB');
+}
+
+function isoDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  return isNaN(dt) ? '' : dt.toISOString().split('T')[0];
+}
+
+function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; }
+function setChk(id, v) { const el = document.getElementById(id); if (el) el.checked = !!v; }
+function getVal(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function getChk(id) { const el = document.getElementById(id); return el ? el.checked : false; }
+
+function switchTab(prefix, tabId, btn) {
+  // deactivate all in same group
+  const parent = btn.closest('.tab-bar');
+  parent.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // hide all tab-content siblings
+  const screen = btn.closest('.screen');
+  screen.querySelectorAll('.tab-content').forEach(tc => {
+    tc.classList.toggle('active', tc.id === 'tab-' + tabId);
+  });
+  // special actions per tab
+  if (tabId === 'c4') loadCompanyCapsComs();
+  if (tabId === 'c5') loadCompanyAccredsMkts();
+  if (tabId === 'c6') loadCompanySCRLs();
+  if (tabId === 'c7') renderLocationTab();
+  if (tabId === 'sd2') loadSCRLComponents();
+  if (tabId === 'sd3') loadSCRLFirms();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   ROUTER
+   ────────────────────────────────────────────────────────────────────────── */
+function navigate(screen, params = {}, pushHistory = true) {
+  if (pushHistory && state.screen && state.screen !== screen) {
+    state.navHistory.push({ screen: state.screen, params: state.navParams || {} });
+    if (state.navHistory.length > 20) state.navHistory.shift(); // cap stack
+  }
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById('screen-' + screen);
+  if (el) el.classList.add('active');
+  state.screen = screen;
+  state.navParams = params;
+
+  if (screen === 'dashboard')    renderDashboard();
+  if (screen === 'search')       renderSearch();
+  if (screen === 'company')      renderCompany(params.company || null);
+  if (screen === 'scrlList')     renderScrlListScreen();
+  if (screen === 'scrlDetail')   renderSCRLDetail(params.scrl || null);
+  if (screen === 'scrapeReview') renderScrapeReview();
+
+  window.scrollTo(0, 0);
+}
+
+function navigateBack() {
+  if (state.navHistory.length) {
+    const prev = state.navHistory.pop();
+    navigate(prev.screen, prev.params, false);
+  } else {
+    navigate('search', {}, false);
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   FIELD NAME NORMALISERS
+   SharePoint lists using auto-generated field_N names are mapped back to
+   their display names here so the rest of the code can use readable names.
+   ────────────────────────────────────────────────────────────────────────── */
+function normaliseCompany(c) {
+  return {
+    ...c,
+    City:               c.field_2  ?? c.City,
+    County:             c.field_3  ?? c.County,
+    Postcode:           c.field_4  ?? c.Postcode,
+    OtherAddresses:     c.field_5  ?? c.OtherAddresses,
+    Website:            c.field_6  ?? c.Website,
+    Email:              c.field_7  ?? c.Email,
+    RegisteredNumber:   c.field_8  ?? c.RegisteredNumber,
+    RegionalIA:         c.field_9  ?? c.RegionalIA,
+    QuickDescription:   c.field_10 ?? c.QuickDescription,
+    MainCommodityGroup: c.field_11 ?? c.MainCommodityGroup,
+    DataConfidenceLevel:c.field_12 ?? c.DataConfidenceLevel,
+    RAGStatus:          c.field_13 ?? c.RAGStatus,
+    Turnover:           c.field_14 ?? c.Turnover,
+    Employees:          c.field_15 ?? c.Employees,
+    Size:               c.field_16 ?? c.Size,
+    Flag:               c.field_17 ?? c.Flag,
+    FlagComment:        c.field_18 ?? c.FlagComment,
+    F4NCandidate:       c.field_19 ?? c.F4NCandidate,
+    F4H2Candidate:      c.field_20 ?? c.F4H2Candidate,
+    DataComplete:       c.field_21 ?? c.DataComplete,
+    DateAdded:          c.field_22 ?? c.DateAdded,
+    LastUpdated:        c.field_23 ?? c.LastUpdated,
+    UpdatedBy:          c.field_24 ?? c.UpdatedBy,
+    Address:            c.field_25 ?? c.Address,
+    RegAddress:         c.field_26 ?? c.RegAddress,
+    RegCity:            c.field_27 ?? c.RegCity,
+    RegCounty:          c.field_28 ?? c.RegCounty,
+    RegPostcode:        c.field_29 ?? c.RegPostcode,
+    Notes:              c.field_30 ?? c.Notes,
+    NuclearReference:   c.field_31 ?? c.NuclearReference,
+    NuclearRefDate:     c.field_32 ?? c.NuclearRefDate,
+    NuclearRefURL:      c.field_33 ?? c.NuclearRefURL,
+    MarketNotes:        c.field_40 ?? c.MarketNotes,
+  };
+}
+
+function normaliseSCRL(s) {
+  return {
+    ...s,
+    Client:         s.field_1  ?? s.Client,
+    ClientContact:  s.field_2  ?? s.ClientContact,
+    ClientEmail:    s.field_3  ?? s.ClientEmail,
+    Status:         s.field_4  ?? s.Status,
+    StartDate:      s.field_5  ?? s.StartDate,
+    EndDate:        s.field_6  ?? s.EndDate,
+    HoursAllocated: s.field_7  ?? s.HoursAllocated,
+    POValue:        s.field_8  ?? s.POValue,
+    ProjectManager: s.field_9  ?? s.ProjectManager,
+    TechLead:       s.field_10 ?? s.TechLead,
+    SupportedBy:    s.field_11 ?? s.SupportedBy,
+    RAGStatus:      s.field_12 ?? s.RAGStatus,
+    Overview:       s.field_13 ?? s.Overview,
+    Observation:    s.field_14 ?? s.Observation,
+  };
+}
+
+function normaliseSCRLCompany(r) {
+  return {
+    ...r,
+    SCRL_ID_Ref:    r.field_1 ?? r.SCRL_ID_Ref,
+    CompanyID_Ref:  r.field_2 ?? r.CompanyID_Ref,
+    SCRLName_Ref:   r.field_3 ?? r.SCRLName_Ref,
+    CompanyName_Ref:r.field_4 ?? r.CompanyName_Ref,
+    DateAdded:      r.field_5 ?? r.DateAdded,
+    AddedBy:        r.field_6 ?? r.AddedBy,
+    RAGStatus:      r.field_7 ?? r.RAGStatus,
+    Notes:          r.field_8 ?? r.Notes,
+    SCRLLevel:      r.field_9 ?? r.SCRLLevel,
+  };
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   LOAD LOOKUP DATA (run once on sign-in)
+   ────────────────────────────────────────────────────────────────────────── */
+async function loadLookupData() {
+  showLoading(true);
+  try {
+    const [caps, coms, acreds, mkts, companies, scrls] = await Promise.all([
+      spGetAll('Capabilities', 'ID,Title', '', 2000),
+      spGetAll('Commodities',  'ID,Title', '', 2000),
+      spGetAll('Accreditations','ID,Title','', 2000),
+      spGetAll('Markets',      'ID,Title', '', 2000),
+      spGetAll('Companies',    'ID,Title,field_2,field_3,field_4,field_13,field_10', '', 5000),
+      spGetAll('SCRLs',        'ID,Title,field_1,field_9,field_10,field_4,field_12,field_5', '', 2000),
+    ]);
+    state.capabilities  = caps.sort((a,b)=>(a.Title||"").localeCompare(b.Title||""));
+    state.commodities   = coms.sort((a,b)=>(a.Title||"").localeCompare(b.Title||""));
+    state.accreditations= acreds.sort((a,b)=>(a.Title||"").localeCompare(b.Title||""));
+    state.markets       = mkts.sort((a,b)=>(a.Title||"").localeCompare(b.Title||""));
+    state.companies     = companies.map(normaliseCompany).sort((a,b)=>(a.Title||"").localeCompare(b.Title||""));
+    state.scrls         = scrls.map(normaliseSCRL).sort((a,b)=>(a.Title||"").localeCompare(b.Title||""));
+    state.counties      = [...new Set(state.companies.map(c=>c.County).filter(Boolean))].sort();
+    populateSearchFilters();
+    populateCompanyDropdowns();
+    populateSCRLDropdowns();
+  } catch (e) {
+    toast('Failed to load data: ' + e.message, 'error');
+  }
+  showLoading(false);
+}
+
+function populateSearchFilters() {
+  const opts = (arr) => arr.map(i=>`<option value="${i.Title}">${i.Title}</option>`).join('');
+  const regionOpts = state.counties.map(c=>`<option value="${c}">${c}</option>`).join('');
+  ['s-capability','c-add-cap-sel'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<option value="">—</option>` + opts(state.capabilities);
+  });
+  const sc = document.getElementById('s-capability');
+  if (sc) sc.innerHTML = `<option value="">All</option>` + opts(state.capabilities);
+  const sco = document.getElementById('s-commodity');
+  if (sco) sco.innerHTML = `<option value="">All</option>` + opts(state.commodities);
+  const sa = document.getElementById('s-accreditation');
+  if (sa) sa.innerHTML = `<option value="">All</option>` + opts(state.accreditations);
+  const sr = document.getElementById('s-region');
+  if (sr) sr.innerHTML = `<option value="">All</option>` + regionOpts;
+  const sm = document.getElementById('s-market');
+  if (sm) sm.innerHTML = `<option value="">All</option>` + opts(state.markets);
+}
+
+function populateCompanyDropdowns() {
+  const opts = (arr) => arr.map(i=>`<option value="${i.Title}">${i.Title}</option>`).join('');
+  [
+    ['c-add-cap-sel',  state.capabilities],
+    ['c-add-com-sel',  state.commodities],
+    ['c-add-acred-sel',state.accreditations],
+    ['c-add-mkt-sel',  state.markets],
+  ].forEach(([id, arr]) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<option value="">— select —</option>` + opts(arr);
+  });
+  const scrl = document.getElementById('c-add-scrl-sel');
+  if (scrl) scrl.innerHTML = `<option value="">— select SCRL —</option>` +
+    state.scrls.map(s=>`<option value="${s.ID}">${s.Title}</option>`).join('');
+}
+
+function populateSCRLDropdowns() {
+  const firmOpts = `<option value="">— search firms —</option>` +
+    state.companies.map(c=>`<option value="${c.ID}">${c.Title}</option>`).join('');
+  const el = document.getElementById('sd-add-firm-sel');
+  if (el) el.innerHTML = firmOpts;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   DASHBOARD
+   ────────────────────────────────────────────────────────────────────────── */
+async function renderDashboard() {
+  document.getElementById('stat-companies').textContent = state.companies.length || '—';
+  document.getElementById('stat-scrls').textContent     = state.scrls.length || '—';
+  try {
+    const data = await spFetch(`web/lists/getbytitle('Company_Capabilities')/ItemCount`);
+    document.getElementById('stat-caps').textContent = data.value || '—';
+  } catch { /* silent */ }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   SEARCH SCREEN
+   ────────────────────────────────────────────────────────────────────────── */
+let _searchJunctionCaps = [], _searchJunctionComs = [],
+    _searchJunctionAcreds = [], _searchJunctionMkts = [];
+
+async function renderSearch() {
+  applySearchFilters();
+  // load junction tables for filtering if not loaded
+  if (!_searchJunctionCaps.length) {
+    showLoading(true);
+    try {
+      [_searchJunctionCaps, _searchJunctionComs, _searchJunctionAcreds, _searchJunctionMkts] = await Promise.all([
+        spGetAll('Company_Capabilities',  'CompanyID_Ref,CapabilityName_Ref',   '', 5000),
+        spGetAll('Company_Commodities',   'CompanyID_Ref,CommodityName_Ref',    '', 5000),
+        spGetAll('Company_Accreditations','CompanyID_Ref,AccreditationName_Ref','', 5000),
+        spGetAll('Company_Markets',       'CompanyID_Ref,MarketName_Ref',       '', 5000),
+      ]);
+    } catch (e) { toast('Error loading filter data: ' + e.message, 'error'); }
+    showLoading(false);
+    applySearchFilters();
+  }
+}
+
+function applySearchFilters() {
+  const txt  = (document.getElementById('s-search')?.value || '').toLowerCase();
+  const cap  = document.getElementById('s-capability')?.value || '';
+  const com  = document.getElementById('s-commodity')?.value || '';
+  const acr  = document.getElementById('s-accreditation')?.value || '';
+  const reg  = document.getElementById('s-region')?.value || '';
+  const mkt  = document.getElementById('s-market')?.value || '';
+
+  let results = state.companies.filter(c => {
+    if (txt && !(c.Title||'').toLowerCase().includes(txt)) return false;
+    if (reg && c.County !== reg) return false;
+    if (cap && !_searchJunctionCaps.some(j=>j.CompanyID_Ref===c.ID && j.CapabilityName_Ref===cap)) return false;
+    if (com && !_searchJunctionComs.some(j=>j.CompanyID_Ref===c.ID && j.CommodityName_Ref===com)) return false;
+    if (acr && !_searchJunctionAcreds.some(j=>j.CompanyID_Ref===c.ID && j.AccreditationName_Ref===acr)) return false;
+    if (mkt && !_searchJunctionMkts.some(j=>j.CompanyID_Ref===c.ID && j.MarketName_Ref===mkt)) return false;
+    return true;
+  });
+
+  document.getElementById('s-count').textContent = `${results.length} result${results.length!==1?'s':''}`;
+
+  const gallery = document.getElementById('s-gallery');
+  if (!results.length) { gallery.innerHTML = '<div class="empty-state">No results</div>'; return; }
+
+  gallery.innerHTML = results.map(c => `
+    <div class="gallery-row" onclick="openCompany(${c.ID})">
+      <span class="col name" style="flex:2">${esc(c.Title)}</span>
+      <span class="col" style="flex:1.5;color:var(--muted)">${esc((c.City||'') + (c.City&&c.County?', ':'') + (c.County||''))}</span>
+      <span class="col" style="flex:2;color:#555">${esc(c.QuickDescription||'')}</span>
+      <span class="col" style="flex:0 0 80px;text-align:center">${ragBadge(c.RAGStatus)}</span>
+    </div>
+  `).join('');
+}
+
+function clearSearchFilters() {
+  ['s-search','s-capability','s-commodity','s-accreditation','s-region','s-market'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  applySearchFilters();
+}
+
+async function openCompany(id) {
+  showLoading(true);
+  try {
+    const raw = await spFetch(`web/lists/getbytitle('Companies')/items(${id})`);
+    const data = normaliseCompany(raw);
+    state.selectedCompany = data;
+    navigate('company', { company: data });
+  } catch (e) { toast('Failed to load company: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   COMPANY EDIT SCREEN
+   ────────────────────────────────────────────────────────────────────────── */
+function renderCompany(company) {
+  state.selectedCompany = company;
+  // Switch to first tab
+  switchToFirstTab('company-tabs', 'c1');
+  const isNew = !company || !company.ID;
+  document.getElementById('btn-analyse').style.display = isNew ? 'none' : 'inline-block';
+  document.getElementById('btn-view-scrape').style.display = isNew ? 'none' : 'inline-block';
+  document.getElementById('btn-open-rolodex').style.display = isNew ? 'none' : 'inline-block';
+
+  const c = company || {};
+  setVal('c-name',        c.Title);
+  setVal('c-city',        c.City);
+  setVal('c-website',     c.Website);
+  setVal('c-county',      c.County);
+  setVal('c-email',       c.Email);
+  setVal('c-postcode',    c.Postcode);
+  setVal('c-regno',       c.RegisteredNumber);
+  setVal('c-regional',    c.RegionalIA);
+  setVal('c-other-addr',  c.OtherAddresses);
+  setVal('c-quickdesc',   c.QuickDescription);
+  setVal('c-maincommodity',c.MainCommodityGroup);
+  setVal('c-size',        c.Size);
+  setVal('c-turnover',    c.Turnover);
+  setVal('c-employees',   c.Employees);
+  setVal('c-dataconf',    c.DataConfidenceLevel);
+  setVal('c-updatedby',   c.UpdatedBy);
+  setChk('c-f4n',         c.F4NCandidate === 'Y');
+  setChk('c-f4h2',        c.F4H2Candidate === 'Y');
+  setVal('c-rag',         c.RAGStatus);
+  setVal('c-flag',        c.Flag);
+  setVal('c-flagcomment', c.FlagComment);
+  setChk('c-nuclear',     c.NuclearReference === 'Y');
+  setVal('c-nucdate',     isoDate(c.NuclearRefDate));
+  setVal('c-nucurl',      c.NuclearRefURL);
+  setVal('c-notes',       c.Notes);
+  setVal('c-marketnotes', c.MarketNotes);
+}
+
+function switchToFirstTab(tabBarRef, firstTabId) {
+  const bar = typeof tabBarRef === 'string'
+    ? document.getElementById(tabBarRef) || document.querySelector(tabBarRef)
+    : tabBarRef;
+  if (!bar) return;
+  bar.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', i === 0);
+  });
+  const screen = bar.closest('.screen');
+  screen.querySelectorAll('.tab-content').forEach(tc => {
+    tc.classList.toggle('active', tc.id === 'tab-' + firstTabId);
+  });
+}
+
+async function saveCompany() {
+  const name = getVal('c-name');
+  if (!name) { toast('Company name is required', 'error'); return; }
+  showLoading(true);
+  const body = {
+    Title: name,
+    field_2: getVal('c-city'),
+    field_3: getVal('c-county'),
+    field_4: getVal('c-postcode'),
+    field_5: getVal('c-other-addr'),
+    field_6: getVal('c-website'),
+    field_7: getVal('c-email'),
+    field_8: getVal('c-regno'),
+    field_9: getVal('c-regional'),
+    field_10: getVal('c-quickdesc'),
+    field_11: getVal('c-maincommodity'),
+    field_12: getVal('c-dataconf'),
+    field_13: getVal('c-rag'),
+    field_14: getVal('c-turnover'),
+    field_15: getVal('c-employees'),
+    field_16: getVal('c-size'),
+    field_17: getVal('c-flag'),
+    field_18: getVal('c-flagcomment'),
+    field_19: getChk('c-f4n') ? 'Y' : 'N',
+    field_20: getChk('c-f4h2') ? 'Y' : 'N',
+    field_24: getVal('c-updatedby'),
+    field_30: getVal('c-notes'),
+    field_31: getChk('c-nuclear') ? 'Y' : 'N',
+    field_33: getVal('c-nucurl'),
+    field_40: getVal('c-marketnotes'),
+  };
+  const nucDate = getVal('c-nucdate');
+  if (nucDate) body.NuclearRefDate = nucDate;
+
+  try {
+    let saved;
+    if (state.selectedCompany && state.selectedCompany.ID) {
+      await spPatch('Companies', state.selectedCompany.ID, body);
+      saved = { ...state.selectedCompany, ...body };
+      toast('Company saved', 'success');
+    } else {
+      saved = await spPost('Companies', body);
+      toast('Company created', 'success');
+    }
+    state.selectedCompany = saved;
+    // refresh local cache
+    const idx = state.companies.findIndex(c => c.ID === saved.ID);
+    if (idx >= 0) state.companies[idx] = { ...state.companies[idx], ...body };
+    else state.companies.push(saved);
+    state.companies.sort((a,b)=>(a.Title||"").localeCompare(b.Title||""));
+    document.getElementById('btn-analyse').style.display = 'inline-block';
+    document.getElementById('btn-view-scrape').style.display = 'inline-block';
+    renderCompany(state.selectedCompany);
+  } catch (e) { toast('Save failed: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+/* ── CAPABILITIES / COMMODITIES tab ──────────────────────────────────────── */
+async function loadCompanyCapsComs() {
+  if (!state.selectedCompany?.ID) return;
+  showLoading(true);
+  try {
+    const id = state.selectedCompany.ID;
+    const [caps, coms] = await Promise.all([
+      spGetAll('Company_Capabilities', 'ID,CapabilityName_Ref', `CompanyID_Ref eq ${id}`),
+      spGetAll('Company_Commodities',  'ID,CommodityName_Ref',  `CompanyID_Ref eq ${id}`),
+    ]);
+    state.companyCapabilities = caps;
+    state.companyCommodities  = coms;
+    renderTagList('c-caps-list', caps, 'CapabilityName_Ref', 'removeCompanyCap');
+    renderTagList('c-coms-list', coms, 'CommodityName_Ref',  'removeCompanyCom');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+async function loadCompanyAccredsMkts() {
+  if (!state.selectedCompany?.ID) return;
+  showLoading(true);
+  try {
+    const id = state.selectedCompany.ID;
+    const [acreds, mkts] = await Promise.all([
+      spGetAll('Company_Accreditations','ID,AccreditationName_Ref',`CompanyID_Ref eq ${id}`),
+      spGetAll('Company_Markets',       'ID,MarketName_Ref',       `CompanyID_Ref eq ${id}`),
+    ]);
+    state.companyAccreditations = acreds;
+    state.companyMarkets        = mkts;
+    renderTagList('c-acreds-list', acreds, 'AccreditationName_Ref', 'removeCompanyAcred');
+    renderTagList('c-mkts-list',   mkts,   'MarketName_Ref',        'removeCompanyMkt');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+function renderTagList(containerId, items, nameField, removeFn) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!items.length) { el.innerHTML = '<div class="text-muted" style="padding:8px">None added</div>'; return; }
+  el.innerHTML = items.map(i => `
+    <div class="tag-item">
+      <span>${esc(i[nameField])}</span>
+      <button class="btn-icon" onclick="${removeFn}(${i.ID})">✕</button>
+    </div>
+  `).join('');
+}
+
+async function addCompanyTag(type) {
+  if (!state.selectedCompany?.ID) { toast('Save company first', 'warning'); return; }
+  const map = {
+    cap:   { sel: 'c-add-cap-sel',   list: 'Company_Capabilities',  nameField: 'CapabilityName_Ref',   idField: 'CapabilityID_Ref',   lookupList: state.capabilities },
+    com:   { sel: 'c-add-com-sel',   list: 'Company_Commodities',   nameField: 'CommodityName_Ref',    idField: 'CommodityID_Ref',    lookupList: state.commodities },
+    acred: { sel: 'c-add-acred-sel', list: 'Company_Accreditations',nameField: 'AccreditationName_Ref',idField: 'AccreditationID_Ref',lookupList: state.accreditations },
+    mkt:   { sel: 'c-add-mkt-sel',   list: 'Company_Markets',       nameField: 'MarketName_Ref',       idField: 'MarketID_Ref',       lookupList: state.markets },
+  };
+  const cfg = map[type];
+  const selVal = document.getElementById(cfg.sel)?.value;
+  if (!selVal) return;
+  const lookupItem = cfg.lookupList.find(x => x.Title === selVal);
+  if (!lookupItem) return;
+  const cid = state.selectedCompany.ID;
+  const cname = state.selectedCompany.Title;
+  showLoading(true);
+  try {
+    const existing = await spGetAll(cfg.list, 'ID', `CompanyID_Ref eq ${cid} and ${cfg.nameField} eq '${selVal.replace(/'/g,"''")}'`);
+    if (existing.length) { toast('Already added', 'warning'); showLoading(false); return; }
+    await spPost(cfg.list, {
+      Title: `${cid}-${selVal}`,
+      CompanyID_Ref: cid,
+      [cfg.idField]: lookupItem.ID,
+      CompanyName_Ref: cname,
+      [cfg.nameField]: selVal,
+    });
+    if (type === 'cap' || type === 'com') loadCompanyCapsComs();
+    else loadCompanyAccredsMkts();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+async function removeCompanyCap(id)  { await removeTag('Company_Capabilities',  id); loadCompanyCapsComs(); }
+async function removeCompanyCom(id)  { await removeTag('Company_Commodities',   id); loadCompanyCapsComs(); }
+async function removeCompanyAcred(id){ await removeTag('Company_Accreditations',id); loadCompanyAccredsMkts(); }
+async function removeCompanyMkt(id)  { await removeTag('Company_Markets',       id); loadCompanyAccredsMkts(); }
+async function removeTag(list, id) {
+  try { await spDelete(list, id); }
+  catch (e) { toast('Delete failed: ' + e.message, 'error'); }
+}
+
+/* ── COMPANY SCRLs TAB ───────────────────────────────────────────────────── */
+async function loadCompanySCRLs() {
+  if (!state.selectedCompany?.ID) return;
+  showLoading(true);
+  try {
+    const id = state.selectedCompany.ID;
+    const rawRows = await spGetAll('SCRL_Companies', 'ID,field_1,field_3,field_9,field_7,field_2', `field_2 eq ${id}`);
+    const rows = rawRows.map(normaliseSCRLCompany);
+    const compRows = await spGetAll('SCRL_Company_Components', 'ID,SCRL_ID_Ref,ComponentName_Ref,RAG_Status', `CompanyID_Ref eq ${id}`);
+    const list = document.getElementById('c-scrls-list');
+    if (!rows.length) { list.innerHTML = '<div class="empty-state">No SCRLs</div>'; showLoading(false); return; }
+    list.innerHTML = rows.map(r => {
+      const chips = compRows.filter(c => c.SCRL_ID_Ref === r.SCRL_ID_Ref)
+        .map(c => `<span class="chip ${c.RAG_Status||'empty'}" style="font-size:10px;padding:2px 7px">${esc(c.ComponentName_Ref)}</span>`).join('');
+      return `
+        <div class="gallery-row">
+          <span class="col name" style="flex:3">${esc(r.SCRLName_Ref)}</span>
+          <span class="col" style="flex:1;text-align:center">${r.SCRLLevel||'—'}</span>
+          <span class="col" style="flex:1;text-align:center">${ragBadge(r.RAGStatus)}</span>
+          <span class="col" style="flex:2">${chips||'<span class="text-muted">—</span>'}</span>
+          <span class="col" style="flex:0 0 100px">
+            <button class="btn btn-outline btn-sm" onclick="goToSCRL(${r.SCRL_ID_Ref})">Go to SCRL →</button>
+          </span>
+        </div>
+      `;
+    }).join('');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+async function addCompanyToSCRL() {
+  if (!state.selectedCompany?.ID) { toast('Save company first', 'warning'); return; }
+  const scrlId  = parseInt(document.getElementById('c-add-scrl-sel')?.value);
+  const level   = document.getElementById('c-scrl-level')?.value;
+  const rag     = document.getElementById('c-scrl-rag')?.value;
+  if (!scrlId) { toast('Select an SCRL first', 'error'); return; }
+  const scrl = state.scrls.find(s => s.ID === scrlId);
+  if (!scrl) return;
+  showLoading(true);
+  try {
+    const existing = await spGetAll('SCRL_Companies', 'ID', `field_1 eq ${scrlId} and field_2 eq ${state.selectedCompany.ID}`);
+    if (existing.length) { toast('Already in that SCRL', 'warning'); showLoading(false); return; }
+    await spPost('SCRL_Companies', {
+      Title: `${scrl.Title}-${state.selectedCompany.Title}`,
+      field_1: scrlId,
+      field_2: state.selectedCompany.ID,
+      field_3: scrl.Title,
+      field_4: state.selectedCompany.Title,
+      field_5: new Date().toISOString(),
+      field_6: currentUser?.name || '',
+      field_7: rag || null,
+      field_9: level ? parseInt(level) : null,
+    });
+    toast(`Added to ${scrl.Title}`, 'success');
+    loadCompanySCRLs();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+async function goToSCRL(scrlId) {
+  showLoading(true);
+  try {
+    const raw = await spFetch(`web/lists/getbytitle('SCRLs')/items(${scrlId})`);
+    const data = normaliseSCRL(raw);
+    state.selectedSCRL = data;
+    navigate('scrlDetail', { scrl: data });
+  } catch (e) { toast('Failed to load SCRL: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+/* ── LOCATION TAB ────────────────────────────────────────────────────────── */
+function renderLocationTab() {
+  const postcode = getVal('c-postcode') || state.selectedCompany?.Postcode || '';
+  const name     = getVal('c-name')    || state.selectedCompany?.Title || '';
+  document.getElementById('c-location-label').textContent = name + (postcode ? ' — ' + postcode : '');
+  if (postcode) {
+    const encoded = encodeURIComponent(postcode);
+    document.getElementById('c-map-img').src =
+      `https://staticmap.openstreetmap.de/staticmap.php?center=${encoded}&zoom=15&size=600x400&markers=${encoded}`;
+  }
+}
+
+function openGoogleMaps() {
+  const postcode = getVal('c-postcode') || state.selectedCompany?.Postcode || '';
+  if (postcode) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(postcode)}`, '_blank', 'noopener,noreferrer');
+}
+
+/* ── SCRAPE ──────────────────────────────────────────────────────────────── */
+async function startScrape() {
+  if (!state.selectedCompany?.ID) return;
+  const overlay = document.getElementById('scrape-overlay');
+  overlay.classList.add('active');
+  state.scrapePollCount = 0;
+  try {
+    // Delete existing scrape rows for this company
+    const existing = await spGetAll('Scrape_Results', 'ID', `Title eq '${state.selectedCompany.ID}'`);
+    for (const row of existing) await spDelete('Scrape_Results', row.ID);
+    // Create new pending row
+    await spPost('Scrape_Results', {
+      Title: String(state.selectedCompany.ID),
+      CompanyName: state.selectedCompany.Title,
+      Website: state.selectedCompany.Website || '',
+      Status: 'Pending',
+    });
+    // Poll every 10s
+    state.scrapeInterval = setInterval(pollScrape, 10000);
+  } catch (e) {
+    overlay.classList.remove('active');
+    toast('Failed to start scrape: ' + e.message, 'error');
+  }
+}
+
+async function pollScrape() {
+  state.scrapePollCount++;
+  try {
+    const rows = await spGetAll('Scrape_Results', 'ID,Title,Status,Name,Website,CHNumber,Address,Postcode,Overview,Capabilities,Markets,Certifications,ManufacturingCapacity',
+      `Title eq '${state.selectedCompany.ID}'`);
+    const row = rows[0];
+    if (row?.Status === 'Complete') {
+      clearInterval(state.scrapeInterval);
+      document.getElementById('scrape-overlay').classList.remove('active');
+      state.varScrapeRow = row;
+      navigate('scrapeReview');
+    } else if (row?.Status === 'Error' || state.scrapePollCount >= 18) {
+      clearInterval(state.scrapeInterval);
+      document.getElementById('scrape-overlay').classList.remove('active');
+      toast('Scrape failed or timed out', 'error');
+    }
+  } catch (e) {
+    clearInterval(state.scrapeInterval);
+    document.getElementById('scrape-overlay').classList.remove('active');
+    toast('Poll error: ' + e.message, 'error');
+  }
+}
+
+async function viewLastScrape() {
+  if (!state.selectedCompany?.ID) return;
+  showLoading(true);
+  try {
+    const rows = await spGetAll('Scrape_Results', 'ID,Title,Status,Name,Website,CHNumber,Address,Postcode,Overview,Capabilities,Markets,Certifications,ManufacturingCapacity',
+      `Title eq '${state.selectedCompany.ID}' and Status eq 'Complete'`);
+    if (!rows.length) { toast('No scrape data found', 'warning'); showLoading(false); return; }
+    state.varScrapeRow = rows.sort((a,b)=>b.ID-a.ID)[0];
+    navigate('scrapeReview');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   SCRL LIST SCREEN
+   ────────────────────────────────────────────────────────────────────────── */
+async function renderScrlListScreen() {
+  showLoading(true);
+  try {
+    const rawScrls = await spGetAll('SCRLs', 'ID,Title,field_1,field_9,field_10,field_4,field_12,field_5', '', 2000);
+    state.scrls = rawScrls.map(normaliseSCRL).sort((a,b) => (a.Title||"").localeCompare(b.Title||""));
+    renderScrlList();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+async function renderScrlList() {
+  const txt    = (document.getElementById('sl-search')?.value || '').toLowerCase();
+  const status = document.getElementById('sl-status')?.value || '';
+  const rag    = document.getElementById('sl-rag')?.value || '';
+
+  let results = state.scrls.filter(s => {
+    if (txt && !s.Title.toLowerCase().includes(txt) && !(s.Client||'').toLowerCase().includes(txt)) return false;
+    if (status && status !== 'All' && s.Status !== status) return false;
+    if (rag    && rag    !== 'All' && s.RAGStatus !== rag) return false;
+    return true;
+  });
+
+  const gallery = document.getElementById('sl-gallery');
+  if (!results.length) { gallery.innerHTML = '<div class="empty-state">No SCRLs found</div>'; return; }
+
+  // For component / firm counts, use cached data if available
+  gallery.innerHTML = results.map(s => `
+    <div class="gallery-row" onclick="openSCRL(${s.ID})">
+      <span class="col name" style="flex:2.5">${esc(s.Title)}</span>
+      <span class="col" style="flex:1.5;color:#555">${esc(s.Client||'')}</span>
+      <span class="col" style="flex:1;color:var(--muted)">${esc(s.ProjectManager||'')}</span>
+      <span class="col" style="flex:1;color:var(--muted)">${esc(s.TechLead||'')}</span>
+      <span class="col" style="flex:0.8;color:#555">${esc(s.Status||'')}</span>
+      <span class="col" style="flex:0.6;text-align:center">${ragBadge(s.RAGStatus)}</span>
+      <span class="col" style="flex:0.8;color:var(--muted)">${fmtDate(s.StartDate)}</span>
+      <span class="col" style="flex:0.5;text-align:center;color:var(--muted)">—</span>
+      <span class="col" style="flex:0.5;text-align:center;color:var(--muted)">—</span>
+    </div>
+  `).join('');
+}
+
+async function openSCRL(id) {
+  showLoading(true);
+  try {
+    const raw = await spFetch(`web/lists/getbytitle('SCRLs')/items(${id})`);
+    const data = normaliseSCRL(raw);
+    state.selectedSCRL = data;
+    navigate('scrlDetail', { scrl: data });
+  } catch (e) { toast('Failed to load SCRL: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   SCRL DETAIL SCREEN
+   ────────────────────────────────────────────────────────────────────────── */
+function renderSCRLDetail(scrl) {
+  state.selectedSCRL = scrl;
+  state.selectedComponent = null;
+  state.selectedSCRLCompanyRow = null;
+  state.selectedSCRLCompanyComponent = null;
+  switchToFirstTab('#screen-scrlDetail .tab-bar', 'sd1');
+
+  const s = scrl || {};
+  setVal('sd-name',         s.Title);
+  setVal('sd-status',       s.Status);
+  setVal('sd-client',       s.Client);
+  setVal('sd-rag',          s.RAGStatus);
+  setVal('sd-clientcontact',s.ClientContact);
+  setVal('sd-clientemail',  s.ClientEmail);
+  setVal('sd-start',        isoDate(s.StartDate));
+  setVal('sd-end',          isoDate(s.EndDate));
+  setVal('sd-assessdate',   isoDate(s.AssessmentDate));
+  setVal('sd-version',      s.Version1);
+  setVal('sd-pm',           s.ProjectManager);
+  setVal('sd-techlead',     s.TechLead);
+  setVal('sd-supportedby',  s.SupportedBy);
+  setVal('sd-hours',        s.HoursAllocated);
+  setVal('sd-value',        s.POValue);
+  setVal('sd-overview',     s.Overview);
+  setVal('sd-observation',  s.Observation);
+  clearComponentForm();
+}
+
+async function saveSCRL() {
+  const name = getVal('sd-name');
+  if (!name) { toast('SCRL name is required', 'error'); return; }
+  showLoading(true);
+  const body = {
+    Title: name,
+    field_1: getVal('sd-client'),
+    field_2: getVal('sd-clientcontact'),
+    field_3: getVal('sd-clientemail'),
+    field_4: getVal('sd-status'),
+    field_9: getVal('sd-pm'),
+    field_10: getVal('sd-techlead'),
+    field_11: getVal('sd-supportedby'),
+    field_12: getVal('sd-rag'),
+    field_13: getVal('sd-overview'),
+    field_14: getVal('sd-observation'),
+    Version1: getVal('sd-version'),
+    field_7: getVal('sd-hours') ? parseFloat(getVal('sd-hours')) : null,
+    field_8: getVal('sd-value') ? parseFloat(getVal('sd-value')) : null,
+  };
+  const start = getVal('sd-start'); if (start) body.field_5 = start;
+  const end   = getVal('sd-end');   if (end)   body.field_6 = end;
+  const ad    = getVal('sd-assessdate'); if (ad) body.AssessmentDate = ad;
+
+  try {
+    let saved;
+    if (state.selectedSCRL?.ID) {
+      await spPatch('SCRLs', state.selectedSCRL.ID, body);
+      saved = { ...state.selectedSCRL, ...body };
+      toast('SCRL saved', 'success');
+    } else {
+      saved = await spPost('SCRLs', body);
+      toast('SCRL created', 'success');
+    }
+    state.selectedSCRL = saved;
+    const idx = state.scrls.findIndex(s => s.ID === saved.ID);
+    if (idx >= 0) state.scrls[idx] = { ...state.scrls[idx], ...body };
+    else state.scrls.push(saved);
+    // re-populate dropdowns
+    populateSCRLDropdowns();
+  } catch (e) { toast('Save failed: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+/* ── COMPONENTS TAB ──────────────────────────────────────────────────────── */
+async function loadSCRLComponents() {
+  if (!state.selectedSCRL?.ID) return;
+  showLoading(true);
+  try {
+    const comps = await spGetAll('SCRL_Components',
+      'ID,ItemNumber,Title,SystemArea,AssessmentStatus,RAG_Status,Description,Spec,Materials,MfgMethods,CodesStandards,MassKg,KeyDimensions,Quantity,QuantitySystem,ComponentNotes,Author0',
+      `SCRL_ID_Ref eq ${state.selectedSCRL.ID}`);
+    state.scrlComponents = comps.sort((a,b)=>(a.ItemNumber||0)-(b.ItemNumber||0));
+    renderComponentsGallery();
+    // Populate filter dd in Firms tab too
+    const sel = document.getElementById('sd-filter-comp');
+    if (sel) {
+      sel.innerHTML = `<option value="">All components</option>` +
+        comps.map(c=>`<option value="${esc(c.Title)}">${esc(c.Title)}</option>`).join('');
+    }
+    const panelSel = document.getElementById('sd-panel-comp-sel');
+    if (panelSel) {
+      panelSel.innerHTML = `<option value="">— select component —</option>` +
+        comps.map(c=>`<option value="${c.ID}">${esc(c.Title)}</option>`).join('');
+    }
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+function renderComponentsGallery() {
+  const gal = document.getElementById('sd-components-gallery');
+  if (!state.scrlComponents.length) { gal.innerHTML = '<div class="empty-state">No components</div>'; return; }
+  gal.innerHTML = state.scrlComponents.map(c => `
+    <div class="gallery-row ${state.selectedComponent?.ID===c.ID?'selected':''}" onclick="selectComponent(${c.ID})">
+      <span class="col" style="flex:0 0 40px;color:var(--muted)">${c.ItemNumber||'—'}</span>
+      <span class="col name" style="flex:2">${esc(c.Title)}</span>
+      <span class="col" style="flex:1.5;color:var(--muted)">${esc(c.SystemArea||'')}</span>
+      <span class="col" style="flex:1;color:var(--muted)">${esc(c.AssessmentStatus||'')}</span>
+      <span class="col" style="flex:2;color:#555;font-size:11px">${esc((c.Description||'').substring(0,80))}</span>
+      <span class="col" style="flex:0 0 80px;text-align:center">${ragBadge(c.RAG_Status)}</span>
+      <span class="col" style="flex:0 0 50px;text-align:center">
+        <button class="btn-icon" onclick="event.stopPropagation();deleteComponent(${c.ID})">🗑</button>
+      </span>
+    </div>
+  `).join('');
+}
+
+function selectComponent(id) {
+  const c = state.scrlComponents.find(x => x.ID === id);
+  if (!c) return;
+  state.selectedComponent = c;
+  document.getElementById('sd-comp-editing-label').textContent = `Editing: ${c.Title}`;
+  document.getElementById('sd-comp-btn-label').textContent = 'Update Component';
+  document.getElementById('btn-new-comp').style.display = 'inline-block';
+  setVal('sd-comp-num',      c.ItemNumber);
+  setVal('sd-comp-name',     c.Title);
+  setVal('sd-comp-area',     c.SystemArea);
+  setVal('sd-comp-status',   c.AssessmentStatus);
+  setVal('sd-comp-rag',      c.RAG_Status);
+  setVal('sd-comp-qty',      c.Quantity);
+  setVal('sd-comp-qtysys',   c.QuantitySystem);
+  setVal('sd-comp-desc',     c.Description);
+  setVal('sd-comp-spec',     c.Spec);
+  setVal('sd-comp-materials',c.Materials);
+  setVal('sd-comp-mfg',      c.MfgMethods);
+  setVal('sd-comp-codes',    c.CodesStandards);
+  setVal('sd-comp-mass',     c.MassKg);
+  setVal('sd-comp-dims',     c.KeyDimensions);
+  setVal('sd-comp-notes',    c.ComponentNotes);
+  setVal('sd-comp-author',   c.Author0);
+  renderComponentsGallery();
+}
+
+function clearComponentForm() {
+  state.selectedComponent = null;
+  document.getElementById('sd-comp-editing-label').textContent = 'New Component';
+  document.getElementById('sd-comp-btn-label').textContent = 'Add Component';
+  document.getElementById('btn-new-comp').style.display = 'none';
+  ['sd-comp-num','sd-comp-name','sd-comp-area','sd-comp-status','sd-comp-rag',
+   'sd-comp-qty','sd-comp-qtysys','sd-comp-desc','sd-comp-spec','sd-comp-materials',
+   'sd-comp-mfg','sd-comp-codes','sd-comp-mass','sd-comp-dims','sd-comp-notes','sd-comp-author',
+   'sd-comp-cos'].forEach(id => setVal(id, ''));
+  renderComponentsGallery();
+}
+
+async function saveComponent() {
+  if (!state.selectedSCRL?.ID) { toast('Save SCRL first', 'warning'); return; }
+  const name = getVal('sd-comp-name');
+  if (!name) { toast('Component name required', 'error'); return; }
+  showLoading(true);
+  const body = {
+    Title: name,
+    SCRL_ID_Ref: state.selectedSCRL.ID,
+    SCRL_Name_Ref: state.selectedSCRL.Title,
+    ItemNumber: getVal('sd-comp-num') ? parseInt(getVal('sd-comp-num')) : null,
+    Quantity: getVal('sd-comp-qty') ? parseInt(getVal('sd-comp-qty')) : null,
+    QuantitySystem: getVal('sd-comp-qtysys') ? parseInt(getVal('sd-comp-qtysys')) : null,
+    Description: getVal('sd-comp-desc'),
+    Spec: getVal('sd-comp-spec'),
+    Materials: getVal('sd-comp-materials'),
+    MfgMethods: getVal('sd-comp-mfg'),
+    CodesStandards: getVal('sd-comp-codes'),
+    MassKg: getVal('sd-comp-mass'),
+    KeyDimensions: getVal('sd-comp-dims'),
+    ComponentNotes: getVal('sd-comp-notes'),
+    Author0: getVal('sd-comp-author'),
+    SystemArea: getVal('sd-comp-area') || null,
+    AssessmentStatus: getVal('sd-comp-status') || null,
+    RAG_Status: getVal('sd-comp-rag') || null,
+  };
+  try {
+    if (state.selectedComponent?.ID) {
+      await spPatch('SCRL_Components', state.selectedComponent.ID, body);
+      toast('Component updated', 'success');
+    } else {
+      await spPost('SCRL_Components', body);
+      toast('Component added', 'success');
+    }
+    clearComponentForm();
+    await loadSCRLComponents();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+async function deleteComponent(id) {
+  if (!confirm('Delete this component?')) return;
+  showLoading(true);
+  try {
+    await spDelete('SCRL_Components', id);
+    await loadSCRLComponents();
+    toast('Deleted', 'success');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+/* ── FIRMS TAB ───────────────────────────────────────────────────────────── */
+async function loadSCRLFirms() {
+  if (!state.selectedSCRL?.ID) return;
+  showLoading(true);
+  try {
+    const [firms, compComps] = await Promise.all([
+      spGetAll('SCRL_Companies', 'ID,field_1,field_2,field_4,field_9,field_7,field_6,field_8,CapabilityNotes,CitationURL',
+        `field_1 eq ${state.selectedSCRL.ID}`),
+      spGetAll('SCRL_Company_Components', 'ID,SCRL_ID_Ref,CompanyID_Ref,CompanyName_Ref,ComponentID_Ref,ComponentName_Ref,RAG_Status,CapabilityNotes,CitationURL',
+        `SCRL_ID_Ref eq ${state.selectedSCRL.ID}`),
+    ]);
+    state.scrlCompanies         = firms.map(normaliseSCRLCompany);
+    state.scrlCompanyComponents = compComps;
+    renderSCRLFirms();
+    // Populate company search
+    const sel = document.getElementById('sd-add-firm-sel');
+    if (sel) sel.innerHTML = `<option value="">— search firms —</option>` +
+      state.companies.map(c=>`<option value="${c.ID}">${esc(c.Title)}</option>`).join('');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+function renderSCRLFirms() {
+  const filterComp = document.getElementById('sd-filter-comp')?.value || '';
+  let firms = state.scrlCompanies;
+  if (filterComp) {
+    firms = firms.filter(f =>
+      state.scrlCompanyComponents.some(c => c.CompanyID_Ref === f.CompanyID_Ref && c.ComponentName_Ref === filterComp)
+    );
+  }
+  const gal = document.getElementById('sd-firms-gallery');
+  if (!firms.length) { gal.innerHTML = '<div class="empty-state">No firms added</div>'; return; }
+  gal.innerHTML = firms.map(f => `
+    <div class="scrl-firm-row ${state.selectedSCRLCompanyRow?.ID===f.ID?'selected':''}" onclick="selectFirmRow(${f.ID})">
+      <span class="col name" style="flex:2">${esc(f.CompanyName_Ref)}</span>
+      <span class="col" style="flex:0.6;text-align:center">${f.SCRLLevel||'—'}</span>
+      <span class="col" style="flex:0.8;text-align:center">${ragBadge(f.RAGStatus)}</span>
+      <span class="col" style="flex:1;color:var(--muted);font-size:11px">${esc(f.AddedBy||'')}</span>
+      <span class="col" style="flex:1.5;color:#555;font-size:11px">${esc(f.Notes||'')}</span>
+      <span class="col" style="flex:1.5;color:#555;font-size:11px">${esc(f.CapabilityNotes||'')}</span>
+      <span class="col" style="flex:1.5;font-size:11px">${f.CitationURL?`<a href="${esc(f.CitationURL)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">link</a>`:'—'}</span>
+      <span class="col" style="flex:0 0 50px;text-align:center">
+        <button class="btn-icon" onclick="event.stopPropagation();removeFirmFromSCRL(${f.ID})">🗑</button>
+      </span>
+    </div>
+  `).join('');
+}
+
+function selectFirmRow(id) {
+  state.selectedSCRLCompanyRow = state.scrlCompanies.find(f => f.ID === id) || null;
+  state.selectedSCRLCompanyComponent = null;
+  renderSCRLFirms();
+  renderFirmPanel();
+}
+
+function renderFirmPanel() {
+  const panel = document.getElementById('sd-firm-panel');
+  const row = state.selectedSCRLCompanyRow;
+  if (!row) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  document.getElementById('sd-firm-panel-title').textContent = row.CompanyName_Ref + ' — components';
+  renderFirmChips();
+  closeChipEdit();
+}
+
+function renderFirmChips() {
+  const row = state.selectedSCRLCompanyRow;
+  if (!row) return;
+  const chips = state.scrlCompanyComponents.filter(c => c.CompanyID_Ref === row.CompanyID_Ref);
+  const wrap = document.getElementById('sd-firm-chips');
+  if (!chips.length) { wrap.innerHTML = '<span class="text-muted">No components linked</span>'; return; }
+  wrap.innerHTML = chips.map(c =>
+    `<span class="chip ${c.RAG_Status||'empty'}" onclick="editChip(${c.ID})" style="cursor:pointer">
+      ${esc(c.ComponentName_Ref)}
+      <button class="chip-remove" onclick="event.stopPropagation();removeFirmComponent(${c.ID})">✕</button>
+    </span>`
+  ).join('');
+}
+
+async function addFirmToSCRL() {
+  if (!state.selectedSCRL?.ID) { toast('Save SCRL first', 'warning'); return; }
+  const firmId = parseInt(document.getElementById('sd-add-firm-sel')?.value);
+  if (!firmId) { toast('Select a firm', 'error'); return; }
+  const firm = state.companies.find(c => c.ID === firmId);
+  if (!firm) return;
+  const level = document.getElementById('sd-firm-level')?.value;
+  const rag   = document.getElementById('sd-firm-rag')?.value;
+  const notes = getVal('sd-firm-notes');
+  const capnotes = getVal('sd-firm-capnotes');
+  const citation = getVal('sd-firm-citation');
+  showLoading(true);
+  try {
+    const existing = await spGetAll('SCRL_Companies','ID',
+      `field_1 eq ${state.selectedSCRL.ID} and field_2 eq ${firmId}`);
+    if (existing.length) { toast('Already linked', 'warning'); showLoading(false); return; }
+    await spPost('SCRL_Companies', {
+      Title: `${state.selectedSCRL.Title}-${firm.Title}`,
+      field_1: state.selectedSCRL.ID,
+      field_2: firmId,
+      field_3: state.selectedSCRL.Title,
+      field_4: firm.Title,
+      field_6: currentUser?.name || '',
+      field_5: new Date().toISOString(),
+      field_7: rag || null,
+      field_9: level ? parseInt(level) : null,
+      field_8: notes,
+      CapabilityNotes: capnotes,
+      CitationURL: citation,
+    });
+    toast(`${firm.Title} added`, 'success');
+    await loadSCRLFirms();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+async function removeFirmFromSCRL(id) {
+  if (!confirm('Remove this firm from the SCRL?')) return;
+  showLoading(true);
+  try {
+    await spDelete('SCRL_Companies', id);
+    if (state.selectedSCRLCompanyRow?.ID === id) {
+      state.selectedSCRLCompanyRow = null;
+      document.getElementById('sd-firm-panel').style.display = 'none';
+    }
+    await loadSCRLFirms();
+    toast('Removed', 'success');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+async function addComponentToFirm() {
+  const row = state.selectedSCRLCompanyRow;
+  if (!row) return;
+  const compId = parseInt(document.getElementById('sd-panel-comp-sel')?.value);
+  const rag    = document.getElementById('sd-panel-comp-rag')?.value;
+  if (!compId) { toast('Select a component', 'error'); return; }
+  const comp = state.scrlComponents.find(c => c.ID === compId);
+  if (!comp) return;
+  showLoading(true);
+  try {
+    const existing = await spGetAll('SCRL_Company_Components','ID',
+      `SCRL_ID_Ref eq ${state.selectedSCRL.ID} and CompanyID_Ref eq ${row.CompanyID_Ref} and ComponentID_Ref eq ${compId}`);
+    if (existing.length) { toast('Already linked', 'warning'); showLoading(false); return; }
+    const saved = await spPost('SCRL_Company_Components', {
+      Title: `${state.selectedSCRL.Title}-${row.CompanyName_Ref}-${comp.Title}`,
+      SCRL_ID_Ref: state.selectedSCRL.ID,
+      CompanyID_Ref: row.CompanyID_Ref,
+      CompanyName_Ref: row.CompanyName_Ref,
+      ComponentID_Ref: compId,
+      ComponentName_Ref: comp.Title,
+      RAG_Status: rag || null,
+    });
+    state.scrlCompanyComponents.push(saved);
+    renderFirmChips();
+    toast('Component linked', 'success');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+async function removeFirmComponent(id) {
+  showLoading(true);
+  try {
+    await spDelete('SCRL_Company_Components', id);
+    state.scrlCompanyComponents = state.scrlCompanyComponents.filter(c => c.ID !== id);
+    renderFirmChips();
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+function editChip(id) {
+  const chip = state.scrlCompanyComponents.find(c => c.ID === id);
+  if (!chip) return;
+  state.selectedSCRLCompanyComponent = chip;
+  setVal('sd-chip-rag',     chip.RAG_Status);
+  setVal('sd-chip-citation',chip.CitationURL);
+  setVal('sd-chip-capnotes',chip.CapabilityNotes);
+  document.getElementById('sd-chip-edit').style.display = 'block';
+}
+
+async function updateChip() {
+  const c = state.selectedSCRLCompanyComponent;
+  if (!c) return;
+  showLoading(true);
+  try {
+    const body = {
+      RAG_Status: getVal('sd-chip-rag') || null,
+      CitationURL: getVal('sd-chip-citation'),
+      CapabilityNotes: getVal('sd-chip-capnotes'),
+    };
+    await spPatch('SCRL_Company_Components', c.ID, body);
+    Object.assign(c, body);
+    closeChipEdit();
+    renderFirmChips();
+    toast('Updated', 'success');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+function closeChipEdit() {
+  state.selectedSCRLCompanyComponent = null;
+  document.getElementById('sd-chip-edit').style.display = 'none';
+}
+
+function clearFirmFilter() {
+  document.getElementById('sd-filter-comp').value = '';
+  renderSCRLFirms();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   SCRAPE REVIEW SCREEN
+   ────────────────────────────────────────────────────────────────────────── */
+const REVIEW_FIELDS = [
+  { label: 'Company Name', accept: 'name',     current: () => state.selectedCompany?.Title        || '', scraped: () => state.varScrapeRow?.Name     || '' },
+  { label: 'Website',      accept: 'website',  current: () => state.selectedCompany?.Website      || '', scraped: () => state.varScrapeRow?.Website  || '' },
+  { label: 'CH Number',    accept: 'ch',       current: () => state.selectedCompany?.RegisteredNumber||'', scraped: () => state.varScrapeRow?.CHNumber || '' },
+  { label: 'Address',      accept: 'address',  current: () => state.selectedCompany?.Address      || '', scraped: () => state.varScrapeRow?.Address  || '' },
+  { label: 'Postcode',     accept: 'postcode', current: () => state.selectedCompany?.Postcode     || '', scraped: () => state.varScrapeRow?.Postcode || '' },
+  { label: 'Description',  accept: 'desc',     current: () => state.selectedCompany?.QuickDescription||'', scraped: () => state.varScrapeRow?.Overview || '', multiline: true },
+];
+
+function renderScrapeReview() {
+  // Reset accept flags
+  state.scrapeAccept = {};
+  REVIEW_FIELDS.forEach(f => state.scrapeAccept[f.accept] = false);
+
+  const rows = document.getElementById('review-rows');
+  rows.innerHTML = REVIEW_FIELDS.map(f => `
+    <div class="review-row" id="review-row-${f.accept}">
+      <div class="review-cell field">${f.label}</div>
+      <div class="review-cell current" style="${f.multiline?'align-items:flex-start;padding-top:10px':''}">${esc(f.current())}</div>
+      <div class="review-cell scraped ${!f.scraped()?'empty':''}" style="${f.multiline?'align-items:flex-start;padding-top:10px':''}">
+        ${f.scraped() ? esc(f.scraped()) : '—'}
+      </div>
+      <div class="review-cell accept">
+        <label class="toggle">
+          <input type="checkbox" id="accept-${f.accept}" onchange="toggleAccept('${f.accept}',this.checked)" ${!f.scraped()?'disabled':''}>
+          <span class="toggle-slider"></span>
+          <span class="toggle-label-off">NO</span>
+          <span class="toggle-label-on">YES</span>
+        </label>
+      </div>
+    </div>
+  `).join('');
+
+  const r = state.varScrapeRow || {};
+  const ff = document.getElementById('review-freeform');
+  ff.innerHTML = [
+    { title: 'Capabilities',            val: r.Capabilities },
+    { title: 'Markets',                 val: r.Markets },
+    { title: 'Accreditations / Certs',  val: r.Certifications },
+    { title: 'Manufacturing Capacity',  val: r.ManufacturingCapacity },
+  ].map(col => `
+    <div class="free-form-col">
+      <h4>${col.title}</h4>
+      <p>${esc(col.val || 'No data returned')}</p>
+    </div>
+  `).join('');
+}
+
+function toggleAccept(key, val) {
+  state.scrapeAccept[key] = val;
+  const row = document.getElementById('review-row-' + key);
+  if (row) row.classList.toggle('accepted', val);
+}
+
+async function applyScrapedData() {
+  if (!state.selectedCompany?.ID) return;
+  const r = state.varScrapeRow || {};
+  const a = state.scrapeAccept;
+  const c = state.selectedCompany;
+  const body = {
+    Title:    a.name     ? r.Name     : c.Title,
+    field_6:  a.website  ? r.Website  : c.Website,
+    field_8:  a.ch       ? r.CHNumber : c.RegisteredNumber,
+    field_25: a.address  ? r.Address  : c.Address,
+    field_4:  a.postcode ? r.Postcode : c.Postcode,
+    field_10: a.desc     ? r.Overview : c.QuickDescription,
+  };
+  showLoading(true);
+  try {
+    await spPatch('Companies', c.ID, body);
+    Object.assign(state.selectedCompany, body, { Address: body.field_25 ?? c.Address });
+    const idx = state.companies.findIndex(x => x.ID === c.ID);
+    if (idx >= 0) Object.assign(state.companies[idx], body, { Address: body.field_25 ?? c.Address });
+    toast('Changes applied', 'success');
+    navigate('company', { company: state.selectedCompany });
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+  showLoading(false);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   UTILITIES
+   ────────────────────────────────────────────────────────────────────────── */
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+</script>
+</body>
+</html>
