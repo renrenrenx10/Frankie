@@ -457,7 +457,6 @@ const CFG = {
     timeEntries      : 'TimeEntries',
     expenses         : 'Expenses',
     projects         : 'Projects',
-    pipelineProjects : 'PipelineProjects',
     employees        : 'Employees'
   },
   expenseCategories: ['Travel','Accommodation','Subsistence','Equipment','Training','Other']
@@ -605,7 +604,6 @@ const S = {
   currentUser     : null,   // { email, displayName, spId }
   employeeRecord  : null,   // { StaffDayRate, CommercialDayRate }
   allProjects     : [],
-  allPipeline     : [],
 
   // Timesheet entry
   tsWeekStart     : null,
@@ -630,9 +628,8 @@ const S = {
 /* ================================================================
    TOAST
 ================================================================ */
-// Can't find your project as 'Active'? It's probably still sat in
-// ControlCentre's pipeline (e.g. 'Proposal Sent') — this jumps a user there
-// so a PM can promote it, rather than leaving them stuck with no clear next step.
+// Quick link back to ControlCentre — e.g. to check a project's Stage or add
+// a new one if it isn't showing up in the picker yet.
 function openControlCentre() {
   const inHub = window.parent && window.parent !== window;
   if (inHub) {
@@ -654,35 +651,23 @@ function toast(msg, type='ok') {
    DATA LOADERS
 ================================================================ */
 async function loadRefData() {
-  const [proj, pipe] = await Promise.all([
-    spGet(`${listItems(CFG.lists.projects)}?$select=ID,Title,Company,ProjectTitle0&$orderby=Title asc`),
-    spGet(`${listItems(CFG.lists.pipelineProjects)}?$select=ID,Title,Company_x002f_ProjectName,ProjectTitle,Status&$orderby=Title asc`)
-  ]);
+  const proj = await spGet(`${listItems(CFG.lists.projects)}?$select=ID,Title,Company,ProjectTitle0,Stage&$orderby=Title asc`);
   // Build DisplayName client-side (calculated columns not returned by REST API)
   S.allProjects = proj.value.map(p => ({
     ...p,
     ProjectTitle0: p.ProjectTitle0 || p.Title || '',
+    Stage: p.Stage || 'Engagement',
     DisplayName: p.Company
       ? (p.ProjectTitle0 ? `${p.Company}-${p.ProjectTitle0}` : p.Company)
       : (p.ProjectTitle0 || p.Title || '')
   }));
-  S.allPipeline = pipe.value.map(p => ({
-    ...p,
-    Status: p.Status || 'Lead',
-    ProjectTitle: p.ProjectTitle || p.Title || '',
-    DisplayName: p.Company_x002f_ProjectName
-      ? (p.ProjectTitle ? `${p.Company_x002f_ProjectName} — ${p.ProjectTitle}` : p.Company_x002f_ProjectName)
-      : (p.ProjectTitle || p.Title || '')
-  }));
 }
 
-// Pipeline projects that are still realistic to book time against.
-// Excludes deals that are dead (Lost / Proposal Rejected) — everything still
-// live in the pipeline (Lead → Won) stays bookable so staff are never blocked
-// from logging time just because ControlCentre hasn't promoted it yet.
-const UNBOOKABLE_PIPELINE_STATUSES = ['Lost', 'Proposal Rejected'];
-function bookablePipeline() {
-  return S.allPipeline.filter(p => !UNBOOKABLE_PIPELINE_STATUSES.includes(p.Status));
+// Projects that are still realistic to book time against — everything except
+// Lost/Declined, so staff are never blocked from logging time just because a
+// deal hasn't formally moved to Deliver yet.
+function bookableProjects() {
+  return S.allProjects.filter(p => p.Stage !== 'Lost/Declined');
 }
 
 async function loadCurrentUser() {
@@ -700,9 +685,9 @@ async function loadTsWeek(ws) {
   S.tsWeekStart = ws;
   const data = await spGet(
     `${listItems(CFG.lists.timeEntries)}` +
-    `?$select=ID,Date,HoursWorked,TravelHours,Notes,StaffRate,CommercialRate,EmployeeName,ProjectType` +
-    `,Employee/EMail,Project/Id,Project/ProjectTitle0,PipelineProject/Id,PipelineProject/ProjectTitle` +
-    `&$expand=Employee,Project,PipelineProject` +
+    `?$select=ID,Date,HoursWorked,TravelHours,Notes,StaffRate,CommercialRate,EmployeeName` +
+    `,Employee/EMail,Project/Id,Project/ProjectTitle0` +
+    `&$expand=Employee,Project` +
     `&$filter=Employee/EMail eq '${encodeURIComponent(S.currentUser.email)}' and ${dateFilter(ws)}` +
     `&$orderby=Date asc`
   );
@@ -718,11 +703,8 @@ async function loadTsWeek(ws) {
       hoursWorked : item.HoursWorked != null ? String(item.HoursWorked) : '',
       travelHours : item.TravelHours  != null ? String(item.TravelHours)  : '',
       notes       : item.Notes || '',
-      projectType : item.ProjectType || 'Active Project',
       projectId   : item.Project       ? item.Project.Id            : null,
       projName    : item.Project ? (() => { const p = S.allProjects.find(x => x.ID === item.Project.Id); return p ? p.DisplayName : (item.Project.ProjectTitle0 || ''); })() : '',
-      pipeId      : item.PipelineProject ? item.PipelineProject.Id   : null,
-      pipeName    : item.PipelineProject ? (() => { const p = S.allPipeline.find(x => x.ID === item.PipelineProject.Id); return p ? p.DisplayName : (item.PipelineProject.ProjectTitle || ''); })() : '',
       isExisting  : true,
       spId        : item.ID
     });
@@ -742,7 +724,7 @@ function blankTs(dk) {
 }
 function newTsRow(dk) {
   return { entryId:uid(), date:dk, hoursWorked:'', travelHours:'', notes:'',
-    projectType:'Active Project', projectId:null, projName:'', pipeId:null, pipeName:'',
+    projectId:null, projName:'',
     isExisting:false, spId:null };
 }
 function newExpRow(dk) {
@@ -789,9 +771,9 @@ async function loadSumWeek(ws) {
   const [te, ex] = await Promise.all([
     spGet(
       `${listItems(CFG.lists.timeEntries)}` +
-      `?$select=ID,Date,HoursWorked,TravelHours,Notes,StaffRate,CommercialRate,EmployeeName,ProjectType` +
-      `,Employee/Title,Employee/EMail,Project/ProjectTitle0,PipelineProject/ProjectTitle` +
-      `&$expand=Employee,Project,PipelineProject` +
+      `?$select=ID,Date,HoursWorked,TravelHours,Notes,StaffRate,CommercialRate,EmployeeName` +
+      `,Employee/Title,Employee/EMail,Project/ProjectTitle0` +
+      `&$expand=Employee,Project` +
       `&$filter=${dateFilter(ws)}`
     ),
     spGet(
@@ -807,8 +789,7 @@ async function loadSumWeek(ws) {
     _empEmail   : e.Employee?.EMail || '',
     _projName   : (() => {
       if (e.Project?.Id) { const p = S.allProjects.find(x => x.ID === e.Project.Id); if (p) return p.DisplayName; }
-      if (e.PipelineProject?.Id) { const p = S.allPipeline.find(x => x.ID === e.PipelineProject.Id); if (p) return p.DisplayName; }
-      return e.Project?.ProjectTitle0 || e.PipelineProject?.ProjectTitle || '';
+      return e.Project?.ProjectTitle0 || '';
     })()
   }));
   S.sumExpenses = ex.value.map(e => ({
@@ -849,22 +830,12 @@ function syncTsDom() {
     if (h) row.hoursWorked = h.value;
     if (t) row.travelHours = t.value;
     if (n) row.notes = n.value;
-    // Also sync project selects so they survive re-renders
+    // Also sync the project select so it survives re-renders
     const projSel = document.querySelector(`[data-proj-entry="${row.entryId}"]`);
     if (projSel && projSel.value) {
       const selOpt = projSel.options[projSel.selectedIndex];
-      const selLabel = selOpt ? selOpt.dataset.label : '';
-      if (projSel.value.startsWith('p:')) {
-        row.projectType = 'Pipeline Project';
-        row.pipeId    = projSel.value.slice(2);
-        row.pipeName  = selLabel;
-        row.projectId = null; row.projName = '';
-      } else if (projSel.value.startsWith('a:')) {
-        row.projectType = 'Active Project';
-        row.projectId = projSel.value.slice(2);
-        row.projName  = selLabel;
-        row.pipeId = null; row.pipeName = '';
-      }
+      row.projectId = projSel.value;
+      row.projName  = selOpt ? selOpt.dataset.label : '';
     }
   }
 }
@@ -884,7 +855,7 @@ function syncExpDom() {
 async function saveTs() {
   syncTsDom();
   const toSave = S.tsRows.filter(r => r.hoursWorked!=='' || r.travelHours!=='' || r.notes!=='');
-  const invalid = toSave.filter(r => !r.projectId && !r.pipeId && (r.hoursWorked!=='' || r.travelHours!==''));
+  const invalid = toSave.filter(r => !r.projectId && (r.hoursWorked!=='' || r.travelHours!==''));
   if (invalid.length) { toast('Please select a project for all entries with hours','err'); return; }
 
   const staffRate      = S.employeeRecord?.StaffDayRate      || 0;
@@ -901,9 +872,7 @@ async function saveTs() {
       CommercialRate   : commercialRate,
       EmployeeName     : S.currentUser.displayName,
       EmployeeId       : S.currentUser.spId,
-      ProjectId        : row.projectId ? parseInt(row.projectId) : null,
-      PipelineProjectId: row.pipeId    ? parseInt(row.pipeId)    : null,
-      ProjectType      : row.projectId ? 'Active Project' : (row.pipeId ? 'Pipeline Project' : null)
+      ProjectId        : row.projectId ? parseInt(row.projectId) : null
     };
     if (row.isExisting && row.spId) {
       await spPatch(listItem(CFG.lists.timeEntries, row.spId), payload);
@@ -1001,27 +970,22 @@ function buildSelect(opts, selVal, placeholder, cls, onchange) {
     <option value="">${esc(placeholder)}</option>${options}</select>`;
 }
 
-// Single combined Active + Pipeline project picker, used on the timesheet grid.
-// Removes the old "Project Type" toggle: users just pick a project from one
-// list, grouped by Active vs Pipeline, and the row's type is inferred from
-// which group the chosen option came from. This is what stops people getting
-// stuck when a project is still sat in ControlCentre's pipeline (e.g.
-// 'Proposal Sent') rather than promoted to a Live project.
+// Project picker used on the timesheet grid — one flat Projects list,
+// grouped by Stage so it's easy to find what you're looking for. Everything
+// except Lost/Declined stays bookable.
 function buildProjectSelect(row, entryId) {
-  const selVal = row.projectType === 'Pipeline Project' && row.pipeId
-    ? `p:${row.pipeId}`
-    : (row.projectId ? `a:${row.projectId}` : '');
-  const activeOpts = S.allProjects.map(p =>
-    `<option value="a:${esc(p.ID)}" data-label="${esc(p.DisplayName)}"${String(`a:${p.ID}`)===selVal?' selected':''}>${esc(p.DisplayName)}</option>`
-  ).join('');
-  const pipeOpts = bookablePipeline().map(p =>
-    `<option value="p:${esc(p.ID)}" data-label="${esc(p.DisplayName)}"${String(`p:${p.ID}`)===selVal?' selected':''}>${esc(p.DisplayName)} (${esc(p.Status)})</option>`
-  ).join('');
+  const selVal = row.projectId ? String(row.projectId) : '';
+  const groups = ['Engagement','Build','Proposal','Deliver','Complete'];
+  const optgroups = groups.map(stage => {
+    const opts = bookableProjects().filter(p => p.Stage === stage).map(p =>
+      `<option value="${esc(p.ID)}" data-label="${esc(p.DisplayName)}"${String(p.ID)===selVal?' selected':''}>${esc(p.DisplayName)}</option>`
+    ).join('');
+    return opts ? `<optgroup label="${esc(stage)}">${opts}</optgroup>` : '';
+  }).join('');
   return `<select class="row-inp" data-proj-entry="${entryId}"
-      onchange="updateTsProjUnified('${entryId}', this.value, this.options[this.selectedIndex].dataset.label)">
+      onchange="updateTsProj('${entryId}', this.value, this.options[this.selectedIndex].dataset.label)">
     <option value="">— Select Project —</option>
-    <optgroup label="Active Projects">${activeOpts}</optgroup>
-    <optgroup label="Pipeline Projects">${pipeOpts}</optgroup>
+    ${optgroups}
   </select>`;
 }
 
@@ -1057,7 +1021,7 @@ function renderHome() {
         </div>
       </div>
       <div class="hdr-right">
-        <button class="ico-btn" title="Open Control Centre — e.g. to promote a pipeline project to Live"
+        <button class="ico-btn" title="Open Control Centre — e.g. to add a new project or check its Stage"
           onclick="openControlCentre()" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:.78rem;padding:6px 12px;width:auto;color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:6px;margin-right:10px">
           ↗ Control Centre
         </button>
@@ -1069,7 +1033,7 @@ function renderHome() {
         <div class="home-card" onclick="navTs()">
           <div class="home-card-icon">📄</div>
           <h2>Add New Timesheet</h2>
-          <p>Enter your weekly time entries against active and pipeline projects</p>
+          <p>Enter your weekly time entries against your projects</p>
         </div>
         <div class="home-card" onclick="navExp()">
           <div class="home-card-icon">💷</div>
@@ -1482,45 +1446,12 @@ function updateTsField(entryId, field, val) {
   if (row) row[field] = val;
 }
 
-function changeTsType(entryId, type) {
-  // Set projectType BEFORE syncTsDom so it reads the project select into the right bucket
+// Handler for the project select (see buildProjectSelect).
+function updateTsProj(entryId, val, label) {
   const row = S.tsRows.find(r => r.entryId===entryId);
   if (!row) return;
-  row.projectType = type;
-  syncTsDom();
-  // Clear both project fields since type just changed
-  row.projectId = null; row.projName = '';
-  row.pipeId    = null; row.pipeName = '';
-  go();
-}
-
-function updateTsProj(entryId, kind, val, label) {
-  const row = S.tsRows.find(r => r.entryId===entryId);
-  if (!row) return;
-  if (kind==='active') { row.projectId = val||null; row.projName = label||''; }
-  else                 { row.pipeId    = val||null; row.pipeName = label||''; }
-}
-
-// Handler for the combined Active+Pipeline project select (see buildProjectSelect).
-// val is prefixed 'a:<id>' for an Active project or 'p:<id>' for a Pipeline project.
-function updateTsProjUnified(entryId, val, label) {
-  const row = S.tsRows.find(r => r.entryId===entryId);
-  if (!row) return;
-  if (val && val.startsWith('p:')) {
-    row.projectType = 'Pipeline Project';
-    row.pipeId    = val.slice(2);
-    row.pipeName  = label || '';
-    row.projectId = null; row.projName = '';
-  } else if (val && val.startsWith('a:')) {
-    row.projectType = 'Active Project';
-    row.projectId = val.slice(2);
-    row.projName  = label || '';
-    row.pipeId = null; row.pipeName = '';
-  } else {
-    row.projectType = null;
-    row.projectId = null; row.projName = '';
-    row.pipeId = null; row.pipeName = '';
-  }
+  row.projectId = val || null;
+  row.projName  = label || '';
 }
 
 function updateExpField(entryId, field, val) {
@@ -1540,18 +1471,8 @@ function addTsRow(dk) {
     const projSel = document.querySelector(`[data-proj-entry="${row.entryId}"]`);
     if (projSel && projSel.value) {
       const selOpt = projSel.options[projSel.selectedIndex];
-      const selLabel = selOpt ? selOpt.dataset.label : '';
-      if (projSel.value.startsWith('p:')) {
-        row.projectType = 'Pipeline Project';
-        row.pipeId    = projSel.value.slice(2);
-        row.pipeName  = selLabel;
-        row.projectId = null; row.projName = '';
-      } else if (projSel.value.startsWith('a:')) {
-        row.projectType = 'Active Project';
-        row.projectId = projSel.value.slice(2);
-        row.projName  = selLabel;
-        row.pipeId = null; row.pipeName = '';
-      }
+      row.projectId = projSel.value;
+      row.projName  = selOpt ? selOpt.dataset.label : '';
     }
   }
   const newRow = newTsRow(dk);
