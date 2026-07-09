@@ -5,34 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ControlCentre — NuCCoL</title>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ================================================================
-   CSS VARIABLES & RESET
+   CSS VARIABLES & RESET  (Frankie/SCC design system)
 ================================================================ */
 :root {
-  --navy:    #00126B;
-  --blue:    #3860B9;
-  --blue2:   #3860BA;
-  --purple:  #6C2481;
+  --brand:#10243a; --accent:#26a9d8; --accent2:#1a86b0;
+  --ok:#087f5b; --warn:#9a5a00; --red:#c0392b; --red-bg:#fff0ee;
+  --line:#d8e2ec; --panel:#fff; --wash:#f7fbff;
+  --muted:#65758a; --ink:#142132;
+
+  /* legacy variable names kept as aliases onto the palette above, so
+     every existing var(--xxx) reference throughout the app (including
+     inline styles built in JS template strings) resolves to the new
+     Frankie/SCC colours without having to touch each call site. */
+  --navy:    var(--brand);
+  --blue:    var(--accent);
+  --blue2:   var(--accent2);
+  --purple:  var(--accent2);
   --white:   #FFFFFF;
-  --bg:      #F3F4F8;
-  --text:    #1F2937;
-  --muted:   #6B7280;
-  --border:  #D1D5DB;
-  --row-alt: #F0F4FF;
-  --green:   #16A34A;
-  --red:     #DC2626;
-  --orange:  #EA580C;
-  --indigo:  #6366F1;
-  --violet:  #9333EA;
-  --teal:    #1E9DD9;
+  --bg:      #edf3f8;
+  --text:    var(--ink);
+  --border:  var(--line);
+  --row-alt: var(--wash);
+  --green:   var(--ok);
+  --red:     var(--red);
+  --orange:  var(--warn);
+  --indigo:  var(--accent2);
+  --violet:  var(--accent2);
+  --teal:    var(--accent);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  background: var(--bg);
-  color: var(--text);
+  font-family: 'Barlow', Arial, sans-serif;
+  background: #edf3f8;
+  color: #142132;
   font-size: 14px;
 }
 button { font-family: inherit; cursor: pointer; }
@@ -45,8 +56,8 @@ input, select, textarea { font-family: inherit; }
 
 /* ---- HEADER ---- */
 .hdr {
-  background: var(--blue);
-  border-bottom: 3px solid var(--navy);
+  background: var(--brand);
+  border-bottom: 3px solid var(--accent);
   padding: 0 28px;
   height: 86px;
   display: flex;
@@ -56,37 +67,42 @@ input, select, textarea { font-family: inherit; }
 }
 .hdr-left { display: flex; align-items: center; gap: 16px; }
 .hdr-title {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 26px;
-  font-weight: bold;
+  font-weight: 800;
   color: #fff;
-  letter-spacing: 1px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 .hdr-sub {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow', sans-serif;
   font-size: 12px;
-  color: #BFDBFE;
+  color: rgba(255,255,255,0.72);
   margin-top: 3px;
 }
 .hdr-right { display: flex; align-items: center; gap: 8px; }
 .user-chip {
-  font-family: 'Courier New', monospace;
-  font-size: 11px;
-  color: #BFDBFE;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  letter-spacing: .03em;
+  color: rgba(255,255,255,0.78);
 }
 
 /* ---- BACK BUTTON ---- */
 .back-btn {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.12);
   border: 1px solid rgba(255,255,255,0.35);
   color: #fff;
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 12px;
-  padding: 5px 12px;
-  font-weight: bold;
+  padding: 6px 14px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border-radius: 6px;
   transition: background 0.15s;
 }
-.back-btn:hover { background: rgba(255,255,255,0.3); }
+.back-btn:hover { background: rgba(255,255,255,0.24); }
 
 /* ---- MAIN CONTENT ---- */
 .main {
@@ -99,15 +115,16 @@ input, select, textarea { font-family: inherit; }
    HOME SCREEN
 ================================================================ */
 .home-grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 24px;
   margin-top: 32px;
-  flex-wrap: wrap;
 }
 .home-card {
-  background: #fff;
-  border: 2px solid var(--border);
-  width: 300px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  width: auto;
   padding: 36px 24px 28px;
   text-align: center;
   cursor: pointer;
@@ -115,20 +132,22 @@ input, select, textarea { font-family: inherit; }
 }
 .home-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(0,18,107,0.12);
-  border-color: var(--blue);
+  box-shadow: 0 8px 24px rgba(16,36,58,0.14);
+  border-color: var(--accent);
 }
 .home-card-icon {
   font-size: 44px;
-  color: var(--purple);
+  color: var(--accent2);
   margin-bottom: 14px;
   line-height: 1;
 }
 .home-card h2 {
-  font-family: 'Courier New', monospace;
-  font-size: 17px;
-  font-weight: bold;
-  color: var(--text);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: .04em;
+  text-transform: uppercase;
   margin-bottom: 10px;
 }
 .home-card p { font-size: 12px; color: var(--muted); line-height: 1.55; }
@@ -150,32 +169,36 @@ input, select, textarea { font-family: inherit; }
   flex-wrap: wrap;
 }
 .kpi-card {
-  background: #fff;
-  border: 1px solid var(--border);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   padding: 14px 18px;
   flex: 1;
   min-width: 140px;
   cursor: pointer;
   transition: border-color 0.15s;
 }
-.kpi-card:hover { border-color: var(--blue); }
-.kpi-card.active { border-color: var(--blue); border-width: 2px; }
+.kpi-card:hover { border-color: var(--accent); }
+.kpi-card.active { border-color: var(--accent); border-width: 2px; }
 .kpi-label {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 11px;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: .08em;
+  font-weight: 700;
   margin-bottom: 8px;
 }
 .kpi-val {
-  font-size: 22px;
-  font-weight: 600;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
   line-height: 1;
 }
 .kpi-card-static {
-  background: #fff;
-  border: 1px solid var(--border);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   padding: 14px 18px;
   flex: 1;
   min-width: 140px;
@@ -185,42 +208,44 @@ input, select, textarea { font-family: inherit; }
    DATA TABLE
 ================================================================ */
 .tbl-wrap {
-  border: 2px solid var(--navy);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
   overflow-x: auto;
-  background: #fff;
+  background: var(--panel);
 }
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  border: 2px solid var(--navy);
 }
 .data-table th {
-  background: var(--teal);
+  background: var(--brand);
   color: #fff;
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 12px;
-  font-weight: 600;
-  padding: 8px 12px;
-  border-right: 1px solid rgba(255,255,255,0.2);
-  border-bottom: 2px solid var(--navy);
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 9px 12px;
+  border-right: 1px solid rgba(255,255,255,0.12);
   white-space: nowrap;
 }
-.data-table th.hdr-blue { background: var(--blue); }
+.data-table th.hdr-blue { background: var(--accent2); }
 .data-table td {
   padding: 7px 12px;
-  border-bottom: 1px solid #E5E7EB;
+  border-bottom: 1px solid var(--line);
   font-size: 12px;
-  background: #fff;
+  background: var(--panel);
 }
-.data-table tbody tr:nth-child(even) td { background: var(--row-alt); }
+.data-table tbody tr:nth-child(even) td { background: var(--wash); }
 .data-table tbody tr.clickable { cursor: pointer; }
-.data-table tbody tr.clickable:hover td { background: #E0E7FF; }
+.data-table tbody tr.clickable:hover td { background: #e4f2fa; }
 .data-table tfoot td {
-  background: #F0F4FF;
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
+  background: var(--wash);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
   font-size: 12px;
-  border-top: 2px solid var(--navy);
+  border-top: 2px solid var(--brand);
 }
 .ta-right { text-align: right; }
 .ta-center { text-align: center; }
@@ -230,14 +255,14 @@ input, select, textarea { font-family: inherit; }
    SECTION HEADING
 ================================================================ */
 .section-hd {
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  font-weight: bold;
-  color: var(--navy);
-  letter-spacing: 1px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand);
+  letter-spacing: .08em;
   text-transform: uppercase;
   margin: 20px 0 6px;
-  border-left: 3px solid var(--purple);
+  border-left: 3px solid var(--accent);
   padding-left: 8px;
 }
 
@@ -252,43 +277,73 @@ input, select, textarea { font-family: inherit; }
   flex-wrap: wrap;
 }
 .filter-bar label {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 11px;
+  font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
+  letter-spacing: .04em;
 }
 .filter-bar select, .filter-bar input {
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
+  border-radius: 6px;
   padding: 5px 10px;
   font-size: 12px;
-  background: #fff;
-  color: var(--text);
+  background: var(--panel);
+  color: var(--ink);
   outline: none;
 }
-.filter-bar select:focus, .filter-bar input:focus { border-color: var(--blue); }
+.filter-bar select:focus, .filter-bar input:focus { border-color: var(--accent); }
 
 /* ================================================================
    INLINE SELECT / STATUS
 ================================================================ */
 .inline-select {
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
+  border-radius: 6px;
   padding: 3px 6px;
   font-size: 12px;
-  background: #fff;
-  color: var(--text);
+  background: var(--panel);
+  color: var(--ink);
   outline: none;
   cursor: pointer;
   width: 100%;
 }
-.inline-select:focus { border-color: var(--blue); }
+.inline-select:focus { border-color: var(--accent); }
 
-/* status badge colours */
-.status-live    { color: var(--green); font-weight: 600; }
-.status-complete { color: var(--blue); font-weight: 600; }
-.status-lead    { color: var(--orange); font-weight: 600; }
-.status-scoping { color: var(--indigo); font-weight: 600; }
-.status-proposal { color: var(--violet); font-weight: 600; }
-.status-rejected { color: var(--red); font-weight: 600; }
+/* stage badges — RAG-mapped pills, one per lifecycle stage */
+.stage-engagement, .stage-build, .stage-proposal, .stage-deliver,
+.stage-complete, .stage-lost {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.stage-engagement { background: rgba(154,90,0,0.12);   color: var(--warn); }
+.stage-build      { background: rgba(38,169,216,0.14); color: var(--accent2); }
+.stage-proposal   { background: rgba(154,90,0,0.12);   color: var(--warn); }
+.stage-deliver    { background: rgba(8,127,91,0.12);   color: var(--ok); }
+.stage-complete   { background: rgba(26,134,176,0.12); color: var(--accent2); }
+.stage-lost       { background: var(--red-bg);         color: var(--red); }
+
+.pri-pill {
+  display: inline-block;
+  min-width: 18px;
+  text-align: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+}
+.pri-1 { background: var(--red-bg); color: var(--red); }
+.pri-2 { background: rgba(154,90,0,0.12); color: var(--warn); }
+.pri-3 { background: rgba(8,127,91,0.12); color: var(--ok); }
 
 /* ================================================================
    PROJECT DETAIL
@@ -300,23 +355,26 @@ input, select, textarea { font-family: inherit; }
   flex-wrap: wrap;
 }
 .detail-kpi {
-  background: #fff;
-  border: 1px solid var(--border);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   padding: 10px 14px;
   min-width: 160px;
   flex: 1;
 }
 .detail-kpi-label {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 10px;
+  font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: .06em;
   margin-bottom: 6px;
 }
 .detail-kpi-val {
-  font-size: 20px;
-  font-weight: 600;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 21px;
+  font-weight: 800;
 }
 .detail-mini-row {
   display: flex;
@@ -325,83 +383,158 @@ input, select, textarea { font-family: inherit; }
   flex-wrap: wrap;
 }
 .detail-mini {
-  background: #fff;
-  border: 1px solid var(--border);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   padding: 8px 12px;
   min-width: 120px;
 }
 .detail-mini-label {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 10px;
+  font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
   margin-bottom: 4px;
 }
 .detail-mini-val {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--blue);
+  font-weight: 700;
+  color: var(--accent2);
+}
+
+/* quick-edit chips on the project detail page (Stage / S-T / Priority / Programme) */
+.quickedit-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.quickedit-field {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 130px;
+}
+.quickedit-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 4px;
 }
 
 /* ================================================================
-   NOTES TEXTAREA
+   ACTION LOG
 ================================================================ */
-.notes-wrap { margin-top: 14px; }
-.notes-label {
-  font-family: 'Courier New', monospace;
-  font-size: 11px;
-  font-weight: bold;
-  color: var(--navy);
-  letter-spacing: 1px;
+.actionlog-wrap { margin-top: 14px; }
+.actionlog-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand);
+  letter-spacing: .08em;
   text-transform: uppercase;
   margin-bottom: 6px;
-  border-left: 3px solid var(--purple);
+  border-left: 3px solid var(--accent);
   padding-left: 8px;
 }
-.notes-textarea {
-  width: 100%;
-  border: 1px solid var(--navy);
+.actionlog-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  align-items: flex-start;
+}
+.actionlog-add textarea {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 6px;
   padding: 8px 10px;
   font-size: 13px;
+  font-family: 'Barlow', sans-serif;
   resize: vertical;
-  min-height: 120px;
+  min-height: 60px;
   outline: none;
-  background: #fff;
+  background: var(--panel);
 }
-.notes-textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(56,96,185,0.2); }
+.actionlog-add textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(38,169,216,0.2); }
+.actionlog-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.actionlog-entry {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent2);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.actionlog-entry:first-child { border-left-color: var(--ok); }
+.actionlog-meta {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+.actionlog-body {
+  font-size: 12px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+.actionlog-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 12px;
+  text-align: center;
+}
 
 /* ================================================================
    BUTTON
 ================================================================ */
 .btn {
-  background: var(--blue);
-  color: #fff;
-  border: 2px solid var(--navy);
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
+  background: var(--accent);
+  color: var(--brand);
+  border: none;
+  border-radius: 6px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800;
   font-size: 12px;
-  padding: 7px 18px;
-  letter-spacing: 0.5px;
-  transition: background 0.15s;
+  padding: 8px 18px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  transition: background 0.15s, color 0.15s;
   cursor: pointer;
 }
-.btn:hover { background: var(--navy); }
+.btn:hover { background: var(--accent2); color: #fff; }
 .btn-sm {
-  padding: 4px 12px;
+  padding: 5px 12px;
   font-size: 11px;
 }
 .btn-ghost {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.12);
   border: 1px solid rgba(255,255,255,0.35);
   color: #fff;
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 12px;
-  padding: 5px 14px;
-  font-weight: bold;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  border-radius: 6px;
   transition: background 0.15s;
   cursor: pointer;
 }
-.btn-ghost:hover { background: rgba(255,255,255,0.3); }
+.btn-ghost:hover { background: rgba(255,255,255,0.24); }
 
 /* ================================================================
    FORM
@@ -410,34 +543,36 @@ input, select, textarea { font-family: inherit; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 16px;
-  background: #fff;
-  border: 1px solid var(--border);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
   padding: 20px;
   margin-top: 12px;
 }
 .form-field label {
   display: block;
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 11px;
-  color: var(--navy);
-  font-weight: bold;
+  color: var(--brand);
+  font-weight: 700;
   margin-bottom: 5px;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: .05em;
 }
 .form-field input, .form-field select, .form-field textarea {
   width: 100%;
-  border: 1px solid var(--navy);
+  border: 1px solid var(--line);
+  border-radius: 6px;
   padding: 6px 9px;
   font-size: 13px;
-  background: #fff;
-  color: var(--text);
+  background: var(--panel);
+  color: var(--ink);
   outline: none;
   transition: border-color 0.12s;
 }
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 2px rgba(56,96,185,0.2);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(38,169,216,0.2);
 }
 .form-field textarea { resize: vertical; min-height: 80px; }
 .form-field-full { grid-column: 1 / -1; }
@@ -452,15 +587,15 @@ input, select, textarea { font-family: inherit; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   color: var(--muted);
   gap: 12px;
 }
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--border);
-  border-top-color: var(--blue);
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -473,15 +608,17 @@ input, select, textarea { font-family: inherit; }
   position: fixed;
   top: 20px; right: 20px;
   padding: 11px 20px;
-  font-family: 'Courier New', monospace;
+  border-radius: 6px;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 13px;
-  font-weight: bold;
+  font-weight: 700;
+  letter-spacing: .03em;
   z-index: 9999;
   animation: toastIn 0.2s ease;
   max-width: 380px;
 }
-.toast.ok  { background: var(--green); color: #fff; }
-.toast.err { background: var(--red);   color: #fff; }
+.toast.ok  { background: var(--ok);  color: #fff; }
+.toast.err { background: var(--red); color: #fff; }
 @keyframes toastIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
 
 /* ================================================================
@@ -489,24 +626,24 @@ input, select, textarea { font-family: inherit; }
 ================================================================ */
 .row-inp {
   width: 100%;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
+  border-radius: 4px;
   padding: 3px 6px;
   font-size: 12px;
-  background: #fff;
-  color: var(--text);
+  background: var(--panel);
+  color: var(--ink);
   outline: none;
 }
-.row-inp:focus { border-color: var(--blue); }
+.row-inp:focus { border-color: var(--accent); }
 </style>
 </head>
-
 <body>
 <div id="app">
   <div class="loading" id="login-screen">
-    <div style="text-align:center;font-family:'Courier New',monospace;">
+    <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;">
       <div style="font-size:22px;font-weight:bold;color:var(--navy);margin-bottom:8px;">ControlCentre — NuCCoL</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:32px;">Sign in with your NuCCoL Microsoft account</div>
-      <button id="login-btn" style="background:var(--blue);color:#fff;border:2px solid var(--navy);font-family:'Courier New',monospace;font-size:14px;font-weight:bold;padding:12px 32px;cursor:pointer;letter-spacing:0.5px;">
+      <button id="login-btn" style="background:var(--blue);color:#fff;border:2px solid var(--navy);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:bold;padding:12px 32px;cursor:pointer;letter-spacing:0.5px;">
         Sign in with Microsoft
       </button>
       <div id="login-error" style="color:var(--red);font-size:12px;margin-top:16px;display:none;"></div>
@@ -524,16 +661,20 @@ const CFG = {
   siteUrl  : 'https://nuccol.sharepoint.com/sites/ProjectControl',
   scope    : 'https://nuccol.sharepoint.com/.default',
   lists: {
-    projects         : 'Projects',
-    pipelineProjects : 'PipelineProjects',
-    timeEntries      : 'TimeEntries',
-    expenses         : 'Expenses',
-    employees        : 'Employees'
+    projects    : 'Projects',
+    timeEntries : 'TimeEntries',
+    expenses    : 'Expenses',
+    employees   : 'Employees'
   },
-  pipelineStatuses: ['Lead','Scoping','Proposal Sent','Proposal Rejected','Won','Lost'],
-  projectStatuses : ['Live','Complete','On Hold'],
-  owners: ['Stephen Kinsey','Steven Farey','John Hilton-Brammer','Rene Dorset','Liz Gregory'],
-  pipelineCategories: []  // loaded dynamically
+  // Single-list lifecycle — matches the Pipeline Extract spreadsheet's own
+  // stage vocabulary exactly (see SCHEMA_SPEC.md). Projects now carries the
+  // full journey from first contact through delivery; there is no separate
+  // pipeline list any more.
+  stageChoices    : ['Engagement','Build','Proposal','Deliver','Complete','Lost/Declined'],
+  categoryChoices : ['SC Development','SC Analysis','Skills / People','Events','IT','Cyber / IT'],
+  stChoices       : ['S','T'],
+  priorityChoices : ['1','2','3'],
+  owners: ['Stephen Kinsey','Steven Farey','John Hilton-Brammer','Rene Dorset','Liz Gregory']
 };
 
 /* ================================================================
@@ -548,16 +689,6 @@ const msalApp = new msal.PublicClientApplication({
   cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
 });
 
-// Popup requests must land on a blank page, NOT this app itself. If the popup
-// reloads controlcentre.html, the whole app boots up again inside it and
-// calls MSAL APIs a second time — MSAL blocks that with "block_nested_popups"
-// (a window it's already treating as a popup can't open/drive another auth
-// request). auth-redirect.html is a no-op page sitting next to this file;
-// MSAL reads the auth response straight from the popup's URL and doesn't
-// need any code to run there. Must also be registered as a redirect URI
-// (Single-page application platform) in Azure AD alongside this page's own.
-const POPUP_REDIRECT_URI = new URL('auth-redirect.html', window.location.href).href;
-
 // Popup-based auth (not redirect): redirect flows are blocked by MSAL when the
 // app is running inside an iframe (e.g. embedded in the SCC hub), since a
 // redirect happening in a hidden frame is a clickjacking vector. Popups work
@@ -565,7 +696,7 @@ const POPUP_REDIRECT_URI = new URL('auth-redirect.html', window.location.href).h
 async function getToken() {
   const accounts = msalApp.getAllAccounts();
   if (!accounts.length) {
-    const result = await msalApp.loginPopup({ scopes: [CFG.scope], redirectUri: POPUP_REDIRECT_URI });
+    const result = await msalApp.loginPopup({ scopes: [CFG.scope] });
     msalApp.setActiveAccount(result.account);
     return result.accessToken;
   }
@@ -574,7 +705,7 @@ async function getToken() {
     const r = await msalApp.acquireTokenSilent({ scopes: [CFG.scope], account: accounts[0] });
     return r.accessToken;
   } catch {
-    const r = await msalApp.acquireTokenPopup({ scopes: [CFG.scope], redirectUri: POPUP_REDIRECT_URI });
+    const r = await msalApp.acquireTokenPopup({ scopes: [CFG.scope] });
     return r.accessToken;
   }
 }
@@ -641,27 +772,14 @@ async function spDelete(path) {
 const listItems = n => `web/lists/getbytitle('${encodeURIComponent(n)}')/items`;
 const listItem  = (n,id) => `web/lists/getbytitle('${encodeURIComponent(n)}')/items(${id})`;
 
-// Fetches a list with an expand; if 400, retries without $select to get all fields
-async function spGetSafe(path, selectFields, expandField, top=500) {
-  const url = `${path}?$select=${selectFields},${expandField}/DisplayName&$expand=${expandField}&$top=${top}&$orderby=Date desc`;
-  try {
-    return await spGet(url);
-  } catch(e) {
-    if (e.message.startsWith('GET 400')) {
-      return await spGet(`${path}?$expand=${expandField}&$top=${top}&$orderby=Date desc`);
-    }
-    throw e;
-  }
-}
-
-// Fetch a list with specific fields; if 400 (field doesn't exist), retry without $select
+// Fetch a list with specific fields; if 400 (field doesn't exist / not yet
+// propagated), retry without $select so the app still loads.
 async function spGetWithFallback(listName, fields, top=500, orderBy='Title') {
   const base = listItems(listName);
   try {
     return await spGet(`${base}?$select=${fields}&$top=${top}&$orderby=${orderBy} asc`);
   } catch(e) {
     if (e.message.startsWith('GET 400')) {
-      // Some fields may not exist — fall back to no $select
       try {
         return await spGet(`${base}?$top=${top}&$orderby=Title asc`);
       } catch(e2) {
@@ -693,12 +811,14 @@ function ukDate(s) {
   const d = new Date(s.split('T')[0] + 'T12:00:00');
   return d.toLocaleDateString('en-GB');
 }
-function statusClass(s) {
-  const m = { 'Live':'status-live','Complete':'status-complete','Lead':'status-lead',
-    'Scoping':'status-scoping','Proposal Sent':'status-proposal','Proposal Rejected':'status-rejected',
-    'Won':'status-live','Lost':'status-rejected' };
-  return m[s] || '';
+function stageClass(s) {
+  const m = {
+    'Engagement':'stage-engagement', 'Build':'stage-build', 'Proposal':'stage-proposal',
+    'Deliver':'stage-deliver', 'Complete':'stage-complete', 'Lost/Declined':'stage-lost'
+  };
+  return m[s] || 'stage-engagement';
 }
+function priClass(p) { return p ? `pri-${p}` : ''; }
 function render(html) { document.getElementById('app').innerHTML = html; }
 function toast(msg, type='ok') {
   const el = document.createElement('div');
@@ -709,6 +829,72 @@ function toast(msg, type='ok') {
 }
 
 /* ================================================================
+   ACTION LOG — append-only feed
+   Entries are stored as one plain-text field (ActionLogEntries), newest
+   first, each block formatted "[DD/MM/YYYY HH:MM — Owner]\nbody\n" and
+   separated from the next by a blank line. New entries are prepended,
+   never overwritten — matches the spreadsheet's own Action Log column
+   and the format the migration script wrote historic entries in.
+================================================================ */
+function initialsOf(name) {
+  if (!name) return '';
+  return name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0,3);
+}
+function nowUK() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function buildActionLogEntry(text, owner) {
+  const tag = owner ? ` — ${owner}` : '';
+  return `[${nowUK()}${tag}]\n${text}\n`;
+}
+function prependActionLog(existing, text, owner) {
+  const entry = buildActionLogEntry(text, owner);
+  return existing ? `${entry}\n${existing}` : entry;
+}
+// Parses the stored text back into individual entries for the feed view.
+// Blocks are separated by a blank line; each block's first line is the
+// "[date — owner]" header if present.
+function parseActionLog(raw) {
+  if (!raw || !raw.trim()) return [];
+  const blocks = raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+  return blocks.map(b => {
+    const lines = b.split('\n');
+    const headerMatch = lines[0].match(/^\[(.+?)\]$/);
+    if (headerMatch) {
+      return { header: headerMatch[1], body: lines.slice(1).join('\n').trim() };
+    }
+    return { header: '', body: b };
+  });
+}
+function renderActionLogFeed(raw) {
+  const entries = parseActionLog(raw);
+  if (!entries.length) return `<div class="actionlog-empty">No entries yet — add the first update below.</div>`;
+  return `<div class="actionlog-feed">${entries.map(e => `
+    <div class="actionlog-entry">
+      ${e.header ? `<div class="actionlog-meta">${esc(e.header)}</div>` : ''}
+      <div class="actionlog-body">${esc(e.body)}</div>
+    </div>`).join('')}</div>`;
+}
+
+/* ================================================================
+   URL / HASH ROUTING
+   Each project gets a real, bookmarkable URL: ControlCentre.html#project-123
+   so it can eventually be deep-linked to from the CRM (scc.html).
+================================================================ */
+function setProjectHash(id) {
+  history.replaceState(null, '', `#project-${id}`);
+}
+function clearHash() {
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+}
+function getProjectIdFromHash() {
+  const m = window.location.hash.match(/^#project-(\d+)$/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/* ================================================================
    APP STATE
 ================================================================ */
 const S = {
@@ -716,21 +902,25 @@ const S = {
   currentUser: null,
   // cached data
   projects: [],
-  pipeline: [],
   timeEntries: [],
   expenses: [],
   // selections
   selectedProject: null,
-  selectedPipeline: null,
   selectedEmployee: null,
-  // filters
-  projectFilter: '',   // '', 'Live', 'Complete', 'InBudget', 'OverBudget'
-  pipelineFilter: '',
+  // filters — '' | 'Engagement' | 'Build' | 'Proposal' | 'Deliver' | 'Complete' |
+  // 'Lost/Declined' | 'InBudget' | 'OverBudget'
+  projectFilter: '',
+  // free-text search (Company / Project Title / Project Number / Contact)
+  searchQuery: '',
+  // dropdown filters — '' means "all"
+  filterCategory: '',
+  filterProgramme: '',
+  filterST: '',
+  filterPriority: '',
   // for employee drill-down
   drillProjectId: null,
   drillProjectTitle: '',
-  drillProjectDisplayName: '',
-  drillIsPipeline: false
+  drillProjectDisplayName: ''
 };
 
 /* ================================================================
@@ -743,24 +933,23 @@ async function loadAll() {
   const u = await spGet('web/currentuser');
   S.currentUser = { email: u.Email, displayName: u.Title };
 
-  // Load all data in parallel
-  // Fetch all lists without $select to avoid field name guessing.
-  // We fetch full items and normalise field names after.
-  // Load Projects and Pipeline with exact field names confirmed from list schema
-  const [proj, pipe] = await Promise.all([
-    spGet(`${listItems(CFG.lists.projects)}?$select=ID,Title,Company,ProjectTitle0,POValue,PlannedHours,StartDate,EndDate,Notes,Status&$top=500&$orderby=Title asc`),
-    spGet(`${listItems(CFG.lists.pipelineProjects)}?$select=ID,Title,Company_x002f_ProjectName,ProjectTitle,Status,ExpectedValue,Probability,ExpectedStart,Notes,Owner_x002f_PM,Category,ProjectNumber,Contact,Owner/Title&$expand=Owner&$top=500&$orderby=Title asc`)
-  ]);
+  // Projects — single unified list. Explicit field list with a graceful
+  // fallback (spGetWithFallback) in case a field name doesn't resolve.
+  const proj = await spGetWithFallback(
+    CFG.lists.projects,
+    'ID,Title,Company,ProjectTitle0,ProjectNumber,POValue,PlannedHours,StartDate,EndDate,' +
+    'Stage,StrategicTactical,Priority,Programme,Probability,Category,Contact,ActionLogEntries,TotalCommercialCost',
+    2000
+  );
 
   // Try TimeEntries with expand; if 400 (lookup column name wrong), fall back to no expand
   let teRaw;
   try {
-    teRaw = await spGet(`${listItems(CFG.lists.timeEntries)}?$expand=Project,PipelineProject&$top=5000&$orderby=Date desc`);
+    teRaw = await spGet(`${listItems(CFG.lists.timeEntries)}?$expand=Project&$top=5000&$orderby=Date desc`);
     S._teHasExpand = true;
   } catch(e1) {
     try {
-      // Try common alternative names
-      teRaw = await spGet(`${listItems(CFG.lists.timeEntries)}?$expand=ProjectLookup,PipelineProjectLookup&$top=5000&$orderby=Date desc`);
+      teRaw = await spGet(`${listItems(CFG.lists.timeEntries)}?$expand=ProjectLookup&$top=5000&$orderby=Date desc`);
       S._teHasExpand = true;
     } catch(e2) {
       // Fall back: no expand at all — we'll match via *Id integer fields
@@ -780,45 +969,27 @@ async function loadAll() {
   const te = teRaw;
   const exp = expRaw;
 
-  // Field names confirmed from list schema — use directly, no detection needed
-  // Projects: ProjectTitle internal name is ProjectTitle0, Company is Company
-  // PipelineProjects: Company internal name is Company_x002f_ProjectName, Owner/PM is Owner_x002f_PM
-
+  // Field names confirmed from list schema — ProjectTitle internal name is
+  // ProjectTitle0, Company is Company.
   S.projects = proj.value.map(p => ({
     ...p,
     ProjectTitle:  p.ProjectTitle0 || p.Title || '',
     DisplayName:   p.Company ? (p.ProjectTitle0 ? `${p.Company}-${p.ProjectTitle0}` : p.Company) : (p.ProjectTitle0 || p.Title || ''),
     POValue:       Number(p.POValue ?? 0),
-    PlannedHours:  Number(p.PlannedHours ?? 0)
-  }));
-
-  S.pipeline = pipe.value.map(p => ({
-    ...p,
-    Company:       p.Company_x002f_ProjectName || p.Title || '',
-    ProjectTitle:  p.ProjectTitle || p.Title || '',
-    DisplayName:   p.Company_x002f_ProjectName ? (p.ProjectTitle ? `${p.Company_x002f_ProjectName} — ${p.ProjectTitle}` : p.Company_x002f_ProjectName) : (p.ProjectTitle || p.Title || ''),
-    ExpectedValue: Number(p.ExpectedValue ?? 0),
-    Probability:   p.Probability ?? null,
-    ExpectedStart: p.ExpectedStart || null,
-    Owner:         p.Owner_x002f_PM || (p.Owner && p.Owner.Title) || ''
+    PlannedHours:  Number(p.PlannedHours ?? 0),
+    Stage:         p.Stage || 'Engagement'
   }));
 
   // Detect TimeEntries lookup field names from returned data
   const sampleTE = te.value[0] || {};
-  let teProjField, tePipeField;
+  let teProjField;
   if (S._teHasExpand) {
-    teProjField = Object.keys(sampleTE).find(k => !k.endsWith('Id') && sampleTE[k] && typeof sampleTE[k] === 'object' && 'Id' in sampleTE[k] && k.toLowerCase().includes('project') && !k.toLowerCase().includes('pipeline')) || 'Project';
-    tePipeField = Object.keys(sampleTE).find(k => !k.endsWith('Id') && sampleTE[k] && typeof sampleTE[k] === 'object' && 'Id' in sampleTE[k] && k.toLowerCase().includes('pipeline')) || 'PipelineProject';
+    teProjField = Object.keys(sampleTE).find(k => !k.endsWith('Id') && sampleTE[k] && typeof sampleTE[k] === 'object' && 'Id' in sampleTE[k] && k.toLowerCase().includes('project')) || 'Project';
   } else {
     teProjField = null;
-    tePipeField = null;
-    S._teProjIdField  = Object.keys(sampleTE).find(k => /^project.*id$/i.test(k) && !k.toLowerCase().includes('pipeline')) || 'ProjectId';
-    S._tePipeIdField  = Object.keys(sampleTE).find(k => /pipeline.*id$/i.test(k)) || 'PipelineProjectId';
+    S._teProjIdField = Object.keys(sampleTE).find(k => /^project.*id$/i.test(k)) || 'ProjectId';
   }
-
-  // Store TE field names for computed helpers
   S._teProjField = teProjField;
-  S._tePipeField = tePipeField;
 
   S.timeEntries = te.value;
   S.expenses = exp.value;
@@ -832,17 +1003,8 @@ function teForProject(projId) {
     const f = S._teProjField;
     return S.timeEntries.filter(t => t[f] && t[f].Id === projId);
   }
-  // No expand — match via integer Id field
   const f = S._teProjIdField || 'ProjectId';
   return S.timeEntries.filter(t => t[f] === projId);
-}
-function teForPipeline(pipeId) {
-  if (S._teHasExpand && S._tePipeField) {
-    const f = S._tePipeField;
-    return S.timeEntries.filter(t => t[f] && t[f].Id === pipeId);
-  }
-  const f = S._tePipeIdField || 'PipelineProjectId';
-  return S.timeEntries.filter(t => t[f] === pipeId);
 }
 function expForProject(displayName) {
   return S.expenses.filter(e => e.Project === displayName);
@@ -884,15 +1046,40 @@ function groupByEmployee(entries) {
 
 function filteredProjects() {
   const f = S.projectFilter;
+  const q = (S.searchQuery || '').trim().toLowerCase();
   return S.projects.filter(p => {
-    const te = teForProject(p.ID);
-    const spend = sumCommercial(te);
-    if (f === 'Live') return (p.Status?.Value || p.Status) === 'Live';
-    if (f === 'Complete') return (p.Status?.Value || p.Status) === 'Complete';
-    if (f === 'InBudget') return spend <= (p.POValue||0);
-    if (f === 'OverBudget') return spend > (p.POValue||0);
+    if (f) {
+      if (f === 'InBudget') { if (sumCommercial(teForProject(p.ID)) > (p.POValue||0)) return false; }
+      else if (f === 'OverBudget') { if (sumCommercial(teForProject(p.ID)) <= (p.POValue||0)) return false; }
+      else if (p.Stage !== f) return false;
+    }
+    if (S.filterCategory && p.Category !== S.filterCategory) return false;
+    if (S.filterProgramme && p.Programme !== S.filterProgramme) return false;
+    if (S.filterST && p.StrategicTactical !== S.filterST) return false;
+    if (S.filterPriority && p.Priority !== S.filterPriority) return false;
+    if (q) {
+      const hay = [p.DisplayName, p.Company, p.ProjectTitle, p.ProjectNumber, p.Contact]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     return true;
   });
+}
+
+// Unique values already in use per field, for the filter dropdowns.
+function categoryOptionsInUse() {
+  const set = new Set();
+  S.projects.forEach(p => { if (p.Category) set.add(p.Category); });
+  return Array.from(set).sort();
+}
+
+// Unique Programme values already in use, so the Add/Edit forms can
+// autocomplete via <datalist> while still allowing free text (Programme is
+// a fill-in-choice field in SharePoint — F4N today, more added over time).
+function programmeOptions() {
+  const set = new Set(['F4N']);
+  S.projects.forEach(p => { if (p.Programme) set.add(p.Programme); });
+  return Array.from(set).sort();
 }
 
 /* ================================================================
@@ -903,16 +1090,29 @@ function statusOpts(list, current) {
 }
 
 /* ================================================================
+   INLINE FIELD EDIT (used by table + detail quick-edit chips)
+================================================================ */
+async function updateProjectField(projId, field, value) {
+  try {
+    await spPatch(listItem(CFG.lists.projects, projId), { [field]: value });
+    const p = S.projects.find(x => x.ID === projId);
+    if (p) p[field] = value;
+    if (S.selectedProject && S.selectedProject.ID === projId) S.selectedProject[field] = value;
+    toast(`${field} updated`);
+  } catch(e) {
+    toast('Update failed: ' + e.message, 'err');
+  }
+}
+
+/* ================================================================
    HOME SCREEN
 ================================================================ */
 function viewHome() {
   S.view = 'home';
-  const live = S.projects.filter(p => (p.Status?.Value||p.Status)==='Live').length;
-  const complete = S.projects.filter(p => (p.Status?.Value||p.Status)==='Complete').length;
-  const pipeCount = S.pipeline.filter(p => {
-    const st = p.Status?.Value || p.Status || '';
-    return ['Lead','Scoping','Proposal Sent','Proposal Rejected'].includes(st);
-  }).length;
+  clearHash();
+  const deliver = S.projects.filter(p => p.Stage === 'Deliver').length;
+  const complete = S.projects.filter(p => p.Stage === 'Complete').length;
+  const inPipeline = S.projects.filter(p => ['Engagement','Build','Proposal'].includes(p.Stage)).length;
 
   render(`
     <div class="hdr">
@@ -930,32 +1130,31 @@ function viewHome() {
       <div class="home-grid">
         <div class="home-card" onclick="viewProjectOverview()">
           <div class="home-card-icon">📁</div>
-          <h2>Live Projects</h2>
-          <p>Browse and manage all existing projects and track progress</p>
-        </div>
-        <div class="home-card" onclick="viewPipeline()">
-          <div class="home-card-icon">📈</div>
-          <h2>View Pipeline</h2>
-          <p>Track project pipeline, forecasts, and upcoming opportunities</p>
+          <h2>Projects</h2>
+          <p>Browse, filter and manage every project from first contact through delivery</p>
         </div>
         <div class="home-card" onclick="viewAddProject()">
           <div class="home-card-icon">📄</div>
           <h2>Add New Project</h2>
-          <p>Create and configure a new pipeline project with all necessary details</p>
+          <p>Create and configure a new project with all necessary details</p>
         </div>
       </div>
       <div class="home-stats">
         <div class="kpi-card-static">
-          <div class="kpi-label">Active Projects</div>
-          <div class="kpi-val" style="color:var(--blue)">${live}</div>
+          <div class="kpi-label">In Pipeline</div>
+          <div class="kpi-val" style="color:var(--blue)">${inPipeline}</div>
         </div>
         <div class="kpi-card-static">
-          <div class="kpi-label">Completed Projects</div>
+          <div class="kpi-label">In Delivery</div>
+          <div class="kpi-val" style="color:var(--blue)">${deliver}</div>
+        </div>
+        <div class="kpi-card-static">
+          <div class="kpi-label">Completed</div>
           <div class="kpi-val" style="color:var(--blue)">${complete}</div>
         </div>
         <div class="kpi-card-static">
-          <div class="kpi-label">Pipeline Projects</div>
-          <div class="kpi-val" style="color:var(--blue)">${pipeCount}</div>
+          <div class="kpi-label">Total Projects</div>
+          <div class="kpi-val" style="color:var(--blue)">${S.projects.length}</div>
         </div>
       </div>
     </div>
@@ -963,48 +1162,58 @@ function viewHome() {
 }
 
 /* ================================================================
-   PROJECT OVERVIEW SCREEN
+   PROJECT OVERVIEW SCREEN (the table view)
 ================================================================ */
 function viewProjectOverview() {
   S.view = 'projectOverview';
-  S.projectFilter = S.projectFilter || '';
+  clearHash();
   _renderProjectOverview();
 }
 
 function _renderProjectOverview() {
-  const all = S.projects.filter(p => {
-    const st = p.Status?.Value || p.Status || '';
-    return ['Live','Complete'].includes(st);
-  });
-  const live = all.filter(p => (p.Status?.Value||p.Status)==='Live').length;
-  const complete = all.filter(p => (p.Status?.Value||p.Status)==='Complete').length;
+  const all = S.projects;
+  const counts = {};
+  CFG.stageChoices.forEach(s => counts[s] = all.filter(p => p.Stage === s).length);
   const inBudget = all.filter(p => sumCommercial(teForProject(p.ID)) <= (p.POValue||0)).length;
   const overBudget = all.filter(p => sumCommercial(teForProject(p.ID)) > (p.POValue||0)).length;
   const totalPO = all.reduce((a,p) => a + (p.POValue||0), 0);
   const rows = filteredProjects();
 
-  const kpiActive = S.projectFilter === 'Live' ? ' active' : '';
-  const kpiComplete = S.projectFilter === 'Complete' ? ' active' : '';
-  const kpiAll = !S.projectFilter ? ' active' : '';
-  const kpiIn = S.projectFilter === 'InBudget' ? ' active' : '';
-  const kpiOver = S.projectFilter === 'OverBudget' ? ' active' : '';
+  const chip = (label, val, count) => `<div class="kpi-card${S.projectFilter===val?' active':''}" onclick="S.projectFilter='${val}';_renderProjectOverview()">
+    <div class="kpi-label">${esc(label)}</div>
+    <div class="kpi-val" style="color:var(--blue)">${count}</div>
+  </div>`;
 
   const tableRows = rows.map(p => {
     const te = teForProject(p.ID);
     const hoursBooked = sumHours(te);
-    const staff = sumStaff(te);
     const commercial = sumCommercial(te);
-    const st = p.Status?.Value || p.Status || '';
-    return `<tr class="clickable" onclick="viewProjectDetail(${p.ID})">
-      <td>${esc(p.DisplayName)}</td>
-      <td class="ta-center"><span class="${statusClass(st)}">${esc(st)}</span></td>
-      <td class="ta-center nowrap">${ukDate(p.StartDate)}</td>
-      <td class="ta-center">${num(p.PlannedHours)}</td>
-      <td class="ta-center">${num(hoursBooked)}</td>
-      <td class="ta-center">${num((p.PlannedHours||0) - hoursBooked)}</td>
-      <td class="ta-right">${money(staff)}</td>
-      <td class="ta-right">${money(commercial)}</td>
-      <td class="ta-right">${money(p.POValue)}</td>
+    return `<tr class="clickable">
+      <td onclick="viewProjectDetail(${p.ID})">${esc(p.DisplayName)}</td>
+      <td onclick="event.stopPropagation()">
+        <select class="inline-select" onchange="updateProjectField(${p.ID},'Stage',this.value)">
+          ${statusOpts(CFG.stageChoices, p.Stage)}
+        </select>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <select class="inline-select" onchange="updateProjectField(${p.ID},'StrategicTactical',this.value)">
+          <option value="" ${!p.StrategicTactical?'selected':''}>—</option>
+          ${statusOpts(CFG.stChoices, p.StrategicTactical)}
+        </select>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <select class="inline-select" onchange="updateProjectField(${p.ID},'Priority',this.value)">
+          <option value="" ${!p.Priority?'selected':''}>—</option>
+          ${statusOpts(CFG.priorityChoices, p.Priority)}
+        </select>
+      </td>
+      <td onclick="viewProjectDetail(${p.ID})" class="nowrap">${esc(p.Programme||'—')}</td>
+      <td onclick="viewProjectDetail(${p.ID})" class="ta-center nowrap">${ukDate(p.StartDate)}</td>
+      <td onclick="viewProjectDetail(${p.ID})" class="ta-center">${num(p.PlannedHours)}</td>
+      <td onclick="viewProjectDetail(${p.ID})" class="ta-center">${num(hoursBooked)}</td>
+      <td onclick="viewProjectDetail(${p.ID})" class="ta-center">${num((p.PlannedHours||0) - hoursBooked)}</td>
+      <td onclick="viewProjectDetail(${p.ID})" class="ta-right">${money(commercial)}</td>
+      <td onclick="viewProjectDetail(${p.ID})" class="ta-right">${money(p.POValue)}</td>
     </tr>`;
   }).join('');
 
@@ -1013,33 +1222,29 @@ function _renderProjectOverview() {
       <div class="hdr-left">
         <button class="back-btn" onclick="viewHome()">← Back</button>
         <div>
-          <div class="hdr-title">Projects Overview</div>
-          <div class="hdr-sub">All projects</div>
+          <div class="hdr-title">Projects</div>
+          <div class="hdr-sub">All projects — Engagement through Delivery</div>
         </div>
       </div>
       <div class="hdr-right">
+        <button class="btn-ghost" onclick="viewAddProject()">+ Add Project</button>
         <span class="user-chip">${esc(S.currentUser?.displayName||'')}</span>
       </div>
     </div>
     <div class="main">
       <div class="kpi-row">
-        <div class="kpi-card${kpiAll}" onclick="S.projectFilter='';_renderProjectOverview()">
-          <div class="kpi-label">All Projects</div>
+        <div class="kpi-card${!S.projectFilter?' active':''}" onclick="S.projectFilter='';_renderProjectOverview()">
+          <div class="kpi-label">All</div>
           <div class="kpi-val" style="color:var(--blue)">${all.length}</div>
         </div>
-        <div class="kpi-card${kpiActive}" onclick="S.projectFilter='Live';_renderProjectOverview()">
-          <div class="kpi-label">Live</div>
-          <div class="kpi-val" style="color:var(--blue)">${live}</div>
-        </div>
-        <div class="kpi-card${kpiComplete}" onclick="S.projectFilter='Complete';_renderProjectOverview()">
-          <div class="kpi-label">Completed</div>
-          <div class="kpi-val" style="color:var(--blue)">${complete}</div>
-        </div>
-        <div class="kpi-card${kpiIn}" onclick="S.projectFilter='InBudget';_renderProjectOverview()">
+        ${CFG.stageChoices.map(s => chip(s, s, counts[s])).join('')}
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-card${S.projectFilter==='InBudget'?' active':''}" onclick="S.projectFilter='InBudget';_renderProjectOverview()">
           <div class="kpi-label">In Budget</div>
           <div class="kpi-val" style="color:var(--green)">${inBudget}</div>
         </div>
-        <div class="kpi-card${kpiOver}" onclick="S.projectFilter='OverBudget';_renderProjectOverview()">
+        <div class="kpi-card${S.projectFilter==='OverBudget'?' active':''}" onclick="S.projectFilter='OverBudget';_renderProjectOverview()">
           <div class="kpi-label">Over Budget</div>
           <div class="kpi-val" style="color:var(--red)">${overBudget}</div>
         </div>
@@ -1048,24 +1253,81 @@ function _renderProjectOverview() {
           <div class="kpi-val" style="color:var(--orange)">${money(totalPO)}</div>
         </div>
       </div>
+      <div class="filter-bar">
+        <input type="text" id="searchBox" placeholder="Search company, project, number, contact…"
+          value="${esc(S.searchQuery)}" style="min-width:260px;" oninput="onSearchInput(this.value)">
+        <label>Category</label>
+        <select onchange="S.filterCategory=this.value;_renderProjectOverview()">
+          <option value="">All</option>
+          ${categoryOptionsInUse().map(c => `<option value="${esc(c)}" ${S.filterCategory===c?'selected':''}>${esc(c)}</option>`).join('')}
+        </select>
+        <label>Programme</label>
+        <select onchange="S.filterProgramme=this.value;_renderProjectOverview()">
+          <option value="">All</option>
+          ${programmeOptions().map(pr => `<option value="${esc(pr)}" ${S.filterProgramme===pr?'selected':''}>${esc(pr)}</option>`).join('')}
+        </select>
+        <label>S/T</label>
+        <select onchange="S.filterST=this.value;_renderProjectOverview()">
+          <option value="">All</option>
+          ${CFG.stChoices.map(s => `<option value="${esc(s)}" ${S.filterST===s?'selected':''}>${esc(s)}</option>`).join('')}
+        </select>
+        <label>Priority</label>
+        <select onchange="S.filterPriority=this.value;_renderProjectOverview()">
+          <option value="">All</option>
+          ${CFG.priorityChoices.map(p => `<option value="${esc(p)}" ${S.filterPriority===p?'selected':''}>${esc(p)}</option>`).join('')}
+        </select>
+        ${(S.searchQuery || S.filterCategory || S.filterProgramme || S.filterST || S.filterPriority) ?
+          `<button class="btn-sm btn" style="background:var(--muted);" onclick="clearProjectFilters()">Clear filters</button>` : ''}
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);margin-left:auto;">${rows.length} of ${all.length} shown</span>
+      </div>
       <div class="tbl-wrap">
         <table class="data-table">
           <thead><tr>
-            <th style="min-width:280px;text-align:left;">Project</th>
-            <th class="hdr-blue" style="width:110px;">Status</th>
+            <th style="min-width:240px;text-align:left;">Project</th>
+            <th class="hdr-blue" style="width:120px;">Stage</th>
+            <th class="hdr-blue" style="width:60px;">S/T</th>
+            <th class="hdr-blue" style="width:60px;">Pri</th>
+            <th class="hdr-blue" style="width:90px;">Programme</th>
             <th class="hdr-blue" style="width:100px;">Start</th>
             <th class="hdr-blue" style="width:80px;">PO Hours</th>
             <th class="hdr-blue" style="width:90px;">Hours Booked</th>
             <th class="hdr-blue" style="width:80px;">Hours Left</th>
-            <th class="hdr-blue" style="width:100px;">Staff Rate</th>
-            <th class="hdr-blue" style="width:110px;">Charge Rate</th>
+            <th class="hdr-blue" style="width:100px;">Charge Rate</th>
             <th class="hdr-blue" style="width:100px;">PO Value</th>
           </tr></thead>
-          <tbody>${tableRows || '<tr><td colspan="9" class="ta-center" style="padding:20px;color:var(--muted);">No projects found</td></tr>'}</tbody>
+          <tbody>${tableRows || '<tr><td colspan="11" class="ta-center" style="padding:20px;color:var(--muted);">No projects found</td></tr>'}</tbody>
         </table>
       </div>
     </div>
   `);
+
+  // Re-focus the search box and restore cursor position after re-render —
+  // render() replaces the whole #app innerHTML on every keystroke, which
+  // would otherwise steal focus after each character typed.
+  const box = document.getElementById('searchBox');
+  if (box && S._searchHadFocus) {
+    box.focus();
+    const pos = S._searchCursorPos ?? box.value.length;
+    box.setSelectionRange(pos, pos);
+  }
+}
+
+function onSearchInput(value) {
+  S.searchQuery = value;
+  S._searchHadFocus = true;
+  const box = document.getElementById('searchBox');
+  S._searchCursorPos = box ? box.selectionStart : value.length;
+  _renderProjectOverview();
+}
+
+function clearProjectFilters() {
+  S.searchQuery = '';
+  S.filterCategory = '';
+  S.filterProgramme = '';
+  S.filterST = '';
+  S.filterPriority = '';
+  S._searchHadFocus = false;
+  _renderProjectOverview();
 }
 
 /* ================================================================
@@ -1073,31 +1335,11 @@ function _renderProjectOverview() {
 ================================================================ */
 function viewProjectDetail(projId) {
   const p = S.projects.find(x => x.ID === projId);
-  if (!p) return;
+  if (!p) { viewProjectOverview(); return; }
   S.selectedProject = p;
   S.view = 'projectDetail';
+  setProjectHash(projId);
   _renderProjectDetail();
-}
-
-function teForPromotedPipeline(proj) {
-  // Find time entries that were booked against this project when it was in the pipeline.
-  // We match on SourcePipelineId (stored at promote time) or SourcePipelineName as fallback.
-  const pipeIdStr = proj.SourcePipelineId || '';
-  const pipeName  = proj.SourcePipelineName || '';
-  return S.timeEntries.filter(t => {
-    const type = t.ProjectType?.Value || t.ProjectType || '';
-    if (type !== 'Pipeline Project') return false;
-    // Match by stored pipeline ID (most reliable)
-    if (pipeIdStr) {
-      const f = S._tePipeField;
-      const fId = S._tePipeIdField || 'PipelineProjectId';
-      if (S._teHasExpand && f && t[f]) return String(t[f].Id) === pipeIdStr;
-      if (t[fId] != null) return String(t[fId]) === pipeIdStr;
-    }
-    // Fallback: match by display name stored on the TE
-    if (pipeName && t.ProjectDisplayName) return t.ProjectDisplayName === pipeName;
-    return false;
-  });
 }
 
 function _renderProjectDetail() {
@@ -1112,18 +1354,10 @@ function _renderProjectDetail() {
   const budgetLeft = (p.POValue||0) - commercial - totalExp;
   const budgetPct = p.POValue ? (budgetLeft / p.POValue * 100) : 0;
   const empRows = groupByEmployee(te);
-  const st = p.Status?.Value || p.Status || '';
-
-  // Sunk cost: time booked while this project was in the pipeline
-  const pipelineTe   = teForPromotedPipeline(p);
-  const sunkHours    = sumHours(pipelineTe);
-  const sunkStaff    = sumStaff(pipelineTe);
-  const sunkCommercial = sumCommercial(pipelineTe);
-  const hasSunkCost  = pipelineTe.length > 0;
 
   const empTableRows = empRows.map(e => {
     const empExps = sumExpenses(expForEmployee(p.DisplayName, e.name));
-    return `<tr class="clickable" onclick="viewEmployeeEntries(${p.ID},'${esc(p.ProjectTitle)}','${esc(p.DisplayName)}','${esc(e.name)}',false)">
+    return `<tr class="clickable" onclick="viewEmployeeEntries(${p.ID},'${esc(p.ProjectTitle)}','${esc(p.DisplayName)}','${esc(e.name)}')">
       <td>${esc(e.name)}</td>
       <td class="ta-center">${num(e.hours)}</td>
       <td class="ta-center">${num(e.travel)}</td>
@@ -1139,19 +1373,19 @@ function _renderProjectDetail() {
         <button class="back-btn" onclick="viewProjectOverview()">← Back</button>
         <div>
           <div class="hdr-title" style="font-size:18px;">${esc(p.DisplayName)} — Project Summary</div>
-          <div class="hdr-sub"><span class="${statusClass(st)}" style="color:rgba(219,234,254,0.9)">${esc(st)}</span></div>
+          <div class="hdr-sub"><span class="${stageClass(p.Stage)}">${esc(p.Stage)}</span></div>
         </div>
       </div>
       <div class="hdr-right" style="gap:10px;">
-        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);padding:6px 12px;font-family:'Courier New',monospace;font-size:11px;color:#BFDBFE;">
+        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);padding:6px 12px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#BFDBFE;">
           <div style="font-size:10px;opacity:0.7;margin-bottom:2px;">START</div>
           <div>${ukDate(p.StartDate)}</div>
         </div>
-        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);padding:6px 12px;font-family:'Courier New',monospace;font-size:11px;color:#BFDBFE;">
+        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);padding:6px 12px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#BFDBFE;">
           <div style="font-size:10px;opacity:0.7;margin-bottom:2px;">END</div>
           <div>${ukDate(p.EndDate)}</div>
         </div>
-        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);padding:6px 12px;font-family:'Courier New',monospace;font-size:11px;color:#BFDBFE;">
+        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);padding:6px 12px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#BFDBFE;">
           <div style="font-size:10px;opacity:0.7;margin-bottom:2px;">PO VALUE</div>
           <div>${money(p.POValue)}</div>
         </div>
@@ -1160,6 +1394,44 @@ function _renderProjectDetail() {
       </div>
     </div>
     <div class="main">
+      <div class="quickedit-row">
+        <div class="quickedit-field">
+          <div class="quickedit-label">Stage</div>
+          <select class="inline-select" onchange="updateProjectField(${p.ID},'Stage',this.value); S.selectedProject.Stage=this.value; _renderProjectDetail();">
+            ${statusOpts(CFG.stageChoices, p.Stage)}
+          </select>
+        </div>
+        <div class="quickedit-field">
+          <div class="quickedit-label">Strategic / Tactical</div>
+          <select class="inline-select" onchange="updateProjectField(${p.ID},'StrategicTactical',this.value)">
+            <option value="" ${!p.StrategicTactical?'selected':''}>—</option>
+            ${statusOpts(CFG.stChoices, p.StrategicTactical)}
+          </select>
+        </div>
+        <div class="quickedit-field">
+          <div class="quickedit-label">Priority</div>
+          <select class="inline-select" onchange="updateProjectField(${p.ID},'Priority',this.value)">
+            <option value="" ${!p.Priority?'selected':''}>—</option>
+            ${statusOpts(CFG.priorityChoices, p.Priority)}
+          </select>
+        </div>
+        <div class="quickedit-field">
+          <div class="quickedit-label">Programme</div>
+          <input class="row-inp" list="programmeList" value="${esc(p.Programme||'')}"
+            onchange="updateProjectField(${p.ID},'Programme',this.value)">
+        </div>
+        <div class="quickedit-field">
+          <div class="quickedit-label">Category</div>
+          <select class="inline-select" onchange="updateProjectField(${p.ID},'Category',this.value)">
+            <option value="" ${!p.Category?'selected':''}>—</option>
+            ${statusOpts(CFG.categoryChoices, p.Category)}
+          </select>
+        </div>
+      </div>
+      <datalist id="programmeList">
+        ${programmeOptions().map(o => `<option value="${esc(o)}">`).join('')}
+      </datalist>
+
       <div class="detail-kpi-row">
         <div class="detail-kpi">
           <div class="detail-kpi-label">Planned Hours</div>
@@ -1210,110 +1482,105 @@ function _renderProjectDetail() {
         </table>
       </div>
 
-      <div class="notes-wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
         <div>
           <div class="section-hd">Budget vs Spend</div>
           <div style="background:#fff;border:1px solid var(--border);padding:14px;">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span style="font-family:'Courier New',monospace;font-size:11px;color:var(--muted);">BUDGET</span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);">BUDGET</span>
               <span style="font-weight:600;">${money(p.POValue)}</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span style="font-family:'Courier New',monospace;font-size:11px;color:var(--muted);">SPENT (CHARGE)</span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);">SPENT (CHARGE)</span>
               <span style="font-weight:600;color:var(--orange);">${money(commercial)}</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span style="font-family:'Courier New',monospace;font-size:11px;color:var(--muted);">EXPENSES</span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);">EXPENSES</span>
               <span style="font-weight:600;color:var(--orange);">${moneyDec(totalExp)}</span>
             </div>
             <div style="border-top:2px solid var(--navy);padding-top:8px;display:flex;justify-content:space-between;">
-              <span style="font-family:'Courier New',monospace;font-size:11px;color:var(--muted);">REMAINING</span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);">REMAINING</span>
               <span style="font-weight:700;font-size:16px;color:${budgetLeft < 0 ? 'var(--red)' : 'var(--green)'};">${money(budgetLeft)}</span>
             </div>
             <div style="margin-top:10px;background:#e5e7eb;height:8px;border-radius:0;">
               <div style="height:8px;background:${(commercial+totalExp) > (p.POValue||0) ? 'var(--red)' : 'var(--blue)'};width:${Math.min(100, p.POValue ? ((commercial+totalExp)/p.POValue*100) : 0).toFixed(1)}%;transition:width 0.3s;"></div>
             </div>
-            <div style="font-family:'Courier New',monospace;font-size:10px;color:var(--muted);margin-top:4px;">${p.POValue > 0 ? ((commercial+totalExp)/p.POValue*100).toFixed(1) : '—'}% of budget used</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--muted);margin-top:4px;">${p.POValue > 0 ? ((commercial+totalExp)/p.POValue*100).toFixed(1) : '—'}% of budget used</div>
           </div>
         </div>
         <div>
           <div class="section-hd">Hours vs Planned</div>
           <div style="background:#fff;border:1px solid var(--border);padding:14px;">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span style="font-family:'Courier New',monospace;font-size:11px;color:var(--muted);">PLANNED</span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);">PLANNED</span>
               <span style="font-weight:600;">${num(p.PlannedHours)}</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span style="font-family:'Courier New',monospace;font-size:11px;color:var(--muted);">BOOKED</span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);">BOOKED</span>
               <span style="font-weight:600;color:var(--orange);">${num(hoursBooked)}</span>
             </div>
             <div style="border-top:2px solid var(--navy);padding-top:8px;display:flex;justify-content:space-between;">
-              <span style="font-family:'Courier New',monospace;font-size:11px;color:var(--muted);">REMAINING</span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);">REMAINING</span>
               <span style="font-weight:700;font-size:16px;color:${hoursLeft < 0 ? 'var(--red)' : 'var(--green)'};">${num(hoursLeft)} hrs</span>
             </div>
             <div style="margin-top:10px;background:#e5e7eb;height:8px;">
               <div style="height:8px;background:${hoursBooked > (p.PlannedHours||0) ? 'var(--red)' : 'var(--blue)'};width:${Math.min(100, p.PlannedHours ? (hoursBooked/p.PlannedHours*100) : 0).toFixed(1)}%;transition:width 0.3s;"></div>
             </div>
-            <div style="font-family:'Courier New',monospace;font-size:10px;color:var(--muted);margin-top:4px;">${p.PlannedHours ? (hoursBooked/p.PlannedHours*100).toFixed(1) : 0}% of hours used</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--muted);margin-top:4px;">${p.PlannedHours ? (hoursBooked/p.PlannedHours*100).toFixed(1) : 0}% of hours used</div>
           </div>
         </div>
       </div>
 
-      <div class="notes-wrap" style="margin-top:16px;">
-        <div class="notes-label">Notes &amp; Updates</div>
-        <textarea id="projectNotes" class="notes-textarea" placeholder="Add project notes here…">${esc(p.Notes||'')}</textarea>
-        <div style="margin-top:8px;">
-          <button class="btn btn-sm" onclick="saveProjectNotes(${p.ID})">💾 Save Notes</button>
+      <div class="actionlog-wrap">
+        <div class="actionlog-label">Action Log</div>
+        <div class="actionlog-add">
+          <textarea id="newLogEntry" placeholder="Add an update — it will be timestamped and added to the top of the log…"></textarea>
+          <button class="btn btn-sm" onclick="addActionLogEntry(${p.ID})">💾 Add Entry</button>
         </div>
+        ${renderActionLogFeed(p.ActionLogEntries)}
       </div>
     </div>
   `);
 }
 
-async function saveProjectNotes(projId) {
+async function addActionLogEntry(projId) {
+  const ta = document.getElementById('newLogEntry');
+  const text = ta?.value?.trim();
+  if (!text) { toast('Enter some text first', 'err'); return; }
   try {
-    const notes = document.getElementById('projectNotes')?.value || '';
-    await spPatch(listItem(CFG.lists.projects, projId), { Notes: notes });
     const p = S.projects.find(x => x.ID === projId);
-    if (p) p.Notes = notes;
-    toast('Notes saved');
+    const owner = initialsOf(S.currentUser?.displayName);
+    const updated = prependActionLog(p.ActionLogEntries || '', text, owner);
+    await spPatch(listItem(CFG.lists.projects, projId), { ActionLogEntries: updated });
+    p.ActionLogEntries = updated;
+    if (S.selectedProject && S.selectedProject.ID === projId) S.selectedProject.ActionLogEntries = updated;
+    toast('Entry added');
+    _renderProjectDetail();
   } catch(e) { toast('Save failed: ' + e.message, 'err'); }
 }
 
 /* ================================================================
    EMPLOYEE TIME ENTRIES SCREEN
 ================================================================ */
-function viewEmployeeEntries(projId, projTitle, projDisplayName, empName, isPipeline) {
+function viewEmployeeEntries(projId, projTitle, projDisplayName, empName) {
   S.drillProjectId = projId;
   S.drillProjectTitle = projTitle;
   S.drillProjectDisplayName = projDisplayName;
   S.selectedEmployee = empName;
-  S.drillIsPipeline = isPipeline;
   S.view = 'employeeEntries';
   _renderEmployeeEntries();
 }
 
 function _renderEmployeeEntries() {
   const empName = S.selectedEmployee;
-  const isPipe = S.drillIsPipeline;
-
-  let entries, exps;
   const _pf = S._teHasExpand && S._teProjField ? S._teProjField : null;
-  const _ppf = S._teHasExpand && S._tePipeField ? S._tePipeField : null;
   const _pfId = S._teProjIdField || 'ProjectId';
-  const _ppfId = S._tePipeIdField || 'PipelineProjectId';
-  if (isPipe) {
-    entries = S.timeEntries.filter(t =>
-      (_ppf ? (t[_ppf] && t[_ppf].Id === S.drillProjectId) : t[_ppfId] === S.drillProjectId)
-      && t.EmployeeName === empName
-    );
-  } else {
-    entries = S.timeEntries.filter(t =>
-      (_pf ? (t[_pf] && t[_pf].Id === S.drillProjectId) : t[_pfId] === S.drillProjectId)
-      && t.EmployeeName === empName
-    );
-  }
-  exps = S.expenses.filter(e =>
+
+  const entries = S.timeEntries.filter(t =>
+    (_pf ? (t[_pf] && t[_pf].Id === S.drillProjectId) : t[_pfId] === S.drillProjectId)
+    && t.EmployeeName === empName
+  );
+  const exps = S.expenses.filter(e =>
     e.Project === S.drillProjectDisplayName && e.EmployeeName?.DisplayName === empName
   );
 
@@ -1326,7 +1593,7 @@ function _renderEmployeeEntries() {
   const teRows = entries.length ? entries.map(e => `
     <tr>
       <td class="nowrap">${ukDate(e.Date)}</td>
-      <td>${esc((e[_pf] && (e[_pf][S._projTitleField||'Title'] || e[_pf].Title)) || (e[_ppf] && e[_ppf].ProjectTitle) || S.drillProjectDisplayName || '')}</td>
+      <td>${esc((e[_pf] && (e[_pf].Title)) || S.drillProjectDisplayName || '')}</td>
       <td class="ta-center">${num(e.HoursWorked)}</td>
       <td class="ta-center">${num(e.TravelHours)}</td>
       <td class="ta-right">${money(e.StaffCost)}</td>
@@ -1345,12 +1612,10 @@ function _renderEmployeeEntries() {
     </tr>`).join('')
     : `<tr><td colspan="5" class="ta-center" style="padding:14px;color:var(--muted);">No expenses</td></tr>`;
 
-  const backFn = isPipe ? `viewPipelineDetail(${S.drillProjectId})` : `viewProjectDetail(${S.drillProjectId})`;
-
   render(`
     <div class="hdr">
       <div class="hdr-left">
-        <button class="back-btn" onclick="${backFn}">← Back</button>
+        <button class="back-btn" onclick="viewProjectDetail(${S.drillProjectId})">← Back</button>
         <div>
           <div class="hdr-title" style="font-size:18px;">${esc(empName)} — TimeSink</div>
           <div class="hdr-sub">${esc(S.drillProjectDisplayName)}</div>
@@ -1416,413 +1681,92 @@ function kpi(label, val, color) {
 }
 
 /* ================================================================
-   PIPELINE SCREEN
-================================================================ */
-function viewPipeline() {
-  S.view = 'pipeline';
-  _renderPipeline();
-}
-
-function _renderPipeline() {
-  const total = S.pipeline.length;
-  const totalVal = S.pipeline.reduce((a,p) => a + (p.ExpectedValue||0), 0);
-  const weighted = S.pipeline.reduce((a,p) => a + (p.ExpectedValue||0) * ((p.Probability||0)/100), 0);
-  const avgProb = total ? S.pipeline.reduce((a,p) => a + (p.Probability||0), 0) / total : 0;
-  const sunkHours = S.timeEntries
-    .filter(t => t.ProjectType?.Value === 'Pipeline Project' || t.ProjectType === 'Pipeline Project')
-    .reduce((a,t) => a + (t.HoursWorked||0) + (t.TravelHours||0), 0);
-
-  const rows = S.pipeline.map(p => {
-    const st = p.Status?.Value || p.Status || '';
-    const bookedHours = sumHours(teForPipeline(p.ID));
-
-    return `<tr>
-      <td class="clickable" onclick="viewPipelineDetail(${p.ID})" style="cursor:pointer;">
-        <div style="font-weight:600;font-size:12px;">${esc(p.DisplayName)}</div>
-      </td>
-      <td>
-        <select class="inline-select" onchange="updatePipelineStatus(${p.ID},this.value)">
-          ${statusOpts(CFG.pipelineStatuses, st)}
-        </select>
-      </td>
-      <td class="ta-right nowrap">${money(p.ExpectedValue)}</td>
-      <td class="ta-center">${esc(p.Owner || '—')}</td>
-      <td class="ta-center">${p.Probability != null ? p.Probability + '%' : '—'}</td>
-      <td class="ta-center">${num(bookedHours)}</td>
-      <td style="font-size:11px;color:var(--muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(p.Notes||'')}">${esc(p.Notes||'')}</td>
-    </tr>`;
-  }).join('');
-
-  render(`
-    <div class="hdr">
-      <div class="hdr-left">
-        <button class="back-btn" onclick="viewHome()">← Back</button>
-        <div>
-          <div class="hdr-title">Project Pipeline</div>
-          <div class="hdr-sub">Track and manage potential projects</div>
-        </div>
-      </div>
-      <div class="hdr-right">
-        <button class="btn-ghost" onclick="viewAddProject()">+ Add Project</button>
-        <span class="user-chip">${esc(S.currentUser?.displayName||'')}</span>
-      </div>
-    </div>
-    <div class="main">
-      <div class="kpi-row">
-        <div class="kpi-card-static">
-          <div class="kpi-label">Total Pipeline</div>
-          <div class="kpi-val" style="color:var(--blue)">${total}</div>
-        </div>
-        <div class="kpi-card-static">
-          <div class="kpi-label">Total Value</div>
-          <div class="kpi-val" style="color:var(--green)">${money(totalVal)}</div>
-        </div>
-        <div class="kpi-card-static">
-          <div class="kpi-label">Weighted Value</div>
-          <div class="kpi-val" style="color:var(--violet)">${money(Math.round(weighted))}</div>
-        </div>
-        <div class="kpi-card-static">
-          <div class="kpi-label">Avg Probability</div>
-          <div class="kpi-val" style="color:var(--orange)">${Math.round(avgProb)}%</div>
-        </div>
-        <div class="kpi-card-static">
-          <div class="kpi-label">Sunk Hours</div>
-          <div class="kpi-val" style="color:var(--orange)">${num(sunkHours)}</div>
-        </div>
-      </div>
-      <div class="tbl-wrap">
-        <table class="data-table">
-          <thead><tr>
-            <th style="min-width:220px;text-align:left;">Project</th>
-            <th style="width:160px;">Status</th>
-            <th style="width:100px;text-align:right;">Value</th>
-            <th style="width:140px;">Owner / PM</th>
-            <th style="width:90px;">Probability</th>
-            <th style="width:90px;">Sunk Hrs</th>
-            <th>Notes</th>
-          </tr></thead>
-          <tbody>${rows || '<tr><td colspan="7" class="ta-center" style="padding:20px;color:var(--muted);">No pipeline projects</td></tr>'}</tbody>
-        </table>
-      </div>
-    </div>
-  `);
-}
-
-async function updatePipelineStatus(projId, newStatus) {
-  try {
-    await spPatch(listItem(CFG.lists.pipelineProjects, projId), {
-      StatusId: null,
-      Status: { Value: newStatus }
-    });
-    const p = S.pipeline.find(x => x.ID === projId);
-    if (p) { if (p.Status?.Value !== undefined) p.Status.Value = newStatus; else p.Status = newStatus; }
-    toast('Status updated');
-  } catch(e) { toast('Update failed: ' + e.message, 'err'); }
-}
-
-/* ================================================================
-   PIPELINE DETAIL SCREEN
-================================================================ */
-function viewPipelineDetail(projId) {
-  const p = S.pipeline.find(x => x.ID === projId);
-  if (!p) return;
-  S.selectedPipeline = p;
-  S.view = 'pipelineDetail';
-  _renderPipelineDetail();
-}
-
-function _renderPipelineDetail() {
-  const p = S.selectedPipeline;
-  const te = teForPipeline(p.ID);
-  const exps = expForProject(p.DisplayName);
-  const hoursBooked = sumHours(te);
-  const staffCost = sumStaff(te);
-  const commercial = sumCommercial(te);
-  const totalExp = sumExpenses(exps);
-  const empRows = groupByEmployee(te);
-  const st = p.Status?.Value || p.Status || '';
-
-  const empTableRows = empRows.map(e => {
-    const empExps = sumExpenses(expForEmployee(p.DisplayName, e.name));
-    return `<tr class="clickable" onclick="viewEmployeeEntries(${p.ID},'${esc(p.ProjectTitle)}','${esc(p.DisplayName)}','${esc(e.name)}',true)">
-      <td>${esc(e.name)}</td>
-      <td class="ta-center">${num(e.hours)}</td>
-      <td class="ta-center">${num(e.travel)}</td>
-      <td class="ta-right">${moneyDec(empExps)}</td>
-      <td class="ta-right">${money(e.staffCost)}</td>
-      <td class="ta-right">${money(e.commercialCost)}</td>
-    </tr>`;
-  }).join('');
-
-  render(`
-    <div class="hdr">
-      <div class="hdr-left">
-        <button class="back-btn" onclick="viewPipeline()">← Back</button>
-        <div>
-          <div class="hdr-title" style="font-size:18px;">${esc(p.DisplayName)} — Project Summary</div>
-          <div class="hdr-sub"><span style="color:rgba(219,234,254,0.9)">${esc(st)}</span></div>
-        </div>
-      </div>
-      <div class="hdr-right" style="gap:10px;">
-        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);padding:6px 12px;font-family:'Courier New',monospace;font-size:11px;color:#BFDBFE;">
-          <div style="font-size:10px;opacity:0.7;margin-bottom:2px;">EXP. START</div>
-          <div>${ukDate(p.ExpectedStart)}</div>
-        </div>
-        <div style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);padding:6px 12px;font-family:'Courier New',monospace;font-size:11px;color:#BFDBFE;">
-          <div style="font-size:10px;opacity:0.7;margin-bottom:2px;">EXP. VALUE</div>
-          <div>${money(p.ExpectedValue)}</div>
-        </div>
-        <button class="btn-ghost" onclick="savePipelineNotes(${p.ID})">💾 Save Notes</button>
-        <button class="btn-ghost" onclick="viewEditPipeline(${p.ID})">✏️ Edit</button>
-        <button style="background:#16a34a;border:none;color:#fff;padding:7px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;letter-spacing:0.3px;" onclick="showPromoteModal(${p.ID})">🚀 Promote to Live Project</button>
-        <span class="user-chip">${esc(S.currentUser?.displayName||'')}</span>
-      </div>
-    </div>
-    <div class="main">
-      <div class="detail-kpi-row">
-        <div class="detail-kpi">
-          <div class="detail-kpi-label">Hours Booked</div>
-          <div class="detail-kpi-val" style="color:var(--orange)">${num(hoursBooked)}</div>
-        </div>
-        <div class="detail-kpi">
-          <div class="detail-kpi-label">Total Expenses</div>
-          <div class="detail-kpi-val" style="color:var(--indigo)">${moneyDec(totalExp)}</div>
-        </div>
-        <div class="detail-kpi">
-          <div class="detail-kpi-label">Cost Rate</div>
-          <div class="detail-kpi-val" style="color:var(--indigo)">${moneyDec(staffCost)}</div>
-        </div>
-        <div class="detail-kpi">
-          <div class="detail-kpi-label">Charge Rate</div>
-          <div class="detail-kpi-val" style="color:var(--indigo)">${moneyDec(commercial)}</div>
-        </div>
-        <div class="detail-kpi">
-          <div class="detail-kpi-label">Probability</div>
-          <div class="detail-kpi-val" style="color:var(--violet)">${p.Probability != null ? p.Probability + '%' : '—'}</div>
-        </div>
-      </div>
-
-      <div class="section-hd">Team Breakdown</div>
-      <div class="tbl-wrap">
-        <table class="data-table">
-          <thead><tr>
-            <th style="text-align:left;">Name</th>
-            <th style="width:80px;">Hours</th>
-            <th style="width:80px;">Travel</th>
-            <th style="width:110px;">Expenses</th>
-            <th style="width:110px;">Staff Rate</th>
-            <th style="width:120px;">Commercial Rate</th>
-          </tr></thead>
-          <tbody>${empTableRows || '<tr><td colspan="6" class="ta-center" style="padding:14px;color:var(--muted);">No time entries</td></tr>'}</tbody>
-        </table>
-      </div>
-
-      <div class="notes-wrap" style="margin-top:16px;">
-        <div class="notes-label">Updates</div>
-        <textarea id="pipelineNotes" class="notes-textarea" placeholder="Add project notes here…">${esc(p.Notes||'')}</textarea>
-      </div>
-    </div>
-  `);
-}
-
-async function savePipelineNotes(projId) {
-  try {
-    const notes = document.getElementById('pipelineNotes')?.value || '';
-    await spPatch(listItem(CFG.lists.pipelineProjects, projId), { Notes: notes });
-    const p = S.pipeline.find(x => x.ID === projId);
-    if (p) p.Notes = notes;
-    toast('Notes saved');
-  } catch(e) { toast('Save failed: ' + e.message, 'err'); }
-}
-
-/* ================================================================
-   PROMOTE PIPELINE → LIVE PROJECT
-================================================================ */
-function showPromoteModal(projId) {
-  const p = S.pipeline.find(x => x.ID === projId);
-  if (!p) return;
-
-  // Remove any existing modal
-  const existing = document.getElementById('promoteModal');
-  if (existing) existing.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'promoteModal';
-  modal.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;
-    display:flex;align-items:center;justify-content:center;
-  `;
-  modal.innerHTML = `
-    <div style="background:#1e293b;border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:28px 32px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-      <div style="font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:6px;">🚀 Promote to Live Project</div>
-      <div style="font-size:13px;color:#94a3b8;margin-bottom:20px;">
-        This will create a new entry in the <strong style="color:#bfdbfe;">Projects</strong> list and remove
-        <strong style="color:#bfdbfe;">${esc(p.DisplayName)}</strong> from the Pipeline.
-        All time entries and expenses already booked will remain linked.
-      </div>
-
-      <div style="display:grid;gap:12px;margin-bottom:20px;">
-        <div>
-          <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px;">PO VALUE (£)</label>
-          <input id="pm_poValue" type="number" min="0" step="0.01"
-            style="width:100%;background:#0f172a;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:8px 10px;color:#f1f5f9;font-size:13px;box-sizing:border-box;"
-            placeholder="e.g. 25000" />
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div>
-            <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px;">START DATE</label>
-            <input id="pm_startDate" type="date"
-              style="width:100%;background:#0f172a;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:8px 10px;color:#f1f5f9;font-size:13px;box-sizing:border-box;"
-              value="${(p.ExpectedStart||'').slice(0,10)}" />
-          </div>
-          <div>
-            <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px;">END DATE</label>
-            <input id="pm_endDate" type="date"
-              style="width:100%;background:#0f172a;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:8px 10px;color:#f1f5f9;font-size:13px;box-sizing:border-box;" />
-          </div>
-        </div>
-        <div>
-          <label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px;">PLANNED HOURS</label>
-          <input id="pm_plannedHours" type="number" min="0" step="1"
-            style="width:100%;background:#0f172a;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:8px 10px;color:#f1f5f9;font-size:13px;box-sizing:border-box;"
-            placeholder="e.g. 120" />
-        </div>
-      </div>
-
-      <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button onclick="document.getElementById('promoteModal').remove()"
-          style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:#94a3b8;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:13px;">
-          Cancel
-        </button>
-        <button onclick="confirmPromote(${projId})"
-          style="background:#2563eb;border:none;color:#fff;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">
-          ✓ Promote &amp; Remove from Pipeline
-        </button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  // Close on backdrop click
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-}
-
-async function confirmPromote(projId) {
-  const p = S.pipeline.find(x => x.ID === projId);
-  if (!p) return;
-
-  const poValue     = parseFloat(document.getElementById('pm_poValue')?.value) || null;
-  const startDate   = document.getElementById('pm_startDate')?.value || null;
-  const endDate     = document.getElementById('pm_endDate')?.value || null;
-  const plannedHrs  = parseFloat(document.getElementById('pm_plannedHours')?.value) || null;
-
-  // Close modal and show spinner
-  document.getElementById('promoteModal')?.remove();
-  toast('Promoting project…', 'ok');
-
-  try {
-    // 1. Create item in Projects list
-    const newProjectBody = {
-      Title:              p.Company || p.Title,
-      Company:            p.Company || p.Title,
-      ProjectTitle0:      p.ProjectTitle || '',
-      DisplayName:        p.DisplayName || '',
-      Status:             'Live',
-      Notes:              p.Notes || '',
-      SourcePipelineId:   String(projId),
-      SourcePipelineName: p.DisplayName || '',
-      ...(poValue    !== null && { POValue: poValue }),
-      ...(startDate  && { StartDate: startDate }),
-      ...(endDate    && { EndDate: endDate }),
-      ...(plannedHrs !== null && { PlannedHours: plannedHrs }),
-    };
-
-    await spPost(listItems(CFG.lists.projects), newProjectBody);
-
-    // 2. Delete the pipeline item
-    await spDelete(listItem(CFG.lists.pipelineProjects, projId));
-
-    // 3. Update local state — remove from pipeline array
-    S.pipeline = S.pipeline.filter(x => x.ID !== projId);
-    S.selectedPipeline = null;
-
-    toast(`✅ "${p.DisplayName}" promoted to Live Project and removed from Pipeline.`);
-
-    // Reload all data so Projects list reflects the new item
-    await loadAll();
-    viewPipeline();
-
-  } catch(e) {
-    toast('Promote failed: ' + e.message, 'err');
-  }
-}
-
-/* ================================================================
    ADD PROJECT SCREEN
 ================================================================ */
 function viewAddProject() {
   S.view = 'addProject';
+  clearHash();
   render(`
     <div class="hdr">
       <div class="hdr-left">
         <button class="back-btn" onclick="viewHome()">← Back</button>
         <div>
           <div class="hdr-title">Add New Project</div>
-          <div class="hdr-sub">Create a new pipeline project</div>
+          <div class="hdr-sub">Create a new project</div>
         </div>
       </div>
     </div>
     <div class="main">
       <div class="form-grid">
         <div class="form-field">
-          <label>Company / Project Name</label>
+          <label>Company</label>
           <input type="text" id="f_company" placeholder="Company name">
         </div>
         <div class="form-field">
-          <label>Project Title</label>
+          <label>Project Title / Contract</label>
           <input type="text" id="f_projectTitle" placeholder="Project title">
         </div>
         <div class="form-field">
           <label>Project Number</label>
-          <input type="text" id="f_projectNumber" placeholder="e.g. NUC-2025-001">
+          <input type="text" id="f_projectNumber" placeholder="e.g. F4N001">
         </div>
         <div class="form-field">
-          <label>Status</label>
-          <select id="f_status">
-            ${CFG.pipelineStatuses.map(s => `<option>${esc(s)}</option>`).join('')}
+          <label>Stage</label>
+          <select id="f_stage">
+            ${CFG.stageChoices.map(s => `<option ${s==='Engagement'?'selected':''}>${esc(s)}</option>`).join('')}
           </select>
-        </div>
-        <div class="form-field">
-          <label>Expected Value (£)</label>
-          <input type="number" id="f_value" placeholder="0">
-        </div>
-        <div class="form-field">
-          <label>Probability (%)</label>
-          <input type="number" id="f_probability" placeholder="0" min="0" max="100">
-        </div>
-        <div class="form-field">
-          <label>Expected Start Date</label>
-          <input type="date" id="f_startDate">
-        </div>
-        <div class="form-field">
-          <label>Owner / PM</label>
-          <select id="f_owner">
-            <option value="">— Select owner —</option>
-            ${CFG.owners.map(o => `<option>${esc(o)}</option>`).join('')}
-          </select>
-        </div>
-        <div class="form-field">
-          <label>Contact</label>
-          <input type="text" id="f_contact" placeholder="Client contact name">
         </div>
         <div class="form-field">
           <label>Category</label>
           <select id="f_category">
             <option value="">— Select category —</option>
+            ${CFG.categoryChoices.map(c => `<option>${esc(c)}</option>`).join('')}
           </select>
         </div>
+        <div class="form-field">
+          <label>Strategic / Tactical</label>
+          <select id="f_st">
+            <option value="">—</option>
+            ${CFG.stChoices.map(s => `<option>${esc(s)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Priority</label>
+          <select id="f_priority">
+            <option value="">—</option>
+            ${CFG.priorityChoices.map(p => `<option>${esc(p)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Programme</label>
+          <input type="text" id="f_programme" list="programmeList" value="F4N">
+          <datalist id="programmeList">
+            ${programmeOptions().map(o => `<option value="${esc(o)}">`).join('')}
+          </datalist>
+        </div>
+        <div class="form-field">
+          <label>PO Value (£)</label>
+          <input type="number" id="f_value" placeholder="0">
+        </div>
+        <div class="form-field">
+          <label>Planned Hours</label>
+          <input type="number" id="f_plannedHours" placeholder="0">
+        </div>
+        <div class="form-field">
+          <label>Start Date</label>
+          <input type="date" id="f_startDate">
+        </div>
+        <div class="form-field">
+          <label>End Date</label>
+          <input type="date" id="f_endDate">
+        </div>
+        <div class="form-field">
+          <label>Contact</label>
+          <input type="text" id="f_contact" placeholder="Client contact name">
+        </div>
         <div class="form-field form-field-full">
-          <label>Notes</label>
-          <textarea id="f_notes" style="min-height:120px;" placeholder="Project notes, context, background…"></textarea>
+          <label>First Action Log Entry (optional)</label>
+          <textarea id="f_logentry" style="min-height:100px;" placeholder="Any context or background to start the log…"></textarea>
         </div>
       </div>
       <div class="form-actions">
@@ -1831,193 +1775,52 @@ function viewAddProject() {
       </div>
     </div>
   `);
-  // Load category choices dynamically
-  loadPipelineCategories();
-}
-
-async function loadPipelineCategories() {
-  try {
-    const sel = document.getElementById('f_category');
-    if (!sel) return;
-    // PipelineProjects uses InternalName 'Category' (not Category0)
-    const ch = await spGet(`web/lists/getbytitle('${encodeURIComponent(CFG.lists.pipelineProjects)}')/fields?$filter=InternalName eq 'Category'&$select=Choices`);
-    const choices = ch.value?.[0]?.Choices || [];
-    if (!choices.length) {
-      // Fallback: fetch all choice fields and find Category by title
-      const all = await spGet(`web/lists/getbytitle('${encodeURIComponent(CFG.lists.pipelineProjects)}')/fields?$filter=TypeAsString eq 'Choice' and Title eq 'Category'&$select=Choices`);
-      const fallbackChoices = all.value?.[0]?.Choices || [];
-      fallbackChoices.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
-    } else {
-      choices.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
-    }
-  } catch(e) { console.warn('Could not load category choices:', e); }
 }
 
 async function submitNewProject() {
   const company = document.getElementById('f_company')?.value?.trim();
-  const projectTitle = document.getElementById('f_projectTitle')?.value?.trim();
-  if (!company) { toast('Company / Project Name is required', 'err'); return; }
+  if (!company) { toast('Company is required', 'err'); return; }
+  const projectTitle = document.getElementById('f_projectTitle')?.value?.trim() || '';
+  const logText = document.getElementById('f_logentry')?.value?.trim();
 
   const body = {
-    Company_x002f_ProjectName: company,
-    ProjectTitle: projectTitle || company,
-    ProjectNumber: document.getElementById('f_projectNumber')?.value?.trim() || null,
-    Status: document.getElementById('f_status')?.value || 'Lead',
-    ExpectedValue: parseFloat(document.getElementById('f_value')?.value) || null,
-    Probability: parseInt(document.getElementById('f_probability')?.value) || null,
-    ExpectedStart: document.getElementById('f_startDate')?.value || null,
-    Notes: document.getElementById('f_notes')?.value?.trim() || null,
-    Contact: document.getElementById('f_contact')?.value?.trim() || null
+    Company:            company,
+    ProjectTitle0:      projectTitle,
+    ProjectNumber:      document.getElementById('f_projectNumber')?.value?.trim() || null,
+    Stage:              document.getElementById('f_stage')?.value || 'Engagement',
+    Category:           document.getElementById('f_category')?.value || null,
+    StrategicTactical:  document.getElementById('f_st')?.value || null,
+    Priority:           document.getElementById('f_priority')?.value || null,
+    Programme:          document.getElementById('f_programme')?.value?.trim() || null,
+    POValue:            parseFloat(document.getElementById('f_value')?.value) || null,
+    PlannedHours:       parseFloat(document.getElementById('f_plannedHours')?.value) || null,
+    StartDate:          document.getElementById('f_startDate')?.value || null,
+    EndDate:            document.getElementById('f_endDate')?.value || null,
+    Contact:            document.getElementById('f_contact')?.value?.trim() || null,
+    ActionLogEntries:   logText ? prependActionLog('', logText, initialsOf(S.currentUser?.displayName)) : null
   };
 
-  const ownerVal = document.getElementById('f_owner')?.value;
-  if (ownerVal) body['Owner_x002f_PM'] = ownerVal;
-  const catVal = document.getElementById('f_category')?.value;
-  if (catVal) body.Category = catVal;
-
   try {
-    const created = await spPost(listItems(CFG.lists.pipelineProjects), body);
-    // Add to local state
-    S.pipeline.push({
+    const created = await spPost(listItems(CFG.lists.projects), body);
+    S.projects.push({
       ...body,
       ID: created.ID || created.Id,
-      DisplayName: company,
-      Company: company
+      ProjectTitle: projectTitle,
+      DisplayName: projectTitle ? `${company}-${projectTitle}` : company,
+      POValue: body.POValue || 0,
+      PlannedHours: body.PlannedHours || 0
     });
     toast('Project added successfully!');
-    viewPipeline();
+    viewProjectOverview();
   } catch(e) { toast('Error saving project: ' + e.message, 'err'); }
 }
 
-
 /* ================================================================
-   EDIT PIPELINE PROJECT
-================================================================ */
-function viewEditPipeline(projId) {
-  const p = S.pipeline.find(x => x.ID === projId);
-  if (!p) return;
-  S.editTarget = { type: 'pipeline', id: projId };
-  const st = p.Status?.Value || p.Status || 'Lead';
-  const cat = p.Category?.Value || p.Category || '';
-  render(`
-    <div class="hdr">
-      <div class="hdr-left">
-        <button class="back-btn" onclick="viewPipelineDetail(${projId})">← Back</button>
-        <div>
-          <div class="hdr-title">Edit Pipeline Project</div>
-          <div class="hdr-sub">${esc(p.DisplayName)}</div>
-        </div>
-      </div>
-    </div>
-    <div class="main">
-      <div class="form-grid">
-        <div class="form-field">
-          <label>Company / Project Name</label>
-          <input type="text" id="f_company" value="${esc(p.Company||'')}">
-        </div>
-        <div class="form-field">
-          <label>Project Title</label>
-          <input type="text" id="f_projectTitle" value="${esc(p.ProjectTitle||'')}">
-        </div>
-        <div class="form-field">
-          <label>Project Number</label>
-          <input type="text" id="f_projectNumber" value="${esc(p.ProjectNumber||'')}">
-        </div>
-        <div class="form-field">
-          <label>Status</label>
-          <select id="f_status">
-            ${CFG.pipelineStatuses.map(s => `<option value="${esc(s)}" ${s===st?'selected':''}>${esc(s)}</option>`).join('')}
-          </select>
-        </div>
-        <div class="form-field">
-          <label>Expected Value (£)</label>
-          <input type="number" id="f_value" value="${p.ExpectedValue||''}">
-        </div>
-        <div class="form-field">
-          <label>Probability (%)</label>
-          <input type="number" id="f_probability" min="0" max="100" value="${p.Probability!=null?p.Probability:''}">
-        </div>
-        <div class="form-field">
-          <label>Expected Start Date</label>
-          <input type="date" id="f_startDate" value="${(p.ExpectedStart||'').slice(0,10)}">
-        </div>
-        <div class="form-field">
-          <label>Owner / PM</label>
-          <select id="f_owner">
-            <option value="">— Select owner —</option>
-            ${CFG.owners.map(o => `<option value="${esc(o)}" ${o===(p.Owner||'')?'selected':''}>${esc(o)}</option>`).join('')}
-          </select>
-        </div>
-        <div class="form-field">
-          <label>Contact</label>
-          <input type="text" id="f_contact" value="${esc(p.Contact||'')}">
-        </div>
-        <div class="form-field">
-          <label>Category</label>
-          <select id="f_category">
-            <option value="">— Select category —</option>
-          </select>
-        </div>
-        <div class="form-field form-field-full">
-          <label>Notes</label>
-          <textarea id="f_notes" style="min-height:120px;">${esc(p.Notes||'')}</textarea>
-        </div>
-      </div>
-      <div class="form-actions">
-        <button class="btn" onclick="saveEditPipeline(${projId})">💾 Save Changes</button>
-        <button class="btn" style="background:var(--muted);border-color:var(--muted);" onclick="viewPipelineDetail(${projId})">Cancel</button>
-      </div>
-    </div>
-  `);
-  loadPipelineCategories().then(() => {
-    const sel = document.getElementById('f_category');
-    if (sel && cat) sel.value = cat;
-  });
-}
-
-async function saveEditPipeline(projId) {
-  const company = document.getElementById('f_company')?.value?.trim();
-  if (!company) { toast('Company / Project Name is required', 'err'); return; }
-  const body = {
-    Company_x002f_ProjectName: company,
-    ProjectTitle:  document.getElementById('f_projectTitle')?.value?.trim() || company,
-    ProjectNumber: document.getElementById('f_projectNumber')?.value?.trim() || null,
-    Status:        document.getElementById('f_status')?.value || 'Lead',
-    ExpectedValue: parseFloat(document.getElementById('f_value')?.value) || null,
-    Probability:   parseInt(document.getElementById('f_probability')?.value) || null,
-    ExpectedStart: document.getElementById('f_startDate')?.value || null,
-    Notes:         document.getElementById('f_notes')?.value?.trim() || null,
-    Contact:       document.getElementById('f_contact')?.value?.trim() || null,
-    'Owner_x002f_PM': document.getElementById('f_owner')?.value || null,
-    Category:      document.getElementById('f_category')?.value || null,
-  };
-  try {
-    await spPatch(listItem(CFG.lists.pipelineProjects, projId), body);
-    // Update local state
-    const p = S.pipeline.find(x => x.ID === projId);
-    if (p) {
-      Object.assign(p, {
-        Company: company, ProjectTitle: body.ProjectTitle,
-        DisplayName: body.ProjectTitle ? `${company} — ${body.ProjectTitle}` : company,
-        Status: body.Status, ExpectedValue: body.ExpectedValue||0,
-        Probability: body.Probability, ExpectedStart: body.ExpectedStart,
-        Notes: body.Notes, Contact: body.Contact,
-        Owner: body['Owner_x002f_PM']||'', Category: body.Category
-      });
-      S.selectedPipeline = p;
-    }
-    toast('Pipeline project updated');
-    viewPipelineDetail(projId);
-  } catch(e) { toast('Save failed: ' + e.message, 'err'); }
-}
-
-/* ================================================================
-   EDIT ACTIVE PROJECT
+   EDIT PROJECT
 ================================================================ */
 function viewEditProject(projId) {
   const p = S.projects.find(x => x.ID === projId);
   if (!p) return;
-  const st = p.Status?.Value || p.Status || 'Live';
   render(`
     <div class="hdr">
       <div class="hdr-left">
@@ -2035,18 +1838,54 @@ function viewEditProject(projId) {
           <input type="text" id="ep_company" value="${esc(p.Company||'')}">
         </div>
         <div class="form-field">
-          <label>Project Title</label>
+          <label>Project Title / Contract</label>
           <input type="text" id="ep_projectTitle" value="${esc(p.ProjectTitle||'')}">
+        </div>
+        <div class="form-field">
+          <label>Project Number</label>
+          <input type="text" id="ep_projectNumber" value="${esc(p.ProjectNumber||'')}">
+        </div>
+        <div class="form-field">
+          <label>Stage</label>
+          <select id="ep_stage">
+            ${statusOpts(CFG.stageChoices, p.Stage)}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Category</label>
+          <select id="ep_category">
+            <option value="">— Select category —</option>
+            ${statusOpts(CFG.categoryChoices, p.Category)}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Strategic / Tactical</label>
+          <select id="ep_st">
+            <option value="">—</option>
+            ${statusOpts(CFG.stChoices, p.StrategicTactical)}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Priority</label>
+          <select id="ep_priority">
+            <option value="">—</option>
+            ${statusOpts(CFG.priorityChoices, p.Priority)}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Programme</label>
+          <input type="text" id="ep_programme" list="programmeList" value="${esc(p.Programme||'')}">
+          <datalist id="programmeList">
+            ${programmeOptions().map(o => `<option value="${esc(o)}">`).join('')}
+          </datalist>
         </div>
         <div class="form-field">
           <label>PO Value (£)</label>
           <input type="number" id="ep_poValue" value="${p.POValue||''}">
         </div>
         <div class="form-field">
-          <label>Status</label>
-          <select id="ep_status">
-            ${CFG.projectStatuses.map(s => `<option value="${esc(s)}" ${s===st?'selected':''}>${esc(s)}</option>`).join('')}
-          </select>
+          <label>Planned Hours</label>
+          <input type="number" id="ep_plannedHours" value="${p.PlannedHours||''}">
         </div>
         <div class="form-field">
           <label>Start Date</label>
@@ -2057,12 +1896,8 @@ function viewEditProject(projId) {
           <input type="date" id="ep_endDate" value="${(p.EndDate||'').slice(0,10)}">
         </div>
         <div class="form-field">
-          <label>Planned Hours</label>
-          <input type="number" id="ep_plannedHours" value="${p.PlannedHours||''}">
-        </div>
-        <div class="form-field form-field-full">
-          <label>Notes</label>
-          <textarea id="ep_notes" style="min-height:120px;">${esc(p.Notes||'')}</textarea>
+          <label>Contact</label>
+          <input type="text" id="ep_contact" value="${esc(p.Contact||'')}">
         </div>
       </div>
       <div class="form-actions">
@@ -2078,14 +1913,19 @@ async function saveEditProject(projId) {
   if (!company) { toast('Company is required', 'err'); return; }
   const projectTitle = document.getElementById('ep_projectTitle')?.value?.trim() || '';
   const body = {
-    Company:       company,
-    ProjectTitle0: projectTitle,
-    Status:        document.getElementById('ep_status')?.value || 'Live',
-    POValue:       parseFloat(document.getElementById('ep_poValue')?.value) || null,
-    StartDate:     document.getElementById('ep_startDate')?.value || null,
-    EndDate:       document.getElementById('ep_endDate')?.value || null,
-    PlannedHours:  parseFloat(document.getElementById('ep_plannedHours')?.value) || null,
-    Notes:         document.getElementById('ep_notes')?.value?.trim() || null,
+    Company:            company,
+    ProjectTitle0:      projectTitle,
+    ProjectNumber:      document.getElementById('ep_projectNumber')?.value?.trim() || null,
+    Stage:              document.getElementById('ep_stage')?.value || 'Engagement',
+    Category:           document.getElementById('ep_category')?.value || null,
+    StrategicTactical:  document.getElementById('ep_st')?.value || null,
+    Priority:           document.getElementById('ep_priority')?.value || null,
+    Programme:          document.getElementById('ep_programme')?.value?.trim() || null,
+    POValue:            parseFloat(document.getElementById('ep_poValue')?.value) || null,
+    PlannedHours:       parseFloat(document.getElementById('ep_plannedHours')?.value) || null,
+    StartDate:          document.getElementById('ep_startDate')?.value || null,
+    EndDate:            document.getElementById('ep_endDate')?.value || null,
+    Contact:            document.getElementById('ep_contact')?.value?.trim() || null,
   };
   try {
     await spPatch(listItem(CFG.lists.projects, projId), body);
@@ -2094,9 +1934,10 @@ async function saveEditProject(projId) {
       Object.assign(p, {
         Company: company, ProjectTitle: projectTitle,
         DisplayName: projectTitle ? `${company}-${projectTitle}` : company,
-        Status: body.Status, POValue: body.POValue||0,
-        StartDate: body.StartDate, EndDate: body.EndDate,
-        PlannedHours: body.PlannedHours||0, Notes: body.Notes
+        ProjectNumber: body.ProjectNumber, Stage: body.Stage, Category: body.Category,
+        StrategicTactical: body.StrategicTactical, Priority: body.Priority, Programme: body.Programme,
+        POValue: body.POValue||0, PlannedHours: body.PlannedHours||0,
+        StartDate: body.StartDate, EndDate: body.EndDate, Contact: body.Contact
       });
       S.selectedProject = p;
     }
@@ -2122,10 +1963,10 @@ async function init() {
           btn.disabled = true;
           btn.textContent = 'Signing in…';
           try {
-            const result = await msalApp.loginPopup({ scopes: [CFG.scope], redirectUri: POPUP_REDIRECT_URI });
+            const result = await msalApp.loginPopup({ scopes: [CFG.scope] });
             msalApp.setActiveAccount(result.account);
             await loadAll();
-            viewHome();
+            openInitialView();
           } catch(err) {
             btn.disabled = false;
             btn.textContent = 'Sign in with Microsoft';
@@ -2138,19 +1979,31 @@ async function init() {
     }
     msalApp.setActiveAccount(accounts[0]);
     await loadAll();
-    viewHome();
+    openInitialView();
   } catch(e) {
     render(`
       <div class="loading">
-        <div style="color:var(--red);font-family:'Courier New',monospace;font-size:14px;text-align:center;max-width:500px;">
+        <div style="color:var(--red);font-family:'Barlow Condensed',sans-serif;font-size:14px;text-align:center;max-width:500px;">
           <strong>Error:</strong> ${esc(e.message)}<br><br>
           Check that tenantId, clientId, and siteUrl are configured correctly.
           <br><br>
-          <button onclick="init()" style="font-family:'Courier New',monospace;padding:8px 18px;cursor:pointer;background:var(--blue);color:#fff;border:2px solid var(--navy);font-weight:bold;">
+          <button onclick="init()" style="font-family:'Barlow Condensed',sans-serif;padding:8px 18px;cursor:pointer;background:var(--blue);color:#fff;border:2px solid var(--navy);font-weight:bold;">
             Retry
           </button>
         </div>
       </div>`);
+  }
+}
+
+// Deep-link support: ControlCentre.html#project-123 opens straight into
+// that project's detail page (once signed in). Falls back to Home if the
+// hash is missing, malformed, or the project can't be found.
+function openInitialView() {
+  const hashId = getProjectIdFromHash();
+  if (hashId && S.projects.some(p => p.ID === hashId)) {
+    viewProjectDetail(hashId);
+  } else {
+    viewHome();
   }
 }
 
