@@ -7,30 +7,20 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
-    body { font-family: 'Inter', system-ui, sans-serif; }
-    .title-font { font-family: 'Courier Prime', monospace; }
+    body { font-family:'Barlow',Arial,sans-serif; background:#edf3f8; color:#142132; }
+    .title-font { font-family:'Barlow Condensed'; }
 
-    /* ── Palette ── */
+    /* ── Palette (Frankie / SCC design system) ── */
     :root {
-      --navy:    #0f2d5e;
-      --blue:    #1d4ed8;
-      --blue-lt: #3b82f6;
-      --blue-bg: #eff6ff;
-      --blue-bd: #bfdbfe;
-      --surface: #ffffff;
-      --page:    #f1f5f9;
-      --border:  #e2e8f0;
-      --border2: #cbd5e1;
-      --text:    #0f172a;
-      --muted:   #64748b;
-      --muted2:  #94a3b8;
-      --hover:   #f8fafc;
-      --sel:     #eff6ff;
-      --green:   #16a34a;
-      --amber:   #d97706;
-      --red:     #dc2626;
+      --brand:#10243a; --accent:#26a9d8; --accent2:#1a86b0;
+      --ok:#087f5b; --warn:#9a5a00; --red:#c0392b; --red-bg:#fff0ee;
+      --line:#d8e2ec; --panel:#fff; --wash:#f7fbff;
+      --muted:#65758a; --ink:#142132;
+      --accent-bg:#eaf6fb; --accent-bd:#bfe3f2;
     }
 
     /* ── Layout ── */
@@ -40,43 +30,49 @@
     @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
     /* ── Sidebar nav ── */
-    .nav-item { border-left: 3px solid transparent; transition: background 0.12s; }
-    .nav-item.active { background: var(--blue-bg); border-left-color: var(--blue); }
-    .nav-item.active .nav-icon { color: var(--blue); }
-    .nav-item:hover:not(.active) { background: var(--page); }
+    .sidebar-nav-item { display:flex; align-items:center; gap:10px; padding:9px 14px; border-radius:6px;
+                        border-left:3px solid transparent; transition:background .12s,color .12s; color:#bfd3e6;
+                        cursor:pointer; text-decoration:none; width:100%; text-align:left; background:none; border-top:none;
+                        border-right:none; border-bottom:none; font-size:.85rem; font-weight:500; }
+    .sidebar-nav-item:hover:not(.active) { background: rgba(255,255,255,0.07); color:#fff; }
+    .sidebar-nav-item.active { background: rgba(38,169,216,0.16); border-left-color: var(--accent); color: var(--accent); }
+    .sidebar-nav-item i.nav-icon { width:16px; text-align:center; opacity:.75; color:inherit; }
+    .sidebar-nav-item.active i.nav-icon { opacity:1; color:var(--accent); }
 
     /* ── Table rows ── */
-    .row-hover:hover { background: var(--hover); cursor: pointer; }
-    .row-selected { background: var(--sel) !important; border-left: 3px solid var(--blue); }
+    .row-hover:hover { background: var(--wash); cursor: pointer; }
+    .row-selected { background: rgba(38,169,216,0.08) !important; border-left: 3px solid var(--accent); }
 
     /* ── Tabs ── */
-    .tab-active   { color: var(--blue); border-bottom: 2px solid var(--blue); font-weight: 600; }
-    .tab-inactive { color: var(--muted); border-bottom: 2px solid transparent; }
-    .tab-inactive:hover { color: var(--text); }
+    .tab-active   { color: var(--accent); border-bottom: 2px solid var(--accent); font-weight: 700;
+                    font-family:'Barlow Condensed'; text-transform:uppercase; letter-spacing:.05em; }
+    .tab-inactive { color: var(--muted); border-bottom: 2px solid transparent; font-weight: 700;
+                    font-family:'Barlow Condensed'; text-transform:uppercase; letter-spacing:.05em; }
+    .tab-inactive:hover { color: var(--ink); }
 
     /* ── Form inputs ── */
     input[type=text], input[type=email], input[type=tel],
     input[type=url], input[type=date], select, textarea {
-      background: var(--surface); border: 1px solid var(--border2);
-      color: var(--text); border-radius: 8px; padding: 7px 11px;
-      font-size: 13px; width: 100%; font-family: 'Inter', sans-serif; outline: none;
+      background: var(--wash); border: 1px solid var(--line);
+      color: var(--ink); border-radius: 6px; padding: 8px 12px;
+      font-size: 13px; width: 100%; font-family: 'Barlow', sans-serif; outline: none; transition:.15s;
     }
     input:focus, select:focus, textarea:focus {
-      border-color: var(--blue-lt); box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+      border-color: var(--accent); box-shadow: 0 0 0 3px rgba(38,169,216,0.14);
     }
     select option { background: white; }
 
     /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 
     /* ── Badge ── */
-    .badge { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px;
-             font-size: 11px; font-weight: 600; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px;
+             font-size: 11px; font-weight: 700; font-family:'Barlow Condensed'; text-transform:uppercase; letter-spacing:.04em; }
 
     /* ── Spinner ── */
-    .spinner { border: 2px solid var(--border); border-top: 2px solid var(--blue);
+    .spinner { border: 2px solid var(--line); border-top: 2px solid var(--accent);
                border-radius: 50%; width: 16px; height: 16px;
                animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -84,62 +80,89 @@
     /* ── Toast ── */
     #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999;
                        display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-    .toast { background: var(--surface); border: 1px solid var(--border2); border-radius: 10px;
+    .toast { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
              padding: 10px 16px; font-size: 13px; max-width: 340px; pointer-events: auto;
-             box-shadow: 0 4px 16px rgba(0,0,0,0.10); animation: slideIn 0.18s ease; }
+             box-shadow: 0 4px 16px rgba(16,36,58,0.14); animation: slideIn 0.18s ease; }
     @keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+    .toast.ok    { border-color:#bfe3d3; color:var(--ok); }
+    .toast.error { border-color:#f5c6c0; color:var(--red); }
+    .toast.warn  { border-color:#f5e0a8; color:var(--warn); }
 
     /* ── Column headers ── */
-    .col-header { background: var(--navy); color: #fff; padding: 6px 20px;
-                  font-size: 11px; font-family: 'Courier Prime', monospace;
-                  font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
-    .col-header-light { background: var(--blue-bg); border-bottom: 1px solid var(--blue-bd);
-                        padding: 6px 20px; font-size: 11px; font-family: 'Courier Prime', monospace;
-                        font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--navy); }
+    .col-header { background: var(--brand); color: #fff; padding: 8px 20px;
+                  font-size: 11px; font-family: 'Barlow Condensed';
+                  font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+    .col-header-light { background: var(--wash); border-bottom: 1px solid var(--line);
+                        padding: 8px 20px; font-size: 11px; font-family: 'Barlow Condensed';
+                        font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--brand); }
 
     /* ── Stat cards ── */
-    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-                 padding: 24px; text-align: center; }
-    .stat-num  { font-size: 2.5rem; font-weight: 700; font-family: 'Courier Prime', monospace; color: var(--navy); line-height: 1; }
-    .stat-lbl  { font-size: 12px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+                 padding: 22px; text-align: center; }
+    .stat-num  { font-size: 2.3rem; font-weight: 800; font-family: 'Barlow Condensed'; color: var(--accent); line-height: 1; }
+    .stat-lbl  { font-size: 11px; color: var(--muted); margin-top: 6px; text-transform: uppercase;
+                 letter-spacing: 0.08em; font-family:'Barlow Condensed'; font-weight:700; }
 
     /* ── Action cards ── */
-    .action-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-                   padding: 28px 20px; text-align: center; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
-    .action-card:hover { border-color: var(--blue); box-shadow: 0 4px 20px rgba(29,78,216,0.10); }
-    .action-icon { width: 52px; height: 52px; background: var(--blue-bg); border-radius: 14px;
+    .action-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+                   padding: 26px 20px; text-align: center; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+    .action-card:hover { border-color: var(--accent); box-shadow: 0 4px 20px rgba(38,169,216,0.14); }
+    .action-icon { width: 50px; height: 50px; background: var(--accent-bg); border-radius: 12px;
                    display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+
+    /* ── Buttons ── */
+    .btn { border:1px solid var(--line); background:var(--wash); color:#40566c; border-radius:6px;
+           padding:8px 16px; font-size:13px; font-weight:600; transition:.15s; cursor:pointer; }
+    .btn:hover { border-color:var(--accent); color:var(--accent); }
+    .btn.primary { background:var(--accent); color:var(--brand); border-color:var(--accent);
+                   font-family:'Barlow Condensed'; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .btn.primary:hover { background:var(--accent2); border-color:var(--accent2); }
+    .btn.dark { background:var(--brand); color:#fff; border-color:var(--brand);
+                font-family:'Barlow Condensed'; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .btn.dark:hover { background:#193756; }
+    .btn.danger { background:var(--red-bg); color:var(--red); border-color:#f5c6c0; }
+    .btn.danger:hover { background:#ffe0dd; }
+
+    /* ── Modals ── */
+    .modal-card { background: var(--panel); border-radius: 10px; box-shadow: 0 12px 40px rgba(16,36,58,0.28); }
+    .modal-head { background: var(--brand); padding: 16px 24px; display:flex; align-items:center; justify-content:space-between; }
+    .modal-head h3 { font-family:'Barlow Condensed'; font-size:1.15rem; font-weight:700; letter-spacing:.06em;
+                     text-transform:uppercase; color:#fff; }
+    .modal-close { color: rgba(255,255,255,0.6); font-size:1.5rem; line-height:1; }
+    .modal-close:hover { color:#fff; }
+    .field-label { display:block; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:5px;
+                   text-transform:uppercase; letter-spacing:.06em; font-family:'Barlow Condensed'; }
   </style>
 </head>
-<body class="h-full" style="background:var(--page);color:var(--text)">
+<body class="h-full" style="background:#edf3f8;color:var(--ink)">
 
 <!-- ── LOGIN ──────────────────────────────────────────────── -->
-<div id="login-screen" class="fixed inset-0 flex items-center justify-center z-50" style="background:var(--navy)">
+<div id="login-screen" class="fixed inset-0 flex items-center justify-center z-50" style="background:var(--brand)">
   <div class="text-center max-w-sm w-full px-8">
     <div class="flex items-center justify-center gap-4 mb-8">
       <div class="w-14 h-14 rounded-xl flex items-center justify-center font-bold text-2xl title-font text-white"
-           style="background:var(--blue)">R</div>
+           style="background:linear-gradient(135deg,#1d64a7,#2bb9e7)">R</div>
       <div class="text-left">
-        <div class="text-4xl font-bold title-font text-white tracking-tight">RoloDex</div>
-        <div class="text-sm mt-0.5" style="color:rgba(255,255,255,0.55)">NuCCoL — CRM</div>
+        <div class="text-4xl font-bold title-font text-white tracking-tight" style="letter-spacing:.04em">RoloDex</div>
+        <div class="text-sm mt-0.5" style="color:#a9c0d6">NuCCoL — CRM</div>
       </div>
     </div>
-    <div class="rounded-2xl p-8" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12)">
-      <p class="text-sm mb-6" style="color:rgba(255,255,255,0.5)">
+    <div class="rounded-2xl p-8" style="background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14)">
+      <p class="text-sm mb-6" style="color:#a9c0d6">
         Sign in with your NuCCoL Microsoft 365 account to continue.
       </p>
       <button id="btn-login"
-        class="w-full flex items-center justify-center gap-3 px-6 py-3.5 font-semibold rounded-xl transition-all text-sm"
-        style="background:white;color:#0f172a">
+        class="w-full flex items-center justify-center gap-3 px-6 py-3.5 rounded-xl transition-all text-sm"
+        style="background:var(--accent);color:var(--brand);font-family:'Barlow Condensed';font-weight:800;letter-spacing:.06em;text-transform:uppercase">
         <svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
           <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
           <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
         </svg>
         Sign in with Microsoft
       </button>
-      <div id="login-status" class="mt-5 text-xs min-h-[1.2rem]" style="color:rgba(255,255,255,0.4)"></div>
+      <div id="login-status" class="mt-5 text-xs min-h-[1.2rem]" style="color:#6a8aa6"></div>
     </div>
-    <div class="mt-5 text-xs" style="color:rgba(255,255,255,0.25)">
+    <div class="mt-5 text-xs" style="color:#5a7a96">
       Access restricted to authorised NuCCoL staff.<br>Data stored in SharePoint · Hosted on GitHub Pages.
     </div>
   </div>
@@ -149,15 +172,15 @@
 <div id="app" class="flex h-screen overflow-hidden" style="display:none!important">
 
   <!-- Sidebar -->
-  <div class="flex flex-col flex-shrink-0" style="width:220px;background:var(--surface);border-right:1px solid var(--border)">
+  <div class="flex flex-col flex-shrink-0" style="width:220px;background:var(--brand);color:#edf6ff">
     <!-- Brand -->
-    <div class="p-4" style="border-bottom:1px solid var(--border)">
+    <div class="p-4" style="border-bottom:1px solid rgba(255,255,255,0.12)">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center font-bold title-font text-base text-white flex-shrink-0"
-             style="background:var(--navy)">R</div>
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center font-bold title-font text-base text-white flex-shrink-0"
+             style="background:linear-gradient(135deg,#1d64a7,#2bb9e7)">R</div>
         <div>
-          <div class="font-bold title-font text-base leading-tight" style="color:var(--navy)">RoloDex</div>
-          <div class="text-xs" style="color:var(--muted2)">NuCCoL CRM</div>
+          <div class="font-bold title-font text-base leading-tight" style="letter-spacing:.05em;text-transform:uppercase;color:#fff">RoloDex</div>
+          <div class="text-xs" style="color:#a9c0d6">NuCCoL CRM</div>
         </div>
       </div>
     </div>
@@ -165,60 +188,58 @@
     <!-- Nav -->
     <nav class="flex-1 p-2 space-y-0.5">
       <button onclick="showScreen('home')" id="nav-home"
-        class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left active">
-        <i class="fa-solid fa-house nav-icon w-4 text-sm" style="color:var(--muted)"></i>
+        class="sidebar-nav-item active">
+        <i class="fa-solid fa-house nav-icon text-sm"></i>
         <span>Home</span>
       </button>
       <button onclick="showScreen('search')" id="nav-search"
-        class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left">
-        <i class="fa-solid fa-magnifying-glass nav-icon w-4 text-sm" style="color:var(--muted)"></i>
+        class="sidebar-nav-item">
+        <i class="fa-solid fa-magnifying-glass nav-icon text-sm"></i>
         <span>Search Firms</span>
       </button>
       <button onclick="openAddFirm(null)" id="nav-addfirm"
-        class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left">
-        <i class="fa-solid fa-building-circle-arrow-right nav-icon w-4 text-sm" style="color:var(--muted)"></i>
+        class="sidebar-nav-item">
+        <i class="fa-solid fa-building-circle-arrow-right nav-icon text-sm"></i>
         <span>Add New Firm</span>
       </button>
       <button onclick="showScreen('interactions')" id="nav-interactions"
-        class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left">
-        <i class="fa-solid fa-calendar-check nav-icon w-4 text-sm" style="color:var(--muted)"></i>
+        class="sidebar-nav-item">
+        <i class="fa-solid fa-calendar-check nav-icon text-sm"></i>
         <span>Interactions</span>
       </button>
-      <div class="pt-2 mt-2" style="border-top:1px solid var(--border)">
-        <a href="datavault.html"
-          class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left"
-          style="color:var(--muted);text-decoration:none">
-          <i class="fa-solid fa-database nav-icon w-4 text-sm" style="color:var(--muted)"></i>
+      <div class="pt-2 mt-2" style="border-top:1px solid rgba(255,255,255,0.12)">
+        <a href="datavault.html" class="sidebar-nav-item">
+          <i class="fa-solid fa-database nav-icon text-sm"></i>
           <span>DataVault</span>
-          <i class="fa-solid fa-arrow-up-right-from-square text-xs ml-auto" style="color:var(--muted2)"></i>
+          <i class="fa-solid fa-arrow-up-right-from-square text-xs ml-auto" style="opacity:.6"></i>
         </a>
       </div>
     </nav>
 
     <!-- User -->
-    <div class="p-3" style="border-top:1px solid var(--border)">
+    <div class="p-3" style="border-top:1px solid rgba(255,255,255,0.12)">
       <div class="flex items-center gap-2.5">
-        <div id="user-avatar" class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white flex-shrink-0"
-             style="background:var(--blue)">?</div>
+        <div id="user-avatar" class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 title-font"
+             style="background:linear-gradient(135deg,#1d64a7,#2bb9e7);color:var(--brand)">?</div>
         <div class="min-w-0 flex-1">
-          <div id="user-name" class="text-xs font-semibold truncate" style="color:var(--text)">—</div>
-          <div id="user-email" class="text-xs truncate" style="color:var(--muted2)">—</div>
+          <div id="user-name" class="text-xs font-semibold truncate" style="color:#edf6ff">—</div>
+          <div id="user-email" class="text-xs truncate" style="color:#a9c0d6">—</div>
         </div>
-        <button onclick="signOut()" title="Sign out" class="flex-shrink-0 text-xs p-1 rounded hover:bg-slate-100" style="color:var(--muted)">
+        <button onclick="signOut()" title="Sign out" class="flex-shrink-0 text-xs p-1 rounded" style="color:#6a8aa6">
           <i class="fa-solid fa-right-from-bracket"></i>
         </button>
       </div>
-      <div id="sp-status" class="mt-1.5 text-xs" style="color:var(--muted2)"></div>
+      <div id="sp-status" class="mt-1.5 text-xs" style="color:#6a8aa6"></div>
     </div>
   </div>
 
   <!-- Main content -->
-  <div class="flex-1 overflow-hidden flex flex-col">
+  <div class="flex-1 overflow-hidden flex flex-col" style="background:#edf3f8">
 
     <!-- ══ HOME SCREEN ══════════════════════════════════════ -->
     <div id="screen-home" class="flex-1 overflow-auto p-8 screen-fade">
       <div class="mb-7">
-        <h1 class="text-2xl font-bold title-font" style="color:var(--navy)">RoloDex</h1>
+        <h1 class="text-2xl font-bold title-font" style="color:var(--brand);letter-spacing:.04em;text-transform:uppercase">RoloDex</h1>
         <p class="text-sm mt-1" style="color:var(--muted)">Company &amp; Contact Management</p>
       </div>
 
@@ -241,18 +262,18 @@
       <!-- Quick actions -->
       <div class="grid grid-cols-3 gap-4 mb-8">
         <button onclick="showScreen('search')" class="action-card">
-          <div class="action-icon"><i class="fa-solid fa-magnifying-glass text-xl" style="color:var(--blue)"></i></div>
-          <div class="font-semibold text-sm mb-1" style="color:var(--text)">Search Firms</div>
+          <div class="action-icon"><i class="fa-solid fa-magnifying-glass text-xl" style="color:var(--accent)"></i></div>
+          <div class="font-semibold text-sm mb-1" style="color:var(--ink)">Search Firms</div>
           <div class="text-xs" style="color:var(--muted)">Find and manage companies and contacts</div>
         </button>
         <button onclick="openAddFirm(null)" class="action-card">
-          <div class="action-icon"><i class="fa-solid fa-building-circle-arrow-right text-xl" style="color:var(--blue)"></i></div>
-          <div class="font-semibold text-sm mb-1" style="color:var(--text)">Add New Firm</div>
+          <div class="action-icon"><i class="fa-solid fa-building-circle-arrow-right text-xl" style="color:var(--accent)"></i></div>
+          <div class="font-semibold text-sm mb-1" style="color:var(--ink)">Add New Firm</div>
           <div class="text-xs" style="color:var(--muted)">Register a new company</div>
         </button>
         <button onclick="showScreen('search')" class="action-card">
-          <div class="action-icon"><i class="fa-solid fa-comments text-xl" style="color:var(--blue)"></i></div>
-          <div class="font-semibold text-sm mb-1" style="color:var(--text)">Log Interaction</div>
+          <div class="action-icon"><i class="fa-solid fa-comments text-xl" style="color:var(--accent)"></i></div>
+          <div class="font-semibold text-sm mb-1" style="color:var(--ink)">Log Interaction</div>
           <div class="text-xs" style="color:var(--muted)">Search for a company first, then log</div>
         </button>
       </div>
@@ -260,11 +281,11 @@
       <!-- Recent interactions -->
       <div>
         <div class="flex items-center justify-between mb-3">
-          <h2 class="font-semibold text-sm" style="color:var(--text)">Recent Interactions</h2>
-          <button onclick="showScreen('interactions')" class="text-xs font-medium hover:underline" style="color:var(--blue)">View all →</button>
+          <h2 class="font-semibold text-sm title-font" style="color:var(--ink);text-transform:uppercase;letter-spacing:.04em">Recent Interactions</h2>
+          <button onclick="showScreen('interactions')" class="text-xs font-semibold hover:underline" style="color:var(--accent)">View all →</button>
         </div>
-        <div id="home-recent-interactions" class="rounded-xl overflow-hidden"
-             style="background:var(--surface);border:1px solid var(--border)">
+        <div id="home-recent-interactions" class="rounded-lg overflow-hidden"
+             style="background:var(--panel);border:1px solid var(--line)">
           <div class="text-sm text-center py-8" style="color:var(--muted)">Loading...</div>
         </div>
       </div>
@@ -274,7 +295,7 @@
     <div id="screen-search" class="hidden flex-1 overflow-hidden flex flex-col screen-fade">
       <!-- Toolbar -->
       <div class="px-5 py-3 flex items-center gap-3 flex-shrink-0"
-           style="background:var(--surface);border-bottom:1px solid var(--border)">
+           style="background:var(--panel);border-bottom:1px solid var(--line)">
         <div class="relative flex-1 max-w-xs">
           <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs" style="color:var(--muted)"></i>
           <input id="search-company" type="text" placeholder="Company name..."
@@ -286,15 +307,11 @@
             style="padding-left:2rem" oninput="renderSearch()">
         </div>
         <div class="ml-auto flex gap-2">
-          <button onclick="openAddFirm(null)"
-            class="px-4 py-2 text-xs font-semibold rounded-lg text-white transition-colors"
-            style="background:var(--navy)">
-            + Add Firm
+          <button onclick="openAddFirm(null)" class="btn dark">
+            <i class="fa-solid fa-plus mr-1"></i>Add Firm
           </button>
-          <button onclick="openAddContact(null)"
-            class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors"
-            style="background:var(--page);border:1px solid var(--border2);color:var(--text)">
-            + Add Contact
+          <button onclick="openAddContact(null)" class="btn">
+            <i class="fa-solid fa-plus mr-1"></i>Add Contact
           </button>
         </div>
       </div>
@@ -303,100 +320,92 @@
         <div>Firm</div><div>City</div><div>County</div><div>Website</div><div>Regional SCC</div>
       </div>
       <!-- Results -->
-      <div id="search-results" class="flex-1 overflow-auto" style="background:var(--surface)"></div>
+      <div id="search-results" class="flex-1 overflow-auto" style="background:var(--panel)"></div>
     </div>
 
     <!-- ══ FIRM DETAIL SCREEN ════════════════════════════════ -->
     <div id="screen-firm" class="hidden flex-1 overflow-hidden flex flex-col screen-fade">
       <!-- Header -->
-      <div class="flex-shrink-0" style="background:var(--surface);border-bottom:1px solid var(--border)">
+      <div class="flex-shrink-0" style="background:var(--panel);border-bottom:1px solid var(--line)">
         <!-- Top bar -->
-        <div class="px-5 py-3 flex items-center gap-4" style="border-bottom:1px solid var(--border)">
+        <div class="px-5 py-3 flex items-center gap-4" style="border-bottom:1px solid var(--line)">
           <div>
-            <div id="firm-screen-title" class="text-lg font-bold title-font" style="color:var(--navy)">Add Firm</div>
+            <div id="firm-screen-title" class="text-lg font-bold title-font" style="color:var(--brand);text-transform:uppercase;letter-spacing:.03em">Add Firm</div>
             <div id="firm-screen-subtitle" class="text-xs mt-0.5" style="color:var(--muted)">Register a new company</div>
           </div>
           <div class="ml-auto flex items-center gap-2">
-            <button id="btn-datavault-link" onclick="openInDataVault()" class="hidden px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors"
-              style="background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue)">
+            <button id="btn-datavault-link" onclick="openInDataVault()" class="hidden btn"
+              style="background:var(--accent-bg);border-color:var(--accent-bd);color:var(--accent2)">
               <i class="fa-solid fa-database mr-1"></i> View in DataVault
             </button>
-            <button onclick="saveFirm(false)" class="px-4 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors"
-              style="background:var(--blue)">💾 Save</button>
-            <button onclick="saveFirm(true)" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-colors"
-              style="background:var(--page);border:1px solid var(--border2);color:var(--text)">Save & New</button>
-            <button onclick="deleteFirm()" id="btn-delete-firm"
-              class="hidden px-4 py-1.5 text-xs font-semibold rounded-lg text-white"
-              style="background:var(--red)">🗑 Delete</button>
-            <button onclick="showScreen('search')" class="px-3 py-1.5 text-xs rounded-lg transition-colors"
-              style="background:var(--page);border:1px solid var(--border2);color:var(--muted)">✕ Close</button>
+            <button onclick="saveFirm(false)" class="btn primary"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
+            <button onclick="saveFirm(true)" class="btn">Save &amp; New</button>
+            <button onclick="deleteFirm()" id="btn-delete-firm" class="hidden btn danger">
+              <i class="fa-solid fa-trash mr-1"></i>Delete</button>
+            <button onclick="showScreen('search')" class="btn"><i class="fa-solid fa-xmark mr-1"></i>Close</button>
           </div>
         </div>
         <!-- Firm fields -->
         <div class="px-5 py-4 grid grid-cols-3 gap-x-5 gap-y-3">
           <div>
-            <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Firm Name</label>
+            <label class="field-label">Firm Name</label>
             <input id="firm-name" type="text" placeholder="Company name" />
           </div>
           <div>
-            <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Phone</label>
+            <label class="field-label">Phone</label>
             <input id="firm-phone" type="tel" placeholder="+44..." />
           </div>
           <div>
-            <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Notes</label>
+            <label class="field-label">Notes</label>
             <input id="firm-notes" type="text" placeholder="Notes..." />
           </div>
           <div>
-            <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Website</label>
+            <label class="field-label">Website</label>
             <input id="firm-website" type="url" placeholder="https://..." />
           </div>
           <div>
-            <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Email</label>
+            <label class="field-label">Email</label>
             <input id="firm-email" type="email" placeholder="info@..." />
           </div>
           <div>
-            <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Regional IA</label>
+            <label class="field-label">Regional IA</label>
             <input id="firm-regional" type="text" placeholder="e.g. NW" />
           </div>
           <div>
-            <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">City</label>
+            <label class="field-label">City</label>
             <input id="firm-city" type="text" />
           </div>
           <div>
-            <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">County</label>
+            <label class="field-label">County</label>
             <input id="firm-county" type="text" />
           </div>
           <div>
-            <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Postcode</label>
+            <label class="field-label">Postcode</label>
             <input id="firm-postcode" type="text" />
           </div>
         </div>
         <!-- Sub-tabs -->
-        <div class="flex items-center px-5" style="border-top:1px solid var(--border)">
+        <div class="flex items-center px-5" style="border-top:1px solid var(--line)">
           <button onclick="firmTab('contacts')" id="ftab-contacts"
             class="tab-active px-4 py-2.5 text-sm transition-colors mr-1">
-            👥 Contacts <span id="ftab-contacts-count" class="text-xs ml-1" style="color:var(--muted)"></span>
+            <i class="fa-solid fa-users mr-1"></i> Contacts <span id="ftab-contacts-count" class="text-xs ml-1" style="color:var(--muted)"></span>
           </button>
           <button onclick="firmTab('interactions')" id="ftab-interactions"
             class="tab-inactive px-4 py-2.5 text-sm transition-colors">
-            💬 Interactions <span id="ftab-interactions-count" class="text-xs ml-1" style="color:var(--muted)"></span>
+            <i class="fa-solid fa-comments mr-1"></i> Interactions <span id="ftab-interactions-count" class="text-xs ml-1" style="color:var(--muted)"></span>
           </button>
           <div class="ml-auto flex items-center gap-2 py-2">
-            <button id="btn-add-contact-firm" onclick="openAddContact(null)"
-              class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors"
-              style="background:var(--page);border:1px solid var(--border2);color:var(--text)">
-              + Contact
+            <button id="btn-add-contact-firm" onclick="openAddContact(null)" class="btn">
+              <i class="fa-solid fa-plus mr-1"></i>Contact
             </button>
-            <button id="btn-log-interaction-firm" onclick="openAddInteraction(null)"
-              class="hidden px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors"
-              style="background:var(--page);border:1px solid var(--border2);color:var(--text)">
-              + Log Interaction
+            <button id="btn-log-interaction-firm" onclick="openAddInteraction(null)" class="hidden btn">
+              <i class="fa-solid fa-plus mr-1"></i>Log Interaction
             </button>
           </div>
         </div>
       </div>
       <!-- Sub-tab content -->
-      <div class="flex-1 overflow-auto" style="background:var(--surface)">
+      <div class="flex-1 overflow-auto" style="background:var(--panel)">
         <div id="firm-contacts-panel">
           <div class="col-header-light grid grid-cols-[2fr_2fr_2fr_1fr] gap-4">
             <div>Name</div><div>Job Title</div><div>Email</div><div>Phone</div>
@@ -415,8 +424,8 @@
     <!-- ══ ALL INTERACTIONS SCREEN ════════════════════════ -->
     <div id="screen-interactions" class="hidden flex-1 overflow-hidden flex flex-col screen-fade">
       <div class="px-5 py-3 flex items-center gap-4 flex-shrink-0"
-           style="background:var(--surface);border-bottom:1px solid var(--border)">
-        <h2 class="font-bold text-base title-font" style="color:var(--navy)">All Interactions</h2>
+           style="background:var(--panel);border-bottom:1px solid var(--line)">
+        <h2 class="font-bold text-base title-font" style="color:var(--brand);text-transform:uppercase;letter-spacing:.04em">All Interactions</h2>
         <div class="relative ml-2 flex-1 max-w-xs">
           <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs" style="color:var(--muted)"></i>
           <input id="search-interactions" type="text" placeholder="Filter by company or summary..."
@@ -434,123 +443,117 @@
       <div class="col-header grid grid-cols-[1fr_1fr_1.5fr_2fr_1fr_1fr] gap-4 flex-shrink-0">
         <div>Date</div><div>Company</div><div>Contact</div><div>Summary</div><div>Method</div><div>Follow Up</div>
       </div>
-      <div id="interactions-list" class="flex-1 overflow-auto" style="background:var(--surface)"></div>
+      <div id="interactions-list" class="flex-1 overflow-auto" style="background:var(--panel)"></div>
     </div>
 
   </div><!-- /main content -->
 </div><!-- /app -->
 
 <!-- ═══ CONTACT MODAL ══════════════════════════════════════ -->
-<div id="contact-modal" class="modal fixed inset-0 items-center justify-center z-50" style="background:rgba(15,45,94,0.5)">
-  <div class="w-full max-w-2xl mx-4 rounded-2xl overflow-hidden shadow-2xl" style="background:var(--surface)">
-    <div class="px-6 py-4 flex justify-between items-center" style="background:var(--navy)">
-      <div id="contact-modal-title" class="font-bold text-lg title-font text-white">Add Contact</div>
-      <button onclick="closeContactModal()" class="text-2xl text-white/60 hover:text-white leading-none">×</button>
+<div id="contact-modal" class="modal fixed inset-0 items-center justify-center z-50" style="background:rgba(16,36,58,0.55)">
+  <div class="w-full max-w-2xl mx-4 rounded-lg overflow-hidden modal-card">
+    <div class="modal-head">
+      <div id="contact-modal-title" class="title-font" style="font-size:1.15rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff">Add Contact</div>
+      <button onclick="closeContactModal()" class="modal-close leading-none" style="background:none;border:none;cursor:pointer">×</button>
     </div>
     <div class="p-6 space-y-4">
       <input type="hidden" id="cm-id" />
       <div class="text-xs font-semibold title-font px-3 py-2 rounded-lg" id="cm-company-label"
-           style="background:var(--blue-bg);color:var(--blue);display:none"></div>
+           style="background:var(--accent-bg);color:var(--accent2);display:none;text-transform:uppercase;letter-spacing:.04em"></div>
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">First Name</label>
+          <label class="field-label">First Name</label>
           <input id="cm-first" type="text" placeholder="First name" />
         </div>
         <div>
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Last Name</label>
+          <label class="field-label">Last Name</label>
           <input id="cm-last" type="text" placeholder="Last name" />
         </div>
         <div>
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Job Title</label>
+          <label class="field-label">Job Title</label>
           <input id="cm-title" type="text" placeholder="Job title" />
         </div>
         <div>
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Phone</label>
+          <label class="field-label">Phone</label>
           <input id="cm-phone" type="tel" placeholder="+44..." />
         </div>
         <div>
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Email</label>
+          <label class="field-label">Email</label>
           <input id="cm-email" type="email" placeholder="name@..." />
         </div>
         <div>
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">LinkedIn</label>
+          <label class="field-label">LinkedIn</label>
           <input id="cm-linkedin" type="url" placeholder="https://linkedin.com/in/..." />
         </div>
       </div>
       <div>
-        <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Notes</label>
+        <label class="field-label">Notes</label>
         <textarea id="cm-notes" rows="3" placeholder="Notes..."></textarea>
       </div>
     </div>
-    <div class="px-6 py-4 flex gap-2 justify-end" style="border-top:1px solid var(--border)">
-      <button onclick="deleteContact()" id="cm-delete-btn"
-        class="hidden px-4 py-2 text-xs font-semibold rounded-lg text-white" style="background:var(--red)">🗑 Delete</button>
-      <button onclick="saveContact(false)"
-        class="px-5 py-2 text-xs font-semibold rounded-lg text-white" style="background:var(--blue)">💾 Save</button>
-      <button onclick="saveContact(true)"
-        class="px-4 py-2 text-xs font-semibold rounded-lg" style="background:var(--page);border:1px solid var(--border2);color:var(--text)">Save & New</button>
-      <button onclick="closeContactModal()"
-        class="px-4 py-2 text-xs rounded-lg" style="background:var(--page);border:1px solid var(--border2);color:var(--muted)">Cancel</button>
+    <div class="px-6 py-4 flex gap-2 justify-end" style="border-top:1px solid var(--line)">
+      <button onclick="deleteContact()" id="cm-delete-btn" class="hidden btn danger">
+        <i class="fa-solid fa-trash mr-1"></i>Delete</button>
+      <button onclick="saveContact(false)" class="btn primary"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
+      <button onclick="saveContact(true)" class="btn">Save &amp; New</button>
+      <button onclick="closeContactModal()" class="btn">Cancel</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ INTERACTION MODAL ══════════════════════════════════ -->
-<div id="interaction-modal" class="modal fixed inset-0 items-center justify-center z-50" style="background:rgba(15,45,94,0.5)">
-  <div class="w-full max-w-2xl mx-4 rounded-2xl overflow-hidden shadow-2xl" style="background:var(--surface)">
-    <div class="px-6 py-4 flex justify-between items-center" style="background:var(--navy)">
-      <div id="interaction-modal-title" class="font-bold text-lg title-font text-white">Log Interaction</div>
-      <button onclick="closeInteractionModal()" class="text-2xl text-white/60 hover:text-white leading-none">×</button>
+<div id="interaction-modal" class="modal fixed inset-0 items-center justify-center z-50" style="background:rgba(16,36,58,0.55)">
+  <div class="w-full max-w-2xl mx-4 rounded-lg overflow-hidden modal-card">
+    <div class="modal-head">
+      <div id="interaction-modal-title" class="title-font" style="font-size:1.15rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff">Log Interaction</div>
+      <button onclick="closeInteractionModal()" class="modal-close leading-none" style="background:none;border:none;cursor:pointer">×</button>
     </div>
     <div class="p-6 space-y-4">
       <input type="hidden" id="im-id" />
       <div class="text-xs font-semibold title-font px-3 py-2 rounded-lg" id="im-company-label"
-           style="background:var(--blue-bg);color:var(--blue);display:none"></div>
+           style="background:var(--accent-bg);color:var(--accent2);display:none;text-transform:uppercase;letter-spacing:.04em"></div>
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Contact</label>
+          <label class="field-label">Contact</label>
           <select id="im-contact"><option value="">— select contact —</option></select>
         </div>
         <div>
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Date</label>
+          <label class="field-label">Date</label>
           <input id="im-date" type="date" />
         </div>
         <div>
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Method</label>
+          <label class="field-label">Method</label>
           <select id="im-method">
             <option>Email</option><option>Phone Call</option><option>Meeting</option>
             <option>Site Visit</option><option>Event</option><option>Other</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Follow Up Required?</label>
+          <label class="field-label">Follow Up Required?</label>
           <select id="im-followup" onchange="toggleFollowUpFields()">
             <option value="No">No</option><option value="Yes">Yes</option>
           </select>
         </div>
         <div id="im-followup-date-wrap" class="hidden">
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Follow Up Date</label>
+          <label class="field-label">Follow Up Date</label>
           <input id="im-followup-date" type="date" />
         </div>
         <div id="im-nextaction-wrap" class="hidden">
-          <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Next Action Date</label>
+          <label class="field-label">Next Action Date</label>
           <input id="im-nextaction" type="date" />
         </div>
       </div>
       <div>
-        <label class="block text-xs font-semibold mb-1 title-font uppercase" style="color:var(--muted)">Summary</label>
+        <label class="field-label">Summary</label>
         <textarea id="im-summary" rows="4" placeholder="Describe the interaction..."></textarea>
       </div>
     </div>
-    <div class="px-6 py-4 flex gap-2 justify-end" style="border-top:1px solid var(--border)">
-      <button onclick="deleteInteraction()" id="im-delete-btn"
-        class="hidden px-4 py-2 text-xs font-semibold rounded-lg text-white" style="background:var(--red)">🗑 Delete</button>
-      <button onclick="saveInteraction(false)"
-        class="px-5 py-2 text-xs font-semibold rounded-lg text-white" style="background:var(--blue)">💾 Save</button>
-      <button onclick="saveInteraction(true)"
-        class="px-4 py-2 text-xs font-semibold rounded-lg" style="background:var(--page);border:1px solid var(--border2);color:var(--text)">Save & New</button>
-      <button onclick="closeInteractionModal()"
-        class="px-4 py-2 text-xs rounded-lg" style="background:var(--page);border:1px solid var(--border2);color:var(--muted)">Cancel</button>
+    <div class="px-6 py-4 flex gap-2 justify-end" style="border-top:1px solid var(--line)">
+      <button onclick="deleteInteraction()" id="im-delete-btn" class="hidden btn danger">
+        <i class="fa-solid fa-trash mr-1"></i>Delete</button>
+      <button onclick="saveInteraction(false)" class="btn primary"><i class="fa-solid fa-floppy-disk mr-1"></i>Save</button>
+      <button onclick="saveInteraction(true)" class="btn">Save &amp; New</button>
+      <button onclick="closeInteractionModal()" class="btn">Cancel</button>
     </div>
   </div>
 </div>
@@ -794,7 +797,7 @@ async function loadAll() {
       NextActionDate:    i.field_11,  // field_10 = CreatedAt, field_11 = NextActionDate
     }));
 
-    $('sp-status').innerHTML = '<span style="color:var(--green)">✓ Connected</span>';
+    $('sp-status').innerHTML = '<span style="color:var(--ok)">✓ Connected</span>';
     updateHomeStats();
     renderSearch();
     renderInteractionsList();
@@ -905,12 +908,12 @@ function renderHomeRecent() {
       <div>Date</div><div>Company</div><div>Contact</div><div>Summary</div><div>Method</div>
     </div>` +
     recent.map(i => `
-    <div class="row-hover border-b px-5 py-3 grid grid-cols-[1fr_1.5fr_1.5fr_2fr_1fr] gap-4 text-sm cursor-pointer"
-         style="border-color:var(--border)" onclick="openInteractionFromList(${i.ID})">
+    <div class="row-hover border-b px-5 py-3 grid grid-cols-[1fr_1.5fr_1.5fr_2fr_1fr] gap-4 text-sm"
+         style="border-color:var(--line)" onclick="openInteractionFromList(${i.ID})">
       <div class="title-font text-xs" style="color:var(--muted)">${fmtDate(i.DateOfInteraction)}</div>
-      <div class="font-medium truncate" style="color:var(--text)">${esc(getCompanyName(i.CompanyID))}</div>
+      <div class="font-medium truncate" style="color:var(--ink)">${esc(getCompanyName(i.CompanyID))}</div>
       <div class="truncate" style="color:var(--muted)">${esc(getContactName(i.ContactID))}</div>
-      <div class="truncate" style="color:var(--text)">${esc(i.Summary || '')}</div>
+      <div class="truncate" style="color:var(--ink)">${esc(i.Summary || '')}</div>
       <div class="text-xs" style="color:var(--muted)">${esc(i.InteractionMethod || '')}</div>
     </div>`).join('');
 }
@@ -942,14 +945,14 @@ function renderSearch() {
 
   el.innerHTML = results.map(c => `
     <div class="row-hover border-b px-5 py-2.5 grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 text-sm"
-         style="border-color:var(--border)" onclick="openFirm(${c.ID})">
-      <div class="font-semibold flex items-center gap-2" style="color:var(--navy)">
-        <div class="w-1 h-5 rounded-full flex-shrink-0" style="background:var(--blue)"></div>
+         style="border-color:var(--line)" onclick="openFirm(${c.ID})">
+      <div class="font-semibold flex items-center gap-2" style="color:var(--brand)">
+        <div class="w-1 h-5 rounded-full flex-shrink-0" style="background:var(--accent)"></div>
         ${esc(c.CompanyName || c.Title || '—')}
       </div>
       <div class="title-font text-xs" style="color:var(--muted)">${esc(c.City||'')}</div>
       <div class="title-font text-xs" style="color:var(--muted)">${esc(c.County||'')}</div>
-      <div class="text-xs truncate" style="color:var(--blue)">
+      <div class="text-xs truncate" style="color:var(--accent)">
         ${c.Website ? `<a href="${esc(c.Website)}" target="_blank" onclick="event.stopPropagation()" class="hover:underline">${esc(c.Website.replace(/^https?:\/\//,''))}</a>` : '—'}
       </div>
       <div class="title-font text-xs" style="color:var(--muted)">${esc(c.RegionalIA||'')}</div>
@@ -1016,10 +1019,10 @@ function renderFirmContacts() {
   }
   el.innerHTML = contacts.map(c => `
     <div class="row-hover border-b px-5 py-2.5 grid grid-cols-[2fr_2fr_2fr_1fr] gap-4 text-sm"
-         style="border-color:var(--border)" onclick="openEditContact(${c.ID})">
-      <div class="font-semibold" style="color:var(--text)">${esc(`${c.FirstName||''} ${c.LastName||''}`.trim()||'—')}</div>
+         style="border-color:var(--line)" onclick="openEditContact(${c.ID})">
+      <div class="font-semibold" style="color:var(--ink)">${esc(`${c.FirstName||''} ${c.LastName||''}`.trim()||'—')}</div>
       <div style="color:var(--muted)">${esc(c.JobTitle||'—')}</div>
-      <div class="truncate text-xs" style="color:var(--blue)">
+      <div class="truncate text-xs" style="color:var(--accent)">
         ${c.Email ? `<a href="mailto:${esc(c.Email)}" onclick="event.stopPropagation()" class="hover:underline">${esc(c.Email)}</a>` : '—'}
       </div>
       <div class="text-xs" style="color:var(--muted)">${esc(c.Phone||'—')}</div>
@@ -1037,11 +1040,11 @@ function renderFirmInteractions() {
   }
   el.innerHTML = ints.map(i => `
     <div class="row-hover border-b px-5 py-2.5 grid grid-cols-[1fr_1fr_2fr_2fr] gap-4 text-sm"
-         style="border-color:var(--border)" onclick="openEditInteraction(${i.ID})">
+         style="border-color:var(--line)" onclick="openEditInteraction(${i.ID})">
       <div class="title-font text-xs" style="color:var(--muted)">${fmtDate(i.DateOfInteraction)}</div>
-      <div style="color:var(--text)">${esc(i.InteractionMethod||'—')}</div>
+      <div style="color:var(--ink)">${esc(i.InteractionMethod||'—')}</div>
       <div style="color:var(--muted)">${esc(getContactName(i.ContactID))}</div>
-      <div class="truncate" style="color:var(--text)">${esc(i.Summary||'')}</div>
+      <div class="truncate" style="color:var(--ink)">${esc(i.Summary||'')}</div>
     </div>`).join('');
 }
 
@@ -1348,14 +1351,14 @@ function renderInteractionsList() {
     const fuVal   = i.FollowUpRequired?.Value || i.FollowUpRequired || 'No';
     const fuBadge = fuVal === 'Yes'
       ? `<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d">Follow up</span>`
-      : `<span class="badge" style="background:var(--page);color:var(--muted2);border:1px solid var(--border)">—</span>`;
+      : `<span class="badge" style="background:var(--wash);color:var(--muted);border:1px solid var(--line)">—</span>`;
     return `
       <div class="row-hover border-b px-5 py-2.5 grid grid-cols-[1fr_1fr_1.5fr_2fr_1fr_1fr] gap-4 text-sm"
-           style="border-color:var(--border)" onclick="openInteractionFromList(${i.ID})">
+           style="border-color:var(--line)" onclick="openInteractionFromList(${i.ID})">
         <div class="title-font text-xs" style="color:var(--muted)">${fmtDate(i.DateOfInteraction)}</div>
-        <div class="font-medium truncate" style="color:var(--text)">${esc(getCompanyName(i.CompanyID))}</div>
+        <div class="font-medium truncate" style="color:var(--ink)">${esc(getCompanyName(i.CompanyID))}</div>
         <div class="truncate" style="color:var(--muted)">${esc(getContactName(i.ContactID))}</div>
-        <div class="truncate" style="color:var(--text)">${esc(i.Summary||'')}</div>
+        <div class="truncate" style="color:var(--ink)">${esc(i.Summary||'')}</div>
         <div class="text-xs" style="color:var(--muted)">${esc(i.InteractionMethod||'')}</div>
         <div>${fuBadge}</div>
       </div>`;

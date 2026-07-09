@@ -5,33 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TimeSink — NuCCoL</title>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ================================================================
    CSS VARIABLES & RESET
 ================================================================ */
 :root {
-  --navy:    #00126B;
-  --blue:    #3860B9;
-  --blue2:   #3860BA;
-  --purple:  #6C2481;
-  --white:   #FFFFFF;
-  --bg:      #F3F4F8;
-  --text:    #1F2937;
-  --muted:   #6B7280;
-  --border:  #D1D5DB;
-  --row-alt: #F0F4FF;
-  --green:   #16A34A;
-  --red:     #DC2626;
-  --orange:  #EA580C;
-  --indigo:  #6366F1;
-  --violet:  #9333EA;
+  /* Frankie / SCC design system */
+  --brand:#10243a; --accent:#26a9d8; --accent2:#1a86b0;
+  --ok:#087f5b; --warn:#9a5a00; --red:#c0392b; --red-bg:#fff0ee;
+  --line:#d8e2ec; --panel:#fff; --wash:#f7fbff;
+  --muted:#65758a; --ink:#142132;
+
+  /* Legacy variable names — this file's render functions (in <script>)
+     build markup that references var(--blue), var(--orange), etc. directly.
+     Rather than touch every template string, these are aliased onto the
+     palette above so the whole app re-themes from this block alone. */
+  --navy:    var(--brand);
+  --blue:    var(--accent);
+  --blue2:   var(--accent2);
+  --purple:  var(--accent2);
+  --white:   #ffffff;
+  --bg:      #edf3f8;
+  --text:    var(--ink);
+  --border:  var(--line);
+  --row-alt: var(--wash);
+  --green:   var(--ok);
+  --red:     #c0392b;
+  --orange:  var(--warn);
+  --indigo:  var(--accent2);
+  --violet:  var(--accent);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Barlow', Arial, sans-serif;
   background: var(--bg);
-  color: var(--text);
+  color: var(--ink);
   font-size: 14px;
 }
 button { font-family: inherit; cursor: pointer; }
@@ -44,8 +56,8 @@ input, select { font-family: inherit; }
 
 /* ---- HEADER ---- */
 .hdr {
-  background: var(--blue);
-  border-bottom: 3px solid var(--navy);
+  background: var(--brand);
+  border-bottom: 3px solid var(--accent2);
   padding: 0 28px;
   height: 86px;
   display: flex;
@@ -55,47 +67,55 @@ input, select { font-family: inherit; }
 }
 .hdr-left { display: flex; align-items: center; gap: 16px; }
 .hdr-title {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 26px;
-  font-weight: bold;
+  font-weight: 800;
   color: #fff;
-  letter-spacing: 1px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 .hdr-sub {
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  color: #BFDBFE;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  color: #a9d4e8;
   margin-top: 3px;
+  letter-spacing: .04em;
 }
 .hdr-right { display: flex; align-items: center; gap: 8px; }
 
 /* ---- WEEK NAV ---- */
 .week-nav { display: flex; align-items: center; gap: 6px; }
 .week-nav button {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.10);
   border: 1px solid rgba(255,255,255,0.35);
   color: #fff;
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
   font-size: 11px;
-  padding: 5px 11px;
-  letter-spacing: 0.5px;
+  padding: 6px 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 6px;
   transition: background 0.15s;
 }
-.week-nav button:hover { background: rgba(255,255,255,0.3); }
+.week-nav button:hover { background: rgba(255,255,255,0.22); }
 
 /* ---- BACK BUTTON ---- */
 .back-btn {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.10);
   border: 1px solid rgba(255,255,255,0.35);
   color: #fff;
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 12px;
-  padding: 5px 12px;
-  font-weight: bold;
+  padding: 6px 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 6px;
   transition: background 0.15s;
 }
-.back-btn:hover { background: rgba(255,255,255,0.3); }
+.back-btn:hover { background: rgba(255,255,255,0.22); }
 
 /* ---- MAIN CONTENT ---- */
 .main {
@@ -108,15 +128,16 @@ input, select { font-family: inherit; }
    HOME SCREEN
 ================================================================ */
 .home-grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 24px;
   margin-top: 50px;
-  flex-wrap: wrap;
 }
 .home-card {
-  background: #fff;
-  border: 2px solid var(--border);
-  width: 300px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  width: auto;
   padding: 36px 24px 28px;
   text-align: center;
   cursor: pointer;
@@ -124,20 +145,22 @@ input, select { font-family: inherit; }
 }
 .home-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(0,18,107,0.12);
-  border-color: var(--blue);
+  box-shadow: 0 8px 24px rgba(16,36,58,0.14);
+  border-color: var(--accent);
 }
 .home-card-icon {
   font-size: 44px;
-  color: var(--purple);
+  color: var(--accent2);
   margin-bottom: 14px;
   line-height: 1;
 }
 .home-card h2 {
-  font-family: 'Courier New', monospace;
-  font-size: 17px;
-  font-weight: bold;
-  color: var(--text);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--brand);
+  letter-spacing: .03em;
+  text-transform: uppercase;
   margin-bottom: 10px;
 }
 .home-card p { font-size: 12px; color: var(--muted); line-height: 1.55; }
@@ -146,47 +169,50 @@ input, select { font-family: inherit; }
    DATA TABLE
 ================================================================ */
 .tbl-wrap {
-  border: 2px solid var(--navy);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
   overflow-x: auto;
   margin-top: 12px;
-  background: #fff;
+  background: var(--panel);
 }
 .tbl-head {
-  background: var(--blue);
+  background: var(--brand);
   display: grid;
-  padding: 7px 8px;
+  padding: 9px 8px;
   gap: 6px;
-  border-bottom: 2px solid var(--navy);
 }
 .tbl-head span {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .tbl-row {
   display: grid;
-  padding: 5px 8px;
+  padding: 6px 8px;
   gap: 6px;
   align-items: center;
   min-height: 48px;
-  border-bottom: 1px solid #E5E7EB;
-  background: #fff;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
 }
-.tbl-row:nth-child(even) { background: var(--row-alt); }
+.tbl-row:nth-child(even) { background: var(--wash); }
 .tbl-row:last-child { border-bottom: none; }
 
 /* ---- Day label ---- */
 .day-cell { padding: 2px 0; }
 .day-name {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 13px;
-  font-weight: bold;
-  color: var(--navy);
+  font-weight: 700;
+  color: var(--brand);
+  letter-spacing: .03em;
 }
 .day-date {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow', sans-serif;
   font-size: 11px;
   color: var(--muted);
 }
@@ -194,15 +220,16 @@ input, select { font-family: inherit; }
 /* ---- Inline inputs ---- */
 .row-inp {
   width: 100%;
-  border: 1px solid var(--border);
-  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 5px 8px;
   font-size: 13px;
   background: #fff;
-  color: var(--text);
+  color: var(--ink);
   outline: none;
   transition: border-color 0.12s;
 }
-.row-inp:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(56,96,185,0.2); }
+.row-inp:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(38,169,216,0.2); }
 select.row-inp { cursor: pointer; }
 
 /* ---- Icon buttons ---- */
@@ -211,11 +238,11 @@ select.row-inp { cursor: pointer; }
   border: none;
   font-size: 15px;
   padding: 3px 5px;
-  color: var(--blue);
+  color: var(--accent2);
   transition: color 0.12s, transform 0.1s;
   line-height: 1;
 }
-.ico-btn:hover { color: var(--navy); transform: scale(1.15); }
+.ico-btn:hover { color: var(--brand); transform: scale(1.15); }
 .ico-btn.del:hover { color: var(--red); }
 
 /* ================================================================
@@ -225,29 +252,31 @@ select.row-inp { cursor: pointer; }
   position: fixed;
   bottom: 0; left: 0; right: 0;
   background: #fff;
-  border-top: 3px solid var(--navy);
-  padding: 10px 28px;
+  border-top: 1px solid var(--line);
+  padding: 12px 28px;
   display: flex;
   align-items: center;
   gap: 14px;
   z-index: 100;
-  box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+  box-shadow: 0 -4px 12px rgba(16,36,58,0.08);
 }
 .btn-save {
-  background: var(--blue);
-  color: #fff;
-  border: 2px solid var(--navy);
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
+  background: var(--accent);
+  color: var(--brand);
+  border: none;
+  border-radius: 6px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800;
   font-size: 13px;
-  padding: 8px 22px;
-  letter-spacing: 0.5px;
-  transition: background 0.15s;
+  padding: 9px 24px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background 0.15s, color 0.15s;
 }
-.btn-save:hover { background: var(--navy); }
+.btn-save:hover { background: var(--accent2); color: #fff; }
 .save-info {
-  font-family: 'Courier New', monospace;
-  font-size: 11px;
+  font-family: 'Barlow', sans-serif;
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -261,23 +290,26 @@ select.row-inp { cursor: pointer; }
   flex-wrap: wrap;
 }
 .kpi-card {
-  background: #fff;
-  border: 1px solid var(--border);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   padding: 14px 18px;
   flex: 1;
   min-width: 140px;
 }
 .kpi-label {
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
   font-size: 11px;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.08em;
   margin-bottom: 8px;
 }
 .kpi-val {
-  font-size: 22px;
-  font-weight: 600;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800;
+  font-size: 24px;
   line-height: 1;
 }
 
@@ -287,50 +319,54 @@ select.row-inp { cursor: pointer; }
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  border: 2px solid var(--navy);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
 }
 .data-table th {
-  background: var(--blue);
+  background: var(--brand);
   color: #fff;
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 12px;
-  font-weight: 600;
-  padding: 8px 12px;
-  border-right: 1px solid rgba(255,255,255,0.2);
-  border-bottom: 2px solid var(--navy);
+  font-weight: 700;
+  padding: 9px 12px;
+  border-right: 1px solid rgba(255,255,255,0.15);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 .data-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid #E5E7EB;
+  border-bottom: 1px solid var(--line);
   font-size: 13px;
   background: #fff;
 }
-.data-table tbody tr:nth-child(even) td { background: var(--row-alt); }
+.data-table tbody tr:nth-child(even) td { background: var(--wash); }
 .data-table tbody tr.clickable:hover td {
-  background: #E0E7FF;
+  background: #e7f4fb;
   cursor: pointer;
 }
 .data-table tfoot td {
-  background: #F0F4FF;
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
+  background: var(--wash);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800;
   font-size: 12px;
-  border-top: 2px solid var(--navy);
+  color: var(--brand);
+  border-top: 2px solid var(--line);
 }
 
 /* ================================================================
    SECTION HEADING
 ================================================================ */
 .section-hd {
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  font-weight: bold;
-  color: var(--navy);
-  letter-spacing: 1px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   margin: 20px 0 6px;
-  border-left: 3px solid var(--purple);
+  border-left: 3px solid var(--accent);
   padding-left: 8px;
 }
 
@@ -343,15 +379,15 @@ select.row-inp { cursor: pointer; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-family: 'Courier New', monospace;
+  font-family: 'Barlow Condensed', sans-serif;
   color: var(--muted);
   gap: 12px;
 }
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--border);
-  border-top-color: var(--blue);
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -364,17 +400,18 @@ select.row-inp { cursor: pointer; }
   position: fixed;
   top: 20px;
   right: 20px;
-  padding: 11px 20px;
-  font-family: 'Courier New', monospace;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-family: 'Barlow Condensed', sans-serif;
   font-size: 13px;
-  font-weight: bold;
-  letter-spacing: 0.3px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   z-index: 9999;
   animation: toastIn 0.2s ease;
   max-width: 380px;
 }
-.toast.ok  { background: var(--green); color: #fff; }
-.toast.err { background: var(--red);   color: #fff; }
+.toast.ok  { background: var(--ok);  color: #fff; }
+.toast.err { background: var(--red); color: #fff; }
 @keyframes toastIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
 
 /* ================================================================
@@ -384,9 +421,11 @@ select.row-inp { cursor: pointer; }
 .ta-center { text-align: center; }
 .nowrap { white-space: nowrap; }
 .user-chip {
-  font-family: 'Courier New', monospace;
-  font-size: 11px;
-  color: #BFDBFE;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  color: #a9d4e8;
+  letter-spacing: .03em;
 }
 </style>
 </head>
@@ -394,13 +433,13 @@ select.row-inp { cursor: pointer; }
 <body>
 <div id="app">
   <div class="loading" id="login-screen">
-    <div style="text-align:center;font-family:'Courier New',monospace;">
-      <div style="font-size:22px;font-weight:bold;color:var(--navy);margin-bottom:8px;">TimeSink — NuCCoL</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:32px;">Sign in with your NuCCoL Microsoft account</div>
-      <button id="login-btn" style="background:var(--blue);color:#fff;border:2px solid var(--navy);font-family:'Courier New',monospace;font-size:14px;font-weight:bold;padding:12px 32px;cursor:pointer;letter-spacing:0.5px;">
+    <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;">
+      <div style="font-size:24px;font-weight:800;color:var(--brand);margin-bottom:8px;letter-spacing:.03em;text-transform:uppercase;">TimeSink — NuCCoL</div>
+      <div style="font-family:'Barlow',sans-serif;font-size:13px;color:var(--muted);margin-bottom:32px;">Sign in with your NuCCoL Microsoft account</div>
+      <button id="login-btn" style="background:var(--accent);color:var(--brand);border:none;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;padding:12px 32px;cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;">
         Sign in with Microsoft
       </button>
-      <div id="login-error" style="color:var(--red);font-size:12px;margin-top:16px;display:none;"></div>
+      <div id="login-error" style="color:var(--red);font-size:12px;margin-top:16px;display:none;font-family:'Barlow',sans-serif;"></div>
     </div>
   </div>
 </div>
@@ -436,16 +475,6 @@ const msalApp = new msal.PublicClientApplication({
   cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
 });
 
-// Popup requests must land on a blank page, NOT this app itself. If the popup
-// reloads timesink.html, the whole app boots up again inside it and calls
-// MSAL APIs a second time — MSAL blocks that with "block_nested_popups"
-// (a window it's already treating as a popup can't open/drive another auth
-// request). auth-redirect.html is a no-op page sitting next to this file;
-// MSAL reads the auth response straight from the popup's URL and doesn't
-// need any code to run there. Must also be registered as a redirect URI
-// (Single-page application platform) in Azure AD alongside this page's own.
-const POPUP_REDIRECT_URI = new URL('auth-redirect.html', window.location.href).href;
-
 // Popup-based auth (not redirect): redirect flows are blocked by MSAL when the
 // app is running inside an iframe (e.g. embedded in the SCC hub), since a
 // redirect happening in a hidden frame is a clickjacking vector. Popups work
@@ -453,7 +482,7 @@ const POPUP_REDIRECT_URI = new URL('auth-redirect.html', window.location.href).h
 async function getToken() {
   const accounts = msalApp.getAllAccounts();
   if (!accounts.length) {
-    const result = await msalApp.loginPopup({ scopes: [CFG.scope], redirectUri: POPUP_REDIRECT_URI });
+    const result = await msalApp.loginPopup({ scopes: [CFG.scope] });
     msalApp.setActiveAccount(result.account);
     return result.accessToken;
   }
@@ -462,7 +491,7 @@ async function getToken() {
     const r = await msalApp.acquireTokenSilent({ scopes: [CFG.scope], account: accounts[0] });
     return r.accessToken;
   } catch {
-    const r = await msalApp.acquireTokenPopup({ scopes: [CFG.scope], redirectUri: POPUP_REDIRECT_URI });
+    const r = await msalApp.acquireTokenPopup({ scopes: [CFG.scope] });
     return r.accessToken;
   }
 }
@@ -1029,7 +1058,7 @@ function renderHome() {
       </div>
       <div class="hdr-right">
         <button class="ico-btn" title="Open Control Centre — e.g. to promote a pipeline project to Live"
-          onclick="openControlCentre()" style="font-size:.78rem;padding:6px 12px;width:auto;border:1px solid #d8dee6;border-radius:6px;margin-right:10px">
+          onclick="openControlCentre()" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:.78rem;padding:6px 12px;width:auto;color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:6px;margin-right:10px">
           ↗ Control Centre
         </button>
         <span class="user-chip">${esc(S.currentUser?.displayName)}</span>
@@ -1227,7 +1256,7 @@ function renderSum() {
   const rows = S.empSummary.length
     ? S.empSummary.map(e => `
         <tr class="clickable" onclick="navDetail('${esc(e.name)}')">
-          <td style="font-family:'Courier New',monospace; font-weight:bold;">${esc(e.name)}</td>
+          <td style="font-family:'Barlow Condensed',sans-serif; font-weight:700;">${esc(e.name)}</td>
           <td class="ta-right" style="color:var(--blue);">${num(e.hours)}</td>
           <td class="ta-right" style="color:var(--orange);">${num(e.travel)}</td>
           <td class="ta-right" style="color:var(--green);">${money(e.expenses)}</td>
@@ -1235,7 +1264,7 @@ function renderSum() {
           <td class="ta-right" style="color:var(--indigo);">${money(e.commercial)}</td>
         </tr>`)
       .join('')
-    : `<tr><td colspan="6" class="ta-center" style="padding:20px;color:var(--muted);font-family:'Courier New',monospace;">
+    : `<tr><td colspan="6" class="ta-center" style="padding:20px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;">
         No entries for this week</td></tr>`;
 
   render(`
@@ -1280,7 +1309,7 @@ function renderSum() {
           <td class="ta-right">${money(totals.commercial)}</td>
         </tr></tfoot>` : ''}
       </table>
-      <div style="font-family:'Courier New',monospace;font-size:11px;color:var(--muted);margin-top:8px;">
+      <div style="font-family:'Barlow',sans-serif;font-size:11px;color:var(--muted);margin-top:8px;">
         Click a row to view employee detail
       </div>
     </div>
@@ -1591,7 +1620,7 @@ async function init() {
           btn.textContent = 'Signing in…';
           try {
             console.log('Calling loginPopup with scope:', CFG.scope);
-            const result = await msalApp.loginPopup({ scopes: [CFG.scope], redirectUri: POPUP_REDIRECT_URI });
+            const result = await msalApp.loginPopup({ scopes: [CFG.scope] });
             msalApp.setActiveAccount(result.account);
             render('<div class="loading"><div class="loading-spinner"></div>Loading data…</div>');
             await Promise.all([loadCurrentUser(), loadRefData()]);
@@ -1618,12 +1647,12 @@ async function init() {
   } catch(e) {
     render(`
       <div class="loading">
-        <div style="color:var(--red);font-family:'Courier New',monospace;font-size:14px;text-align:center;max-width:500px;">
+        <div style="color:var(--red);font-family:'Barlow Condensed',sans-serif;font-size:14px;text-align:center;max-width:500px;">
           <strong>Error:</strong> ${esc(e.message)}<br><br>
           Check that tenantId, clientId, and siteUrl are configured correctly in the CONFIG section.
           <br><br>
-          <button onclick="init()" style="font-family:'Courier New',monospace;padding:8px 18px;cursor:pointer;
-            background:var(--blue);color:#fff;border:2px solid var(--navy);font-weight:bold;">
+          <button onclick="init()" style="font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:9px 20px;cursor:pointer;
+            background:var(--accent);color:var(--brand);border:none;border-radius:6px;">
             Retry
           </button>
         </div>
