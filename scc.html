@@ -560,6 +560,10 @@ button{cursor:pointer}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
         <span class="sb-label">Newsletter Builder</span>
       </button>
+      <button class="sb-item" data-screen="mailmerge" onclick="nav('mailmerge')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        <span class="sb-label">Mail Merge</span>
+      </button>
       <button class="sb-item" data-screen="website" onclick="nav('website')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 014-10z"/></svg>
         <span class="sb-label">Website Editor</span>
@@ -656,117 +660,52 @@ button{cursor:pointer}
         Groq preprocessing is currently disabled. Enable it in <button onclick="nav('settings')" style="background:none;border:none;color:#9a5a00;font-weight:600;cursor:pointer;padding:0;text-decoration:underline">Settings</button>.
       </div>
 
-      <!-- HERO BRAND -->
-      <div class="hero-block">
-        <div class="hero-acronym">F.R.A.N.K.I.E.</div>
-        <div class="hero-fullname">Future Readiness And Nuclear Knowledge Intelligence Engine</div>
-        <div class="hero-portal-sub">NuCCoL staff portal</div>
+      <!-- HOME GREETING -->
+      <div class="hero-block" id="home-greeting-block">
+        <div style="font-family:'Barlow Condensed';font-weight:800;font-size:1.7rem;color:#fff" id="home-greeting-title">Good afternoon</div>
+        <div style="color:rgba(255,255,255,.7);font-size:.9rem;margin-top:4px">Here's where things stand today</div>
       </div>
 
-      <!-- WORKSPACE — SCC -->
-      <div class="hero-company-zone">
-        <div class="hero-zone-hd">
-          <span class="hero-zone-title">Workspace — SCC tools</span>
-          <span class="hero-cert-chip">&#9733; F4N Certificates</span>
-        </div>
-        <div class="hero-search-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input id="hero-co-search" placeholder="Search companies…" oninput="heroSearch(this.value)" autocomplete="off">
-        </div>
-        <div class="hero-recent-label">Recent</div>
-        <div class="hero-recent-grid" id="hero-recent-grid"></div>
-        <div class="hero-scc-tools">
-          <button class="hero-tool-btn" onclick="nav('assessment')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-            <span class="ht-name">Run assessment</span>
-            <span class="ht-sub">F4N or BE scoring</span>
-          </button>
-          <button class="hero-tool-btn" onclick="nav('reports')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            <span class="ht-name">Generate reports</span>
-            <span class="ht-sub">BE, action plan, AI sector</span>
-          </button>
-          <button class="hero-tool-btn" onclick="nav('certgen')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
-            <span class="ht-name">F4N certificate</span>
-            <span class="ht-sub">Issue granted status</span>
-          </button>
-          <button class="hero-tool-btn" onclick="nav('evidence')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-            <span class="ht-name">Evidence vault</span>
-            <span class="ht-sub">Review company uploads</span>
-          </button>
-        </div>
+      <!-- HOME SEARCH -->
+      <div class="hero-search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--muted)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="hero-co-search" placeholder="Search companies, projects, anything…" autocomplete="off" onkeydown="if(event.key==='Enter') homeSearchGo(this.value)" style="border:none;background:none;outline:none;flex:1;font-family:inherit;font-size:.88rem;color:var(--ink)">
       </div>
 
-      <!-- CONTENT & ADMIN -->
-      <div class="hero-content-section">
-        <div class="hero-section-hd">Content &amp; admin</div>
-        <div class="hero-content-tools">
-          <button class="hero-tool-btn ct-tool" onclick="navWithContent('newsletter')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            <span class="ht-name">Content editor</span>
-            <span class="ht-sub">News, events, tenders</span>
-          </button>
-          <button class="hero-tool-btn ct-tool" onclick="navWithContent('nl')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
-            <span class="ht-name">Newsletter builder</span>
-            <span class="ht-sub">Compile and send</span>
-          </button>
-          <button class="hero-tool-btn ct-tool" onclick="nav('website')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 014-10z"/></svg>
-            <span class="ht-name">Website editor</span>
-            <span class="ht-sub">NuCCoL pages</span>
-          </button>
-          <button class="hero-tool-btn ct-tool" onclick="nav('scraper')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-            <span class="ht-name">Run scraper</span>
-            <span class="ht-sub">RSS, contracts, Brave</span>
-          </button>
-        </div>
-        <div class="hero-content-tools-2">
-          <button class="hero-tool-btn ct-tool" onclick="nav('nuclearready')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9" ry="3.5"/><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(120 12 12)"/></svg>
-            <span class="ht-name">Profile updates</span>
-            <span class="ht-sub">Approve member changes</span>
-          </button>
-          <button class="hero-tool-btn ct-tool" onclick="nav('pcv')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
-            <span class="ht-name">Programme briefings</span>
-            <span class="ht-sub">PCV slide editor</span>
-          </button>
-          <button class="hero-tool-btn ct-tool" onclick="nav('settings')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-            <span class="ht-name">Settings</span>
-            <span class="ht-sub">APIs, tools, status</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- CRM SECTION -->
+      <!-- CRM STATS -->
       <div class="sec-heading" style="display:flex;align-items:center;justify-content:space-between">
-        <span>CRM — All companies</span>
-        <button onclick="dashRefreshEvidence()" style="font-size:.75rem;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit">↻ Refresh evidence</button>
+        <span>Overview</span>
+        <button onclick="dashRefreshEvidence()" style="font-size:.75rem;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit">↻ Refresh</button>
       </div>
-
-      <!-- Live evidence stats -->
-      <div class="stats-row" id="dash-ev-stats" style="margin-bottom:8px">
+      <div class="stats-row" id="dash-ev-stats" style="margin-bottom:24px">
         <div class="stat-card"><div class="val" id="stat-ev-companies">—</div><div class="lbl">Evidence Active</div></div>
         <div class="stat-card"><div class="val" id="stat-ev-files">—</div><div class="lbl">Files Uploaded</div></div>
         <div class="stat-card"><div class="val" id="stat-ev-sections">—</div><div class="lbl">Avg Sections Done</div></div>
         <div class="stat-card"><div class="val" id="stat-ev-latest">—</div><div class="lbl">Last Upload</div></div>
       </div>
 
-      <!-- Evidence progress cards -->
-      <div id="dash-ev-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:28px">
-        <div style="color:#94a3b8;font-size:.84rem;padding:16px 0">Loading evidence activity…</div>
+      <!-- RECENT COMPANIES -->
+      <div class="sec-heading" style="border-left:3px solid var(--accent);padding-left:10px">Recent Companies</div>
+      <div class="hero-recent-grid" id="hero-recent-grid" style="margin-bottom:28px"></div>
+
+      <!-- NEEDS ATTENTION -->
+      <div class="sec-heading" style="border-left:3px solid var(--accent);padding-left:10px;display:flex;align-items:center;justify-content:space-between">
+        <span>Needs Attention</span>
+        <button onclick="dashRefreshEvidence().then(naCompute)" style="font-size:.75rem;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit;border-left:none;padding-left:0">↻ Refresh</button>
+      </div>
+      <div id="na-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px">
+        <div style="color:var(--muted);font-size:.84rem;padding:12px 0">Checking…</div>
       </div>
 
-      <!-- CRM stats -->
-      <div style="margin-bottom:14px">
-        <button class="tb-btn primary" onclick="nav('companies')">→ View all company folders</button>
-      </div>
-      <div class="stats-row" style="grid-template-columns:repeat(5,1fr)">
+      <!-- Evidence progress cards: hidden on Home. dashRefreshEvidence() still populates
+           this (and the stats above) — just not shown here per the July 2026 home redesign. -->
+      <div id="dash-ev-cards" style="display:none"></div>
+    </div>
+
+    <!-- ──────────── COMPANIES -->
+    <div class="screen" id="screen-companies">
+      <!-- LEGACY CRM STATS (relocated here from Home, July 2026 redesign) -->
+      <div class="stats-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:18px">
         <div class="stat-card"><div class="val" id="stat-total">0</div><div class="lbl">CRM Companies</div></div>
         <div class="stat-card"><div class="val" id="stat-assessed">0</div><div class="lbl">Assessed</div></div>
         <div class="stat-card"><div class="val" id="stat-flags">0</div><div class="lbl" style="color:var(--red)">Red Flags</div></div>
@@ -781,11 +720,8 @@ button{cursor:pointer}
       <div class="company-grid" id="company-grid">
         <!-- populated by JS -->
       </div>
-    </div>
 
-    <!-- ──────────── COMPANIES -->
-    <div class="screen" id="screen-companies">
-      <!-- Search + count -->
+<!-- Search + count -->
       <div class="co-search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input id="co-search-input" placeholder="Search companies…" oninput="coSearch(this.value)" autocomplete="off">
@@ -856,6 +792,40 @@ button{cursor:pointer}
         <div style="display:flex;gap:8px">
           <button class="btn primary" onclick="nrcAddCompany()" style="flex:1">Add Company</button>
           <button class="btn" onclick="nrcCloseAddModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD MEMBER REQUEST (staff-initiated) -->
+    <div id="mr-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:750;align-items:center;justify-content:center">
+      <div style="background:var(--panel);border-radius:10px;padding:26px 28px 20px;width:480px;max-width:95vw;max-height:88vh;overflow-y:auto">
+        <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);margin-bottom:6px">Add Member Request</div>
+        <p style="font-size:.78rem;color:var(--muted);margin-bottom:14px">Add someone you've met (e.g. from a business card) into the member request queue for review.</p>
+
+        <div class="we-field" style="margin-bottom:10px"><label>First Name *</label><input id="mr-add-first" type="text" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+        <div class="we-field" style="margin-bottom:10px"><label>Last Name</label><input id="mr-add-last" type="text" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+        <div class="we-field" style="margin-bottom:10px"><label>Email *</label><input id="mr-add-email" type="email" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+        <div class="we-field" style="margin-bottom:10px"><label>Phone</label><input id="mr-add-phone" type="tel" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+        <div class="we-field" style="margin-bottom:10px"><label>Company</label><input id="mr-add-company" type="text" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+        <div class="we-field" style="margin-bottom:10px">
+          <label>Job Title</label>
+          <select id="mr-add-jobtitle" onchange="mrToggleOther(this.value)" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box">
+            <option value="">Select…</option>
+            <option value="BD">BD</option>
+            <option value="Quality">Quality</option>
+            <option value="Production">Production</option>
+            <option value="Operations">Operations</option>
+            <option value="Engineering">Engineering</option>
+            <option value="H&S">H&S</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="we-field" id="mr-add-jto-wrap" style="display:none;margin-bottom:10px"><label>Please specify</label><input id="mr-add-jobtitle-other" type="text" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+
+        <div id="mr-add-msg" style="display:none;font-size:.78rem;margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn primary" onclick="mrAddRequest()" style="flex:1">Add Request</button>
+          <button class="btn" onclick="mrCloseAddModal()">Cancel</button>
         </div>
       </div>
     </div>
@@ -1643,6 +1613,104 @@ button{cursor:pointer}
       </div>
     </div><!-- /screen-certgen -->
 
+    <!-- MAIL MERGE -->
+    <div class="screen" id="screen-mailmerge">
+      <div style="max-width:1100px;display:flex;flex-direction:column;gap:22px">
+
+        <!-- Make.com webhook config -->
+        <div style="background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+          <div>
+            <div style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Send-to-Drafts Webhook URL</div>
+            <div style="display:flex;gap:8px">
+              <input id="mm-webhook-url" type="text" placeholder="Paste the Make.com custom webhook URL here (one-time setup)" style="flex:1;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.82rem;outline:none;font-family:inherit">
+              <button class="btn" onclick="mmSaveWebhookUrl()">Save</button>
+            </div>
+            <div id="mm-webhook-msg" style="font-size:.74rem;color:var(--muted);margin-top:6px"></div>
+          </div>
+          <div>
+            <div style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Existing Members Webhook URL</div>
+            <div style="display:flex;gap:8px">
+              <input id="mm-webhook-url-members" type="text" placeholder="Paste the 'Get Existing Members' scenario's webhook URL here" style="flex:1;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.82rem;outline:none;font-family:inherit">
+              <button class="btn" onclick="mmSaveMembersWebhookUrl()">Save</button>
+            </div>
+            <div id="mm-webhook-members-msg" style="font-size:.74rem;color:var(--muted);margin-top:6px"></div>
+          </div>
+        </div>
+
+        <!-- Segment filter -->
+        <div>
+          <div class="sec-heading" style="border-left:3px solid var(--accent);padding-left:10px">1. Choose a segment</div>
+
+          <div style="display:flex;gap:16px;margin-bottom:14px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
+              <input type="radio" name="mm-source" value="requests" checked onchange="mmSourceChanged()"> New Requests
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
+              <input type="radio" name="mm-source" value="existing" onchange="mmSourceChanged()"> Existing Members
+            </label>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="we-field" id="mm-jobtitle-field">
+              <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:4px;letter-spacing:.05em;text-transform:uppercase">Job Title</label>
+              <select id="mm-filter-jobtitle" style="border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;min-width:180px">
+                <option value="">All job titles</option>
+                <option value="BD">BD</option>
+                <option value="Quality">Quality</option>
+                <option value="Production">Production</option>
+                <option value="Operations">Operations</option>
+                <option value="Engineering">Engineering</option>
+                <option value="H&S">H&S</option>
+                <option value="Other">Other</option>
+              </select>
+              <div id="mm-jobtitle-note" style="display:none;font-size:.72rem;color:var(--warn);margin-top:4px;max-width:200px">Job title isn't populated for existing members yet — this filter won't match anything until profiles get backfilled.</div>
+            </div>
+            <div class="we-field">
+              <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:4px;letter-spacing:.05em;text-transform:uppercase">Company contains</label>
+              <input id="mm-filter-company" type="text" placeholder="e.g. Aerospace" style="border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;min-width:200px">
+            </div>
+            <button class="btn primary" onclick="mmLoadSegment()">Load Segment</button>
+          </div>
+          <div id="mm-segment-msg" style="font-size:.8rem;color:var(--muted);margin-top:10px"></div>
+        </div>
+
+        <!-- Recipients -->
+        <div>
+          <div class="sec-heading" style="border-left:3px solid var(--accent);padding-left:10px;display:flex;align-items:center;justify-content:space-between">
+            <span>2. Review recipients</span>
+            <label style="font-size:.78rem;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" id="mm-select-all" onchange="mmToggleAll(this.checked)"> Select all
+            </label>
+          </div>
+          <div id="mm-recipients" style="border:1px solid var(--line);border-radius:8px;max-height:280px;overflow-y:auto">
+            <div style="color:var(--muted);font-size:.84rem;padding:16px">Load a segment above to see matching contacts.</div>
+          </div>
+        </div>
+
+        <!-- Template -->
+        <div>
+          <div class="sec-heading" style="border-left:3px solid var(--accent);padding-left:10px">3. Write the email</div>
+          <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">Insert a merge field: 
+            <button class="tb-btn" style="padding:2px 8px;font-size:.72rem" onclick="mmInsertField('first_name')">{{first_name}}</button>
+            <button class="tb-btn" style="padding:2px 8px;font-size:.72rem" onclick="mmInsertField('last_name')">{{last_name}}</button>
+            <button class="tb-btn" style="padding:2px 8px;font-size:.72rem" onclick="mmInsertField('company')">{{company}}</button>
+            <button class="tb-btn" style="padding:2px 8px;font-size:.72rem" onclick="mmInsertField('job_title')">{{job_title}}</button>
+          </div>
+          <div class="we-field" style="margin-bottom:10px"><label>Subject</label><input id="mm-subject" type="text" placeholder="e.g. You're invited: F4N Summit 2026" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:9px 11px;font-size:.88rem;outline:none;box-sizing:border-box"></div>
+          <div class="we-field"><label>Body</label><textarea id="mm-body" rows="10" placeholder="Hi {{first_name}}, ..." style="width:100%;border:1px solid var(--line);border-radius:5px;padding:9px 11px;font-size:.88rem;outline:none;box-sizing:border-box;font-family:inherit"></textarea></div>
+        </div>
+
+        <!-- Send -->
+        <div>
+          <div class="sec-heading" style="border-left:3px solid var(--accent);padding-left:10px">4. Send to Drafts</div>
+          <p style="font-size:.8rem;color:var(--muted);margin-bottom:10px">Each recipient gets a personalised email created as a draft in Outlook — nothing sends automatically. Review and send from Outlook yourself.</p>
+          <button class="btn primary" onclick="mmSend()" id="mm-send-btn">Send to Drafts</button>
+          <div id="mm-send-msg" style="font-size:.82rem;margin-top:10px"></div>
+        </div>
+
+      </div>
+    </div><!-- /screen-mailmerge -->
+
 
     <!-- SETTINGS -->
     <div class="screen" id="screen-settings">
@@ -1730,6 +1798,18 @@ button{cursor:pointer}
         </div>
 
         <p style="margin:0;font-size:.78rem;color:var(--muted)">Tool changes take effect immediately in any open Frankie Chat tab on this browser.</p>
+
+        <!-- Website Features (site-wide, Supabase-backed) -->
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Website Features</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div class="ctrl-row">
+              <div><div class="ctrl-label">☢️ NuclearReady Profile</div><div class="ctrl-sub">Shows/hides the NuclearReady Profile tab for every member on nuccol.co.uk/members.html</div></div>
+              <label class="scc-toggle"><input type="checkbox" id="site-nuclearready" onchange="siteFeatureSave('nuclearready_enabled','site-nuclearready')"><span class="scc-toggle-track"></span></label>
+            </div>
+          </div>
+          <p style="margin:8px 0 0;font-size:.78rem;color:var(--muted)">This is site-wide — takes effect for all members immediately, not just this browser.</p>
+        </div>
       </div>
     </div>
 
@@ -1996,6 +2076,9 @@ function showApp() {
   buildBESections();
   if (!localStorage.getItem('scc_blob_seeded')) document.getElementById('seed-banner').style.display='flex';
   dashRefreshEvidence();
+  heroRenderRecent();
+  naSetGreeting();
+  naCompute();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2003,7 +2086,7 @@ function showApp() {
 // ═══════════════════════════════════════════════════════════
 const TOPBAR = {
   dashboard:   {title:'F.R.A.N.K.I.E.', sub:'Future Readiness And Nuclear Knowledge Intelligence Engine', actions:''},
-  companies:   {title:'Companies', sub:'All managed companies — evidence, assessments and certificates', actions:`<button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button>`},
+  companies:   {title:'Companies', sub:'All managed companies — evidence, assessments and certificates', actions:`<button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button><button class="tb-btn" onclick="mrShowAddModal()" style="margin-left:8px">+ Add Member Request</button>`},
   f4ntracker:  {title:'F4N Tracker', sub:'Booking pipeline for Fit For Nuclear assessments — linked to CRM companies', actions:`<button class="tb-btn primary" onclick="f4nShowAddModal()">+ Add Booking</button><button class="tb-btn" onclick="f4nLoad()" style="margin-left:8px">↻ Refresh</button>`},
   supplierdb:  {title:'Supplier Database', sub:'Live NuCCoL SharePoint supplier database (DataVault/Rolodex/SupplierMap) — linked to CRM companies', actions:`<button class="tb-btn" onclick="sdbLoad(true)" style="margin-left:8px">↻ Refresh</button>`},
   assessment:  {title:'Run Assessment', sub:'F4N or Business Excellence scoring', actions:''},
@@ -2019,7 +2102,8 @@ const TOPBAR = {
   pcv:         {title:'Programme Country View', sub:'Edit and publish quarterly nuclear programme slide briefings', actions:`<button class="tb-btn primary" onclick="pcvPublish()">&#9650; Publish to Members</button><button class="tb-btn" onclick="pcvAddSlide()" style="margin-left:8px">+ Add Slide</button>`},
   certgen:     {title:'F4N Certificate Generator', sub:'Issue F4N Granted Status certificates', actions:`<button class="tb-btn primary" onclick="certDownload()">&#11015; Download PDF</button>`},
   timesink:     {title:'TimeSink', sub:'Log time and expenses against your projects', actions:`<button class="tb-btn" onclick="document.getElementById('frm-timesink').src=document.getElementById('frm-timesink').src">↻ Refresh</button>`},
-  controlcentre: {title:'Control Centre', sub:'Project delivery, budgets and the sales pipeline', actions:`<button class="tb-btn" onclick="document.getElementById('frm-controlcentre').src=document.getElementById('frm-controlcentre').src">↻ Refresh</button>`}
+  controlcentre: {title:'Control Centre', sub:'Project delivery, budgets and the sales pipeline', actions:`<button class="tb-btn" onclick="document.getElementById('frm-controlcentre').src=document.getElementById('frm-controlcentre').src">↻ Refresh</button>`},
+  mailmerge: {title:'Mail Merge', sub:'Send templated emails to a segment of members — lands in Outlook Drafts for review before sending', actions:''}
 };
 
 // ── Navigation history (real back-stack, not just a single "previous screen") ──
@@ -2059,7 +2143,9 @@ function nav(screen, opts) {
   if (screen === 'settings') apiCtrlRestore();
   if (screen === 'pcv') pcvLoad();
   if (screen === 'certgen') certInit();
+  if (screen === 'mailmerge') mmInit();
   if (screen === 'timesink' || screen === 'controlcentre') lazyLoadToolFrame(screen);
+  if (screen === 'dashboard') { naSetGreeting(); naCompute(); }
   if (screen === 'dashboard' && window.TM) {
     const s = window.TM.stats();
     const g = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -2125,6 +2211,474 @@ window.addEventListener('message', (e) => {
     nav(data.screen);
   }
 });
+
+// ═══════════════════════════════════════════════════════════
+// HOME — NEEDS ATTENTION (July 2026 home redesign)
+// ═══════════════════════════════════════════════════════════
+// Reads two SharePoint lists (Projects, TimeEntries) on the ProjectControl
+// site — the same site ControlCentre.html/Timesink.html use — via a THIRD
+// MSAL client. It shares clientId/tenantId with the Supplier Database's
+// SDB_CONFIG, so if staff are already signed in there (or in the embedded
+// ControlCentre/Timesink tools), acquireTokenSilent below picks up the same
+// cached account with no extra prompt. If there's no cached session at all,
+// we show a "sign in to see" row instead of forcing a popup on page load.
+const PC_CFG = {
+  tenantId : 'd44192f5-1023-458c-9cb3-9ff7e9c6d4ad',
+  clientId : 'ec0a6806-59e8-4ea9-8ff5-6bdb1ba87baf',
+  siteUrl  : 'https://nuccol.sharepoint.com/sites/ProjectControl',
+  scope    : 'https://nuccol.sharepoint.com/.default',
+  lists    : { projects: 'Projects', timeEntries: 'TimeEntries' }
+};
+// Same 5-person roster ControlCentre.html hardcodes as CFG.owners — kept in
+// sync manually since there's no "active staff" flag on the Employees list.
+const NA_STAFF_ROSTER = ['Stephen Kinsey','Steven Farey','John Hilton-Brammer','Rene Dorset','Liz Gregory'];
+
+let pcMsalClient = null;
+async function pcInitMsal() {
+  if (pcMsalClient) return;
+  pcMsalClient = new msal.PublicClientApplication({
+    auth: {
+      clientId: PC_CFG.clientId,
+      authority: `https://login.microsoftonline.com/${PC_CFG.tenantId}`,
+      redirectUri: window.location.origin + window.location.pathname.replace(/[^/]*$/, 'auth-redirect.html')
+    },
+    cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
+  });
+  await pcMsalClient.initialize();
+  await pcMsalClient.handleRedirectPromise();
+}
+
+// Silent-only — never shows a popup. Returns null if there's no cached session
+// or the silent acquire fails, so callers can fall back to a "sign in" prompt.
+async function pcGetTokenSilent() {
+  try {
+    await pcInitMsal();
+    const accounts = pcMsalClient.getAllAccounts();
+    if (!accounts.length) return null;
+    const r = await pcMsalClient.acquireTokenSilent({ scopes: [PC_CFG.scope], account: accounts[0] });
+    return r.accessToken;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function pcSignIn() {
+  await pcInitMsal();
+  try {
+    const result = await pcMsalClient.loginPopup({ scopes: [PC_CFG.scope] });
+    pcMsalClient.setActiveAccount(result.account);
+    naCompute();
+  } catch (e) {
+    toast('Sign-in failed: ' + e.message);
+  }
+}
+
+async function pcGet(path) {
+  const token = await pcGetTokenSilent();
+  if (!token) return null;
+  const res = await fetch(`${PC_CFG.siteUrl}/_api/${path}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json;odata=nometadata' }
+  });
+  if (!res.ok) throw new Error(`GET ${res.status}`);
+  return res.json();
+}
+
+function naMonday(d) {
+  const dt = new Date(d); dt.setHours(0,0,0,0);
+  const day = dt.getDay();
+  dt.setDate(dt.getDate() + (day === 0 ? -6 : 1 - day));
+  return dt;
+}
+function naAddDays(d, n) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+function naIsoDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
+async function naSharePointSignals() {
+  const rows = [];
+  const token = await pcGetTokenSilent();
+  if (!token) {
+    rows.push({ level: 'amber', text: 'Sign in with Microsoft to check missing timesheets', action: 'pcSignIn()' });
+    rows.push({ level: 'amber', text: 'Sign in with Microsoft to check project budgets', action: 'pcSignIn()' });
+    return rows;
+  }
+
+  // Missing timesheet days this week (only weekdays up to and including today)
+  try {
+    const weekStart = naMonday(new Date());
+    const today = new Date(); today.setHours(0,0,0,0);
+    const daysToCheck = [];
+    for (let i = 0; i < 5; i++) {
+      const d = naAddDays(weekStart, i);
+      if (d <= today) daysToCheck.push(naIsoDate(d));
+    }
+    const s = naIsoDate(weekStart), e = naIsoDate(naAddDays(weekStart, 5));
+    const tePath = `web/lists/getbytitle('${encodeURIComponent(PC_CFG.lists.timeEntries)}')/items` +
+      `?$select=Date,EmployeeName&$filter=Date ge datetime'${s}T00:00:00Z' and Date lt datetime'${e}T00:00:00Z'&$top=2000`;
+    const te = await pcGet(tePath);
+    const logged = {};
+    (te?.value || []).forEach(r => {
+      const name = r.EmployeeName; if (!name) return;
+      const iso = (r.Date || '').split('T')[0];
+      (logged[name] = logged[name] || new Set()).add(iso);
+    });
+    let missing = 0;
+    NA_STAFF_ROSTER.forEach(name => {
+      const set = logged[name] || new Set();
+      daysToCheck.forEach(d => { if (!set.has(d)) missing++; });
+    });
+    if (missing > 0) {
+      rows.push({ level: missing >= 5 ? 'red' : 'amber', text: `${missing} timesheet day${missing !== 1 ? 's' : ''} missing this week`, nav: 'timesink' });
+    }
+  } catch (e) { /* SharePoint unreachable this session — skip signal silently */ }
+
+  // Projects over budget — mirrors ControlCentre's own "Over Budget" KPI chip exactly
+  try {
+    const projPath = `web/lists/getbytitle('${encodeURIComponent(PC_CFG.lists.projects)}')/items?$select=ID,Title,POValue&$top=2000`;
+    const tePath2  = `web/lists/getbytitle('${encodeURIComponent(PC_CFG.lists.timeEntries)}')/items?$select=ProjectId,HoursWorked,TravelHours,CommercialRate,CommercialCost&$top=5000`;
+    const [projRes, teRes] = await Promise.all([pcGet(projPath), pcGet(tePath2)]);
+    const projects = projRes?.value || [];
+    const entries  = teRes?.value || [];
+    const costOf = e => {
+      const stored = Number(e.CommercialCost);
+      if (stored && stored !== 0) return stored;
+      return ((e.HoursWorked||0) + (e.TravelHours||0)) * Number(e.CommercialRate||0) / 7;
+    };
+    const spendByProject = {};
+    entries.forEach(e => { spendByProject[e.ProjectId] = (spendByProject[e.ProjectId]||0) + costOf(e); });
+    const overBudget = projects.filter(p => (spendByProject[p.ID]||0) > (p.POValue||0));
+    if (overBudget.length > 0) {
+      rows.push({ level: overBudget.length >= 3 ? 'red' : 'amber', text: `${overBudget.length} project${overBudget.length !== 1 ? 's are' : ' is'} over budget`, nav: 'controlcentre' });
+    }
+  } catch (e) { /* skip silently */ }
+
+  return rows;
+}
+
+async function naSupabaseSignals() {
+  const rows = [];
+
+  // F4N certificates expiring within 30 days (or already expired)
+  try {
+    const { data } = await db.from('nr_companies').select('id,name,expiry_date,status').eq('status', 'granted');
+    const today = new Date();
+    const soon = (data || []).filter(c => {
+      if (!c.expiry_date) return false;
+      const days = Math.ceil((new Date(c.expiry_date) - today) / 86400000);
+      return days <= 30;
+    });
+    if (soon.length > 0) {
+      const expired = soon.filter(c => new Date(c.expiry_date) < today).length;
+      rows.push({ level: expired > 0 ? 'red' : 'amber', text: `${soon.length} F4N certificate${soon.length !== 1 ? 's' : ''} expiring within 30 days`, nav: 'nrcompanies' });
+    }
+  } catch (e) {}
+
+  // Evidence gone stale — in_progress companies with no upload in 30+ days
+  try {
+    const { data: companies } = await db.from('nr_companies').select('id,name,status,member_user_id').eq('status', 'in_progress');
+    const inProgress = (companies || []).filter(c => c.member_user_id);
+    const cData = window._dashCompanyData || [];
+    const byUserId = {};
+    cData.forEach(c => { byUserId[c.userId] = c; });
+    const today = new Date();
+    let stale = 0;
+    inProgress.forEach(c => {
+      const ev = byUserId[c.member_user_id];
+      const lastActive = ev?.latestDate ? new Date(ev.latestDate) : null;
+      const days = lastActive ? Math.ceil((today - lastActive) / 86400000) : Infinity;
+      if (days >= 30) stale++;
+    });
+    if (stale > 0) {
+      rows.push({ level: 'amber', text: `${stale} compan${stale !== 1 ? 'ies' : 'y'} with no evidence upload in 30+ days`, nav: 'evidence' });
+    }
+  } catch (e) {}
+
+  // Pending profile updates
+  try {
+    const { data } = await db.from('nr_profile_updates').select('id').eq('status', 'pending');
+    const pending = (data || []).length;
+    if (pending > 0) {
+      rows.push({ level: 'amber', text: `${pending} pending profile update${pending !== 1 ? 's' : ''}`, nav: 'nuclearready' });
+    }
+  } catch (e) {}
+
+  return rows;
+}
+
+async function naCompute() {
+  const el = document.getElementById('na-list');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--muted);font-size:.84rem;padding:12px 0">Checking…</div>';
+
+  const [spRows, sbRows] = await Promise.all([naSharePointSignals(), naSupabaseSignals()]);
+  const rows = [...spRows, ...sbRows];
+
+  if (!rows.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:.84rem;padding:12px 0">Nothing needs attention right now.</div>';
+    return;
+  }
+
+  el.innerHTML = rows.map(r => {
+    const dotColor = r.level === 'red' ? 'var(--red)' : '#f59e0b';
+    const clickAttr = r.action ? `onclick="${r.action}"` : (r.nav ? `onclick="nav('${r.nav}')"` : '');
+    return `<div ${clickAttr} style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--line)'">
+      <span style="width:9px;height:9px;border-radius:2px;background:${dotColor};flex-shrink:0"></span>
+      <span style="flex:1;font-size:.88rem;color:var(--ink)">${r.text}</span>
+      <span style="color:var(--muted);font-size:.8rem">→</span>
+    </div>`;
+  }).join('');
+}
+
+function naSetGreeting() {
+  const h = new Date().getHours();
+  const period = h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening';
+  const name = (typeof currentUser === 'string' && currentUser) ? currentUser : '';
+  const el = document.getElementById('home-greeting-title');
+  if (el) el.textContent = `Good ${period}${name ? ', ' + name : ''}`;
+}
+
+function homeSearchGo(val) {
+  const q = (val || '').trim();
+  nav('companies');
+  setTimeout(() => {
+    const input = document.getElementById('co-search-input');
+    if (input) { input.value = q; coSearch(q); }
+  }, 50);
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAIL MERGE — segment → Outlook Drafts via Make.com
+// ═══════════════════════════════════════════════════════════
+// Recipients come from member_requests (the same table Stage 1's Add Member
+// flows write to) rather than a separate contacts table — coverage grows as
+// more people go through the portal, per the July 2026 build notes.
+// Merge-field substitution happens here in JS (not in Make) so every
+// recipient's rendered subject/body is fully formed before it's POSTed —
+// Make's scenario just fans the array out into Outlook drafts.
+let mmSegment = [];
+
+// Default Make.com webhook for the Mail Merge scenario — pre-filled so it
+// works out of the box; still overridable/saveable per-browser via the
+// input above if the scenario URL ever changes.
+const MM_DEFAULT_WEBHOOK = 'https://hook.eu1.make.com/6faxfiurxeoz8ak8gj9mej7qa8ujntcb';
+
+function mmInit() {
+  const saved = localStorage.getItem('mmWebhookUrl') || MM_DEFAULT_WEBHOOK;
+  const el = document.getElementById('mm-webhook-url');
+  if (el) el.value = saved;
+
+  const savedMembers = localStorage.getItem('mmMembersWebhookUrl') || '';
+  const elm = document.getElementById('mm-webhook-url-members');
+  if (elm) elm.value = savedMembers;
+}
+
+function mmSaveWebhookUrl() {
+  const url = document.getElementById('mm-webhook-url')?.value.trim() || '';
+  localStorage.setItem('mmWebhookUrl', url);
+  const msg = document.getElementById('mm-webhook-msg');
+  if (msg) { msg.textContent = url ? 'Saved.' : 'Cleared.'; msg.style.color = 'var(--ok)'; }
+}
+
+function mmSaveMembersWebhookUrl() {
+  const url = document.getElementById('mm-webhook-url-members')?.value.trim() || '';
+  localStorage.setItem('mmMembersWebhookUrl', url);
+  const msg = document.getElementById('mm-webhook-members-msg');
+  if (msg) { msg.textContent = url ? 'Saved.' : 'Cleared.'; msg.style.color = 'var(--ok)'; }
+}
+
+function mmSourceChanged() {
+  const source = document.querySelector('input[name="mm-source"]:checked')?.value || 'requests';
+  document.getElementById('mm-jobtitle-note').style.display = (source === 'existing') ? 'block' : 'none';
+  mmSegment = [];
+  document.getElementById('mm-recipients').innerHTML = '<div style="color:var(--muted);font-size:.84rem;padding:16px">Load a segment above to see matching contacts.</div>';
+  document.getElementById('mm-segment-msg').textContent = '';
+}
+
+function mmLoadSegment() {
+  const source = document.querySelector('input[name="mm-source"]:checked')?.value || 'requests';
+  if (source === 'existing') mmLoadFromExisting();
+  else mmLoadFromRequests();
+}
+
+// Renders mmSegment (already populated) into the shared recipients list —
+// used by both the "New Requests" and "Existing Members" segment sources.
+function mmRenderRecipients() {
+  const msg = document.getElementById('mm-segment-msg');
+  const list = document.getElementById('mm-recipients');
+
+  msg.textContent = `${mmSegment.length} matching contact${mmSegment.length !== 1 ? 's' : ''}.`;
+  msg.style.color = 'var(--muted)';
+  document.getElementById('mm-select-all').checked = true;
+
+  if (!mmSegment.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:.84rem;padding:16px">No contacts match this segment.</div>';
+    return;
+  }
+
+  list.innerHTML = mmSegment.map((r, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:.84rem">
+      <input type="checkbox" checked onchange="mmSegment[${i}].selected=this.checked">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;color:var(--ink)">${escH(r.first_name)} ${escH(r.last_name)} ${r.job_title ? `<span style="font-weight:400;color:var(--muted)">— ${escH(r.job_title)}</span>` : ''}</div>
+        <div style="color:var(--muted);font-size:.78rem">${escH(r.email)}${r.company ? ' · ' + escH(r.company) : ''}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function mmLoadFromRequests() {
+  const jobTitle = document.getElementById('mm-filter-jobtitle')?.value || '';
+  const companyQ = (document.getElementById('mm-filter-company')?.value || '').trim().toLowerCase();
+  const msg = document.getElementById('mm-segment-msg');
+  msg.textContent = 'Loading…';
+
+  let q = db.from('member_requests')
+    .select('new_member_first_name,new_member_last_name,new_member_email,new_member_company,new_member_job_title,new_member_job_title_other,created_at')
+    .order('created_at', { ascending: false });
+  if (jobTitle) q = q.eq('new_member_job_title', jobTitle);
+
+  const { data, error } = await q;
+  if (error) { msg.textContent = 'Error: ' + error.message; msg.style.color = 'var(--red)'; return; }
+
+  // Dedupe by email, keep the most recent row per person (data is already
+  // ordered newest-first, so the first occurrence wins).
+  const seen = new Set();
+  let rows = (data || []).filter(r => {
+    const email = (r.new_member_email || '').toLowerCase().trim();
+    if (!email || seen.has(email)) return false;
+    seen.add(email);
+    return true;
+  });
+
+  if (companyQ) {
+    rows = rows.filter(r => (r.new_member_company || '').toLowerCase().includes(companyQ));
+  }
+
+  mmSegment = rows.map(r => ({
+    first_name: r.new_member_first_name || '',
+    last_name:  r.new_member_last_name || '',
+    email:      r.new_member_email,
+    company:    r.new_member_company || '',
+    job_title:  r.new_member_job_title === 'Other' ? (r.new_member_job_title_other || 'Other') : (r.new_member_job_title || ''),
+    selected:   true
+  }));
+
+  mmRenderRecipients();
+}
+
+// Existing members: relayed through Make (server-side join of auth.users +
+// profiles) since the anon key scc.html uses can't safely read auth.users
+// directly, and profiles has no email column of its own. See the "Get
+// Existing Members" scenario spec — webhook returns { profiles: [...], users: [...] }.
+async function mmLoadFromExisting() {
+  const jobTitle = document.getElementById('mm-filter-jobtitle')?.value || '';
+  const companyQ = (document.getElementById('mm-filter-company')?.value || '').trim().toLowerCase();
+  const msg = document.getElementById('mm-segment-msg');
+  const webhookUrl = localStorage.getItem('mmMembersWebhookUrl') || '';
+
+  if (!webhookUrl) { msg.textContent = 'Add and save the Existing Members webhook URL above first.'; msg.style.color = 'var(--red)'; return; }
+
+  msg.textContent = 'Loading…';
+  msg.style.color = 'var(--muted)';
+
+  let payload;
+  try {
+    const res = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    if (!res.ok) throw new Error(`Webhook returned ${res.status}`);
+    payload = await res.json();
+  } catch (e) {
+    msg.textContent = 'Error: ' + e.message;
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
+  const profiles = payload?.profiles || [];
+  const users = payload?.users?.users || payload?.users || [];
+  const emailById = {};
+  users.forEach(u => { if (u?.id) emailById[u.id] = u.email; });
+
+  let rows = profiles
+    .map(p => {
+      const full = (p.full_name || '').trim();
+      const firstSpace = full.indexOf(' ');
+      return {
+        first_name: firstSpace === -1 ? full : full.slice(0, firstSpace),
+        last_name:  firstSpace === -1 ? '' : full.slice(firstSpace + 1),
+        email:      emailById[p.id] || '',
+        company:    p.company || '',
+        job_title:  p.job_title || '',
+        selected:   true
+      };
+    })
+    .filter(r => r.email);
+
+  if (jobTitle) rows = rows.filter(r => r.job_title === jobTitle);
+  if (companyQ) rows = rows.filter(r => r.company.toLowerCase().includes(companyQ));
+
+  mmSegment = rows;
+  mmRenderRecipients();
+}
+
+function mmToggleAll(checked) {
+  mmSegment.forEach(r => r.selected = checked);
+  document.querySelectorAll('#mm-recipients input[type="checkbox"]').forEach(cb => cb.checked = checked);
+}
+
+function mmInsertField(field) {
+  const active = document.activeElement;
+  const target = (active && (active.id === 'mm-subject' || active.id === 'mm-body')) ? active : document.getElementById('mm-body');
+  const token = `{{${field}}}`;
+  const start = target.selectionStart ?? target.value.length;
+  const end = target.selectionEnd ?? target.value.length;
+  target.value = target.value.slice(0, start) + token + target.value.slice(end);
+  target.focus();
+  target.selectionStart = target.selectionEnd = start + token.length;
+}
+
+function mmRenderMerge(template, r) {
+  return template
+    .replace(/\{\{first_name\}\}/g, r.first_name || '')
+    .replace(/\{\{last_name\}\}/g, r.last_name || '')
+    .replace(/\{\{company\}\}/g, r.company || '')
+    .replace(/\{\{job_title\}\}/g, r.job_title || '');
+}
+
+async function mmSend() {
+  const msg = document.getElementById('mm-send-msg');
+  const btn = document.getElementById('mm-send-btn');
+  const webhookUrl = localStorage.getItem('mmWebhookUrl') || '';
+  const subjectTpl = document.getElementById('mm-subject')?.value || '';
+  const bodyTpl = document.getElementById('mm-body')?.value || '';
+
+  if (!webhookUrl) { msg.textContent = 'Add and save the Make.com webhook URL above first.'; msg.style.color = 'var(--red)'; return; }
+  const recipients = mmSegment.filter(r => r.selected);
+  if (!recipients.length) { msg.textContent = 'No recipients selected.'; msg.style.color = 'var(--red)'; return; }
+  if (!subjectTpl.trim() || !bodyTpl.trim()) { msg.textContent = 'Subject and body are both required.'; msg.style.color = 'var(--red)'; return; }
+
+  btn.disabled = true; btn.textContent = 'Sending…';
+  msg.textContent = '';
+
+  const payload = {
+    recipients: recipients.map(r => ({
+      email: r.email,
+      subject: mmRenderMerge(subjectTpl, r),
+      body: mmRenderMerge(bodyTpl, r)
+    }))
+  };
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`Webhook returned ${res.status}`);
+    msg.textContent = `Sent ${recipients.length} draft${recipients.length !== 1 ? 's' : ''} to Make — check Outlook Drafts.`;
+    msg.style.color = 'var(--ok)';
+  } catch (e) {
+    msg.textContent = 'Error: ' + e.message;
+    msg.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Send to Drafts';
+  }
+}
 
 // ═══════════════════════════════════════════════════════════
 // COMPANIES — CRUD
@@ -2234,7 +2788,7 @@ function heroRenderRecent() {
   try {
     const recents = JSON.parse(localStorage.getItem('frankieRecentCos') || '[]');
     if (!recents.length) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:.78rem;padding:4px 0;grid-column:1/-1">Companies you work with will appear here.</div>';
+      el.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:20px;grid-column:1/-1;text-align:center;border:1.5px dashed var(--line);border-radius:8px;background:var(--panel)">Companies you work with will appear here</div>';
       return;
     }
     el.innerHTML = recents.map(r => {
@@ -2377,6 +2931,8 @@ async function dashRefreshEvidence() {
 
     return { userId, company, sections, totalFiles, latestDate };
   }));
+
+  window._dashCompanyData = companyData; // exposed for Needs Attention stale-evidence signal
 
   // 3. Stats
   const totalFiles = companyData.reduce((a, c) => a + c.totalFiles, 0);
@@ -4655,6 +5211,37 @@ function apiCtrlRestore() {
   });
   settingsUpdateBadges();
   loadKbStats();
+  siteFeatureRestore();
+}
+
+// Website-wide feature flags (nr_site_settings table — affects members.html
+// for every member immediately, unlike the tool toggles above which are per-browser).
+async function siteFeatureRestore() {
+  const el = document.getElementById('site-nuclearready');
+  if (!el) return;
+  try {
+    const { data, error } = await db.from('nr_site_settings').select('value').eq('key', 'nuclearready_enabled').maybeSingle();
+    if (error) throw error;
+    el.checked = !data || data.value !== false; // default ON if table/row not set up yet
+  } catch (e) {
+    el.checked = true;
+    console.warn('siteFeatureRestore failed (has nr_site_settings.sql been run?)', e);
+  }
+}
+
+async function siteFeatureSave(key, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const value = el.checked;
+  try {
+    const { error } = await db.from('nr_site_settings').upsert({ key, value }, { onConflict: 'key' });
+    if (error) throw error;
+    toast(value ? 'NuclearReady Profile shown to members' : 'NuclearReady Profile hidden from members');
+  } catch (e) {
+    el.checked = !value; // revert UI on failure
+    toast('Save failed — has nr_site_settings.sql been run in Supabase?');
+    console.error('siteFeatureSave failed', e);
+  }
 }
 
 async function loadKbStats() {
@@ -5434,6 +6021,70 @@ function nrcShowAddModal() {
 
 function nrcCloseAddModal() {
   document.getElementById('nrc-add-modal').style.display = 'none';
+}
+
+function mrShowAddModal() {
+  ['mr-add-first','mr-add-last','mr-add-email','mr-add-phone','mr-add-company','mr-add-jobtitle-other'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const sel = document.getElementById('mr-add-jobtitle'); if (sel) sel.value = '';
+  document.getElementById('mr-add-jto-wrap').style.display = 'none';
+  const msg = document.getElementById('mr-add-msg'); if (msg) msg.style.display = 'none';
+  document.getElementById('mr-add-modal').style.display = 'flex';
+}
+
+function mrCloseAddModal() {
+  document.getElementById('mr-add-modal').style.display = 'none';
+}
+
+function mrToggleOther(val) {
+  document.getElementById('mr-add-jto-wrap').style.display = (val === 'Other') ? 'block' : 'none';
+}
+
+async function mrAddRequest() {
+  const first   = document.getElementById('mr-add-first')?.value.trim();
+  const last    = document.getElementById('mr-add-last')?.value.trim();
+  const email   = document.getElementById('mr-add-email')?.value.trim();
+  const phone   = document.getElementById('mr-add-phone')?.value.trim();
+  const company = document.getElementById('mr-add-company')?.value.trim();
+  const jobtitle = document.getElementById('mr-add-jobtitle')?.value.trim();
+  const jobtitleOther = document.getElementById('mr-add-jobtitle-other')?.value.trim();
+  const msg = document.getElementById('mr-add-msg');
+
+  if (!first) {
+    if (msg) { msg.textContent = 'First name is required.'; msg.style.color = 'var(--red)'; msg.style.display = 'block'; }
+    return;
+  }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (msg) { msg.textContent = 'A valid email is required.'; msg.style.color = 'var(--red)'; msg.style.display = 'block'; }
+    return;
+  }
+
+  const { data: { user } } = await db.auth.getUser();
+
+  const payload = {
+    requested_by: user?.id ?? null,
+    requester_email: user?.email ?? null,
+    requester_company: 'NucCol',
+    new_member_first_name: first,
+    new_member_last_name: last || null,
+    new_member_email: email,
+    new_member_company: company || null,
+    new_member_job_title: jobtitle || null,
+    new_member_job_title_other: (jobtitle === 'Other' ? (jobtitleOther || null) : null),
+    new_member_phone: phone || null,
+    status: 'pending'
+  };
+
+  const { error } = await db.from('member_requests').insert(payload);
+
+  if (error) {
+    if (msg) { msg.textContent = 'Error: ' + error.message; msg.style.color = 'var(--red)'; msg.style.display = 'block'; }
+    return;
+  }
+
+  mrCloseAddModal();
+  toast('Member request added — pending review.');
 }
 
 function nrcAddSwitchTab(tab) {
