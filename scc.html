@@ -2489,7 +2489,12 @@ function mmSaveMembersWebhookUrl() {
 
 function mmSourceChanged() {
   const source = document.querySelector('input[name="mm-source"]:checked')?.value || 'requests';
-  document.getElementById('mm-jobtitle-note').style.display = (source === 'requests') ? 'none' : 'block';
+  // Job title only ever reliably filters New Requests — hide it entirely for
+  // the other two sources instead of showing a filter that silently does
+  // nothing (or only half-applies) for Existing/All.
+  const jtField = document.getElementById('mm-jobtitle-field');
+  jtField.style.display = (source === 'requests') ? '' : 'none';
+  if (source !== 'requests') document.getElementById('mm-filter-jobtitle').value = '';
   mmSegment = [];
   document.getElementById('mm-recipients').innerHTML = '<div style="color:var(--muted);font-size:.84rem;padding:16px">Load a segment above to see matching contacts.</div>';
   document.getElementById('mm-segment-msg').textContent = '';
