@@ -1615,7 +1615,7 @@ button{cursor:pointer}
 
     <!-- MAIL MERGE -->
     <div class="screen" id="screen-mailmerge">
-      <div style="max-width:1100px;display:flex;flex-direction:column;gap:22px">
+      <div style="display:flex;flex-direction:column;gap:22px">
 
         <!-- Make.com webhook config -->
         <div style="background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
@@ -1648,6 +1648,9 @@ button{cursor:pointer}
             <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
               <input type="radio" name="mm-source" value="existing" onchange="mmSourceChanged()"> Existing Members
             </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
+              <input type="radio" name="mm-source" value="all" onchange="mmSourceChanged()"> All Members
+            </label>
           </div>
 
           <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
@@ -1663,7 +1666,7 @@ button{cursor:pointer}
                 <option value="H&S">H&S</option>
                 <option value="Other">Other</option>
               </select>
-              <div id="mm-jobtitle-note" style="display:none;font-size:.72rem;color:var(--warn);margin-top:4px;max-width:200px">Job title isn't populated for existing members yet — this filter won't match anything until profiles get backfilled.</div>
+              <div id="mm-jobtitle-note" style="display:none;font-size:.72rem;color:var(--warn);margin-top:4px;max-width:200px">Job title isn't populated for existing members yet — this filter only narrows New Requests until profiles get backfilled.</div>
             </div>
             <div class="we-field">
               <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:4px;letter-spacing:.05em;text-transform:uppercase">Company contains</label>
@@ -2486,7 +2489,7 @@ function mmSaveMembersWebhookUrl() {
 
 function mmSourceChanged() {
   const source = document.querySelector('input[name="mm-source"]:checked')?.value || 'requests';
-  document.getElementById('mm-jobtitle-note').style.display = (source === 'existing') ? 'block' : 'none';
+  document.getElementById('mm-jobtitle-note').style.display = (source === 'requests') ? 'none' : 'block';
   mmSegment = [];
   document.getElementById('mm-recipients').innerHTML = '<div style="color:var(--muted);font-size:.84rem;padding:16px">Load a segment above to see matching contacts.</div>';
   document.getElementById('mm-segment-msg').textContent = '';
@@ -2495,6 +2498,7 @@ function mmSourceChanged() {
 function mmLoadSegment() {
   const source = document.querySelector('input[name="mm-source"]:checked')?.value || 'requests';
   if (source === 'existing') mmLoadFromExisting();
+  else if (source === 'all') mmLoadAll();
   else mmLoadFromRequests();
 }
 
@@ -2523,19 +2527,16 @@ function mmRenderRecipients() {
     </div>`).join('');
 }
 
-async function mmLoadFromRequests() {
-  const jobTitle = document.getElementById('mm-filter-jobtitle')?.value || '';
-  const companyQ = (document.getElementById('mm-filter-company')?.value || '').trim().toLowerCase();
-  const msg = document.getElementById('mm-segment-msg');
-  msg.textContent = 'Loading…';
-
+// Pure data fetch — no DOM/mmSegment mutation — so "All Members" can call
+// both this and mmFetchExisting() and merge the results.
+async function mmFetchRequests(jobTitle, companyQ) {
   let q = db.from('member_requests')
     .select('new_member_first_name,new_member_last_name,new_member_email,new_member_company,new_member_job_title,new_member_job_title_other,created_at')
     .order('created_at', { ascending: false });
   if (jobTitle) q = q.eq('new_member_job_title', jobTitle);
 
   const { data, error } = await q;
-  if (error) { msg.textContent = 'Error: ' + error.message; msg.style.color = 'var(--red)'; return; }
+  if (error) return { rows: [], error: error.message };
 
   // Dedupe by email, keep the most recent row per person (data is already
   // ordered newest-first, so the first occurrence wins).
@@ -2551,32 +2552,27 @@ async function mmLoadFromRequests() {
     rows = rows.filter(r => (r.new_member_company || '').toLowerCase().includes(companyQ));
   }
 
-  mmSegment = rows.map(r => ({
-    first_name: r.new_member_first_name || '',
-    last_name:  r.new_member_last_name || '',
-    email:      r.new_member_email,
-    company:    r.new_member_company || '',
-    job_title:  r.new_member_job_title === 'Other' ? (r.new_member_job_title_other || 'Other') : (r.new_member_job_title || ''),
-    selected:   true
-  }));
-
-  mmRenderRecipients();
+  return {
+    rows: rows.map(r => ({
+      first_name: r.new_member_first_name || '',
+      last_name:  r.new_member_last_name || '',
+      email:      r.new_member_email,
+      company:    r.new_member_company || '',
+      job_title:  r.new_member_job_title === 'Other' ? (r.new_member_job_title_other || 'Other') : (r.new_member_job_title || ''),
+      selected:   true
+    })),
+    error: null
+  };
 }
 
 // Existing members: relayed through Make (server-side join of auth.users +
 // profiles) since the anon key scc.html uses can't safely read auth.users
 // directly, and profiles has no email column of its own. See the "Get
 // Existing Members" scenario spec — webhook returns { profiles: [...], users: [...] }.
-async function mmLoadFromExisting() {
-  const jobTitle = document.getElementById('mm-filter-jobtitle')?.value || '';
-  const companyQ = (document.getElementById('mm-filter-company')?.value || '').trim().toLowerCase();
-  const msg = document.getElementById('mm-segment-msg');
+// Also a pure fetch, same reasoning as mmFetchRequests above.
+async function mmFetchExisting(jobTitle, companyQ) {
   const webhookUrl = localStorage.getItem('mmMembersWebhookUrl') || '';
-
-  if (!webhookUrl) { msg.textContent = 'Add and save the Existing Members webhook URL above first.'; msg.style.color = 'var(--red)'; return; }
-
-  msg.textContent = 'Loading…';
-  msg.style.color = 'var(--muted)';
+  if (!webhookUrl) return { rows: [], error: 'Existing Members webhook URL not set.' };
 
   let payload;
   try {
@@ -2584,9 +2580,7 @@ async function mmLoadFromExisting() {
     if (!res.ok) throw new Error(`Webhook returned ${res.status}`);
     payload = await res.json();
   } catch (e) {
-    msg.textContent = 'Error: ' + e.message;
-    msg.style.color = 'var(--red)';
-    return;
+    return { rows: [], error: e.message };
   }
 
   const profiles = payload?.profiles || [];
@@ -2612,8 +2606,61 @@ async function mmLoadFromExisting() {
   if (jobTitle) rows = rows.filter(r => r.job_title === jobTitle);
   if (companyQ) rows = rows.filter(r => r.company.toLowerCase().includes(companyQ));
 
+  return { rows, error: null };
+}
+
+async function mmLoadFromRequests() {
+  const jobTitle = document.getElementById('mm-filter-jobtitle')?.value || '';
+  const companyQ = (document.getElementById('mm-filter-company')?.value || '').trim().toLowerCase();
+  const msg = document.getElementById('mm-segment-msg');
+  msg.textContent = 'Loading…'; msg.style.color = 'var(--muted)';
+
+  const { rows, error } = await mmFetchRequests(jobTitle, companyQ);
+  if (error) { msg.textContent = 'Error: ' + error; msg.style.color = 'var(--red)'; return; }
   mmSegment = rows;
   mmRenderRecipients();
+}
+
+async function mmLoadFromExisting() {
+  const jobTitle = document.getElementById('mm-filter-jobtitle')?.value || '';
+  const companyQ = (document.getElementById('mm-filter-company')?.value || '').trim().toLowerCase();
+  const msg = document.getElementById('mm-segment-msg');
+  msg.textContent = 'Loading…'; msg.style.color = 'var(--muted)';
+
+  const { rows, error } = await mmFetchExisting(jobTitle, companyQ);
+  if (error) { msg.textContent = 'Error: ' + error; msg.style.color = 'var(--red)'; return; }
+  mmSegment = rows;
+  mmRenderRecipients();
+}
+
+// "All Members" — merges New Requests + Existing Members, deduped by email.
+// If one source errors (e.g. the Existing Members webhook URL isn't set
+// yet), it still shows whatever the other source returned, with a note.
+async function mmLoadAll() {
+  const jobTitle = document.getElementById('mm-filter-jobtitle')?.value || '';
+  const companyQ = (document.getElementById('mm-filter-company')?.value || '').trim().toLowerCase();
+  const msg = document.getElementById('mm-segment-msg');
+  msg.textContent = 'Loading…'; msg.style.color = 'var(--muted)';
+
+  const [a, b] = await Promise.all([
+    mmFetchRequests(jobTitle, companyQ),
+    mmFetchExisting(jobTitle, companyQ)
+  ]);
+
+  const seen = new Set();
+  mmSegment = [...a.rows, ...b.rows].filter(r => {
+    const email = (r.email || '').toLowerCase().trim();
+    if (!email || seen.has(email)) return false;
+    seen.add(email);
+    return true;
+  });
+
+  mmRenderRecipients();
+
+  if (a.error || b.error) {
+    const warnings = [a.error && `New Requests: ${a.error}`, b.error && `Existing Members: ${b.error}`].filter(Boolean).join(' · ');
+    document.getElementById('mm-segment-msg').textContent += ` (${warnings})`;
+  }
 }
 
 function mmToggleAll(checked) {
