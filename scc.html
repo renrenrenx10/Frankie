@@ -1618,23 +1618,14 @@ button{cursor:pointer}
       <div style="display:flex;flex-direction:column;gap:22px">
 
         <!-- Make.com webhook config -->
-        <div style="background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
-          <div>
-            <div style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Send-to-Drafts Webhook URL</div>
-            <div style="display:flex;gap:8px">
-              <input id="mm-webhook-url" type="text" placeholder="Paste the Make.com custom webhook URL here (one-time setup)" style="flex:1;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.82rem;outline:none;font-family:inherit">
-              <button class="btn" onclick="mmSaveWebhookUrl()">Save</button>
-            </div>
-            <div id="mm-webhook-msg" style="font-size:.74rem;color:var(--muted);margin-top:6px"></div>
+        <div style="background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:14px 16px">
+          <div style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Mail Merge Webhook URL</div>
+          <div style="display:flex;gap:8px">
+            <input id="mm-webhook-url" type="text" placeholder="Paste the Make.com custom webhook URL here (one-time setup)" style="flex:1;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.82rem;outline:none;font-family:inherit">
+            <button class="btn" onclick="mmSaveWebhookUrl()">Save</button>
           </div>
-          <div>
-            <div style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Existing Members Webhook URL</div>
-            <div style="display:flex;gap:8px">
-              <input id="mm-webhook-url-members" type="text" placeholder="Paste the 'Get Existing Members' scenario's webhook URL here" style="flex:1;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.82rem;outline:none;font-family:inherit">
-              <button class="btn" onclick="mmSaveMembersWebhookUrl()">Save</button>
-            </div>
-            <div id="mm-webhook-members-msg" style="font-size:.74rem;color:var(--muted);margin-top:6px"></div>
-          </div>
+          <div id="mm-webhook-msg" style="font-size:.74rem;color:var(--muted);margin-top:6px"></div>
+          <div style="font-size:.74rem;color:var(--muted);margin-top:4px">One scenario handles both jobs — scc.html sends a "type" field so Make's Router knows whether to fetch existing members or create drafts.</div>
         </div>
 
         <!-- Segment filter -->
@@ -2467,23 +2458,12 @@ function mmInit() {
   const saved = localStorage.getItem('mmWebhookUrl') || MM_DEFAULT_WEBHOOK;
   const el = document.getElementById('mm-webhook-url');
   if (el) el.value = saved;
-
-  const savedMembers = localStorage.getItem('mmMembersWebhookUrl') || '';
-  const elm = document.getElementById('mm-webhook-url-members');
-  if (elm) elm.value = savedMembers;
 }
 
 function mmSaveWebhookUrl() {
   const url = document.getElementById('mm-webhook-url')?.value.trim() || '';
   localStorage.setItem('mmWebhookUrl', url);
   const msg = document.getElementById('mm-webhook-msg');
-  if (msg) { msg.textContent = url ? 'Saved.' : 'Cleared.'; msg.style.color = 'var(--ok)'; }
-}
-
-function mmSaveMembersWebhookUrl() {
-  const url = document.getElementById('mm-webhook-url-members')?.value.trim() || '';
-  localStorage.setItem('mmMembersWebhookUrl', url);
-  const msg = document.getElementById('mm-webhook-members-msg');
   if (msg) { msg.textContent = url ? 'Saved.' : 'Cleared.'; msg.style.color = 'var(--ok)'; }
 }
 
@@ -2572,16 +2552,16 @@ async function mmFetchRequests(jobTitle, companyQ) {
 
 // Existing members: relayed through Make (server-side join of auth.users +
 // profiles) since the anon key scc.html uses can't safely read auth.users
-// directly, and profiles has no email column of its own. See the "Get
-// Existing Members" scenario spec — webhook returns { profiles: [...], users: [...] }.
-// Also a pure fetch, same reasoning as mmFetchRequests above.
+// directly, and profiles has no email column of its own. Shares the same
+// webhook as mmSend() — Make's Router branches on the "type" field, since
+// this account's Make plan only allows 2 scenarios total.
 async function mmFetchExisting(jobTitle, companyQ) {
-  const webhookUrl = localStorage.getItem('mmMembersWebhookUrl') || '';
-  if (!webhookUrl) return { rows: [], error: 'Existing Members webhook URL not set.' };
+  const webhookUrl = localStorage.getItem('mmWebhookUrl') || MM_DEFAULT_WEBHOOK;
+  if (!webhookUrl) return { rows: [], error: 'Mail Merge webhook URL not set.' };
 
   let payload;
   try {
-    const res = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const res = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'get_existing_members' }) });
     if (!res.ok) throw new Error(`Webhook returned ${res.status}`);
     payload = await res.json();
   } catch (e) {
@@ -2708,6 +2688,7 @@ async function mmSend() {
   msg.textContent = '';
 
   const payload = {
+    type: 'send_drafts',
     recipients: recipients.map(r => ({
       email: r.email,
       subject: mmRenderMerge(subjectTpl, r),
