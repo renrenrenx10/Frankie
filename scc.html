@@ -2569,7 +2569,17 @@ async function mmFetchExisting(jobTitle, companyQ) {
   }
 
   const profiles = payload?.profiles || [];
-  const users = payload?.users?.users || payload?.users || [];
+  // Handles whatever shape the Make scenario's JSON module produces:
+  // a flat array of users, a single {users:[...]} wrapper object, or an
+  // array containing one such wrapper (what the Create JSON module
+  // currently outputs, since "Users" got mapped one level too shallow).
+  let rawUsers = payload?.users;
+  if (Array.isArray(rawUsers) && rawUsers.length === 1 && rawUsers[0] && Array.isArray(rawUsers[0].users)) {
+    rawUsers = rawUsers[0].users;
+  } else if (rawUsers && !Array.isArray(rawUsers) && Array.isArray(rawUsers.users)) {
+    rawUsers = rawUsers.users;
+  }
+  const users = Array.isArray(rawUsers) ? rawUsers : [];
   const emailById = {};
   users.forEach(u => { if (u?.id) emailById[u.id] = u.email; });
 
