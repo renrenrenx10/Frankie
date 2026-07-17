@@ -2092,7 +2092,7 @@ const TOPBAR = {
   evidence:    {title:'Evidence Vault', sub:'View assessment evidence uploaded by companies', actions:`<button class="tb-btn primary" onclick="evRefresh()">↻ Refresh</button>`},
   settings:    {title:'Settings', sub:'API service controls for Frankie', actions:''},
   nuclearready: {title:'NuclearReady Updates', sub:'Review and approve member-submitted company profile changes', actions:`<button class="tb-btn primary" onclick="nrLoadUpdates()">↻ Refresh</button>`},
-  nrcompanies: {title:'NuclearReady Companies', sub:'Manage which companies appear in the Explorer', actions:`<button class="tb-btn primary" onclick="nrcLoad()">↻ Refresh</button><button class="tb-btn" onclick="nrcShowAddModal()" style="margin-left:8px">+ Add Company</button>`},
+  nrcompanies: {title:'NuclearReady Companies', sub:'Manage which companies appear in the Explorer', actions:`<button class="tb-btn primary" onclick="nrcLoad()">↻ Refresh</button><button class="tb-btn" onclick="nrcSyncLogos()" style="margin-left:8px" title="Copy company logos from the website into nr_companies.logo_url">🖼 Sync Logos from Website</button><button class="tb-btn" onclick="nrcShowAddModal()" style="margin-left:8px">+ Add Company</button>`},
   pcv:         {title:'Programme Country View', sub:'Edit and publish quarterly nuclear programme slide briefings', actions:`<button class="tb-btn primary" onclick="pcvPublish()">&#9650; Publish to Members</button><button class="tb-btn" onclick="pcvAddSlide()" style="margin-left:8px">+ Add Slide</button>`},
   certgen:     {title:'F4N Certificate Generator', sub:'Issue F4N Granted Status certificates', actions:`<button class="tb-btn primary" onclick="certDownload()">&#11015; Download PDF</button>`},
   timesink:     {title:'TimeSink', sub:'Log time and expenses against your projects', actions:`<button class="tb-btn" onclick="document.getElementById('frm-timesink').src=document.getElementById('frm-timesink').src">↻ Refresh</button>`},
@@ -5905,6 +5905,53 @@ async function nrcLoad() {
   // stats always visible
   nrcUpdateStats();
   nrcFilter();
+}
+
+// Normalise a company name for fuzzy matching between the website list and nr_companies.
+function nrcNormName(s) {
+  return (s || '').toLowerCase()
+    .replace(/\b(ltd|limited|plc|llp|inc|gmbh|co|kg|uk|group)\b/g, '')
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+// Copy company logos held in the website section (WE_SEED_COMPANIES image URLs)
+// into nr_companies.logo_url, matching by name. Only fills rows whose logo is
+// currently empty so member-uploaded logos are never overwritten.
+async function nrcSyncLogos() {
+  if (typeof WE_SEED_COMPANIES === 'undefined') { toast('Website company list not available'); return; }
+  // Build a name -> logo URL map from the website section.
+  const webLogos = {};
+  WE_SEED_COMPANIES.forEach(c => {
+    if (c && c.title && c.imageUrl) webLogos[nrcNormName(c.title)] = c.imageUrl;
+  });
+
+  const { data: rows, error } = await db
+    .from('nr_companies')
+    .select('id,name,logo_url')
+    .order('name');
+  if (error) { toast('Error loading companies: ' + error.message); return; }
+
+  const toUpdate = [];
+  const noMatch  = [];
+  (rows || []).forEach(r => {
+    if (r.logo_url) return;                       // already has a logo — leave it
+    const url = webLogos[nrcNormName(r.name)];
+    if (url) toUpdate.push({ id: r.id, name: r.name, logo_url: url });
+    else noMatch.push(r.name);
+  });
+
+  if (!toUpdate.length) { toast('No logos to sync — all matched rows already have a logo.'); return; }
+  if (!confirm(`Set logos for ${toUpdate.length} compan${toUpdate.length === 1 ? 'y' : 'ies'} from the website?` + (noMatch.length ? `\n\n${noMatch.length} had no website logo match and will be skipped.` : ''))) return;
+
+  let ok = 0, fail = 0;
+  for (const u of toUpdate) {
+    const { error: e } = await db.from('nr_companies').update({ logo_url: u.logo_url }).eq('id', u.id);
+    if (e) { fail++; console.error('Logo sync failed for', u.name, e.message); } else ok++;
+  }
+  toast(`✓ Synced ${ok} logo${ok === 1 ? '' : 's'}${fail ? ` — ${fail} failed` : ''}${noMatch.length ? ` — ${noMatch.length} unmatched` : ''}`);
+  nrcLoad();
 }
 
 function nrcUpdateStats() {
