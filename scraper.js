@@ -203,23 +203,31 @@ async function fetchFTSTenders(seenTenders, newTenders) {
   }
 }
 
-// ── TENDER SOURCE 3: devolved portals with no public API/RSS ────────────────────
-// Public Contracts Scotland, Sell2Wales and eTenders NI don't expose a reliable
-// keyword API or a documented RSS query string, so (like ONR/GBE/RR SMR above)
-// these are covered via Brave Search through the proxy.
+// ── TENDER SOURCE 3: portals with no public API/RSS ──────────────────────────────
+// Devolved-nation portals (Scotland/Wales/NI), MOD Defence Contracts Online /
+// Defence Sourcing Portal, and the Delta eSourcing / In-tend e-sourcing platforms
+// (used by most English councils, NHS trusts and housing associations) don't
+// expose a reliable keyword API or a documented RSS query string, so (like ONR/
+// GBE/RR SMR above) these are covered via Brave Search through the proxy.
+// MOD DCO/DSP is included specifically because defence manufacturing (machining,
+// fabrication, castings/forgings, NDT, surface treatment) draws on the same
+// supplier capability set as nuclear — real bid-relevant volume outside energy.
 const BRAVE_TENDER_SOURCES = [
   {site:'publiccontractsscotland.gov.uk', source:'Public Contracts Scotland'},
   {site:'sell2wales.gov.wales',           source:'Sell2Wales'},
   {site:'etendersni.gov.uk',              source:'eTenders NI'},
+  {site:'contracts.mod.uk',               source:'MOD Defence Contracts Online'},
+  {site:'delta-esourcing.com',            source:'Delta eSourcing'},
+  {site:'in-tend.co.uk',                  source:'In-tend'},
 ];
 
-async function fetchDevolvedTenders(braveKey, seenTenders, newTenders) {
-  if (!braveKey) { scraperLog('  ℹ Devolved portals (PCS/Sell2Wales/eTendersNI) skipped — add Brave key in Settings','warn'); return; }
+async function fetchExternalTenderPortals(braveKey, seenTenders, newTenders) {
+  if (!braveKey) { scraperLog('  ℹ External portals (PCS/Sell2Wales/eTendersNI/MOD DCO/Delta/In-tend) skipped — add Brave key in Settings','warn'); return; }
   // Deliberately skip 'Nuclear' terms here — Sellafield/Hinkley/Sizewell etc. are
-  // English sites that won't appear on Scottish/Welsh/NI portals, and above-
-  // threshold nuclear notices from anywhere in the UK already come through FTS/CF.
-  // What these three portals actually add is local/sub-threshold manufacturing
-  // work, so lead with the Manufacturing terms.
+  // nuclear-specific and above-threshold nuclear notices from anywhere in the UK
+  // already come through FTS/CF. What these portals actually add is local/
+  // sub-threshold and non-energy manufacturing work, so lead with the
+  // Manufacturing terms.
   const allTerms = [...new Set(Object.entries(TENDER_SEARCHES).filter(([sec]) => sec !== 'Nuclear').flatMap(([,terms]) => terms))].slice(0,10);
   for (const src of BRAVE_TENDER_SOURCES) {
     // No literal "tender" requirement — these portals' notice pages don't always
@@ -351,9 +359,9 @@ async function runScraper() {
     // ── 3b. TENDERS — Find a Tender (FTS) OCDS API, high-value (>£139k) ────────
     await fetchFTSTenders(seenTenders, newTenders);
 
-    // ── 3c. TENDERS — devolved portals (PCS / Sell2Wales / eTenders NI) ────────
-    scraperLog('📋 Tenders — searching devolved portals…');
-    await fetchDevolvedTenders(braveKey, seenTenders, newTenders);
+    // ── 3c. TENDERS — external portals (devolved / MOD DCO / Delta / In-tend) ──
+    scraperLog('📋 Tenders — searching devolved + defence + e-sourcing portals…');
+    await fetchExternalTenderPortals(braveKey, seenTenders, newTenders);
 
     if (newTenders.length) { const merged = [...exTenders,...newTenders]; await saveBlob('tenders.json', merged); if (window.contentStore) { window.contentStore['tenders'] = merged; if (window.contentLoaded) window.contentLoaded['tenders'] = true; } nTenders=newTenders.length; }
     scraperLog('📋 Tenders done — '+nTenders+' new');
