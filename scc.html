@@ -3740,35 +3740,173 @@ function nlInit() {
   if (el) el.value = saved;
 }
 
-function buildNewsletterPreview() {
-  const nlItems = [];
-  for (const [type, items] of Object.entries(contentStore)) {
-    items.filter(i => i.selected).forEach(i => nlItems.push({ ...i, _type: type }));
+// ── Newsletter visual template ──────────────────────────────────────────────
+// Matches the "NucCol Members Newsletter" Outlook template supplied 2026-07-28
+// (table-based layout, inline styles only — required for email client
+// compatibility; no external stylesheet, no <style> block, no flex/grid).
+const NL_LOGO_URL = 'https://nuccol.co.uk/wp-content/uploads/2024/08/img-20240924-wa0008.jpg';
+const NL_ACCENT   = '#199BD8';
+const NL_CATEGORY_COLORS = {
+  'Nuclear':             '#FA9304',
+  'Offshore Renewables': '#CC5EAF',
+  'Hydrogen':            '#7B2D8B',
+  'CCUS':                '#2E8B57',
+  'Fusion':              '#8B2E5C',
+  'Health & Safety':     '#555555',
+  'NucCol News':         NL_ACCENT
+};
+function nlCatColor(cat) { return NL_CATEGORY_COLORS[cat] || NL_ACCENT; }
+
+const NL_SECTION_LABELS = {
+  news:     'Sector News',
+  events:   'Upcoming Events',
+  tenders:  'Tenders & Contracts',
+  nuccol:   'NucCol Updates',
+  webinars: 'Webinars'
+};
+
+function nlSectionBand(label) {
+  return `<tr><td style="background:${NL_ACCENT};padding:9px 30px">
+    <span style="color:#ffffff;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:.75px">${escH(label)}</span>
+  </td></tr>`;
+}
+
+// News: two-up card grid, left-border colour keyed off category/sector.
+function nlNewsCard(i) {
+  const cat     = i.category || i.sector || '';
+  const color   = nlCatColor(cat);
+  const source  = i.source || i.organiser || '';
+  const snippet = i.summary || i.description || '';
+  return `<td width="50%" valign="top" style="width:50%;padding:0 10px 16px 0">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F9F9F9;border-left:3px solid ${color}">
+      <tr><td style="padding:14px 16px">
+        ${cat ? `<div style="display:inline-block;background:${color};color:#ffffff;font-family:Arial,sans-serif;font-size:9px;font-weight:bold;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;margin-bottom:8px">${escH(cat)}</div><br>` : ''}
+        <a href="${escH(i.url||'#')}" style="color:#1A1A1A;text-decoration:none;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;line-height:1.35">${escH(i.title||'(no title)')}</a>
+        ${source ? `<div style="color:#888888;font-family:Arial,sans-serif;font-size:11px;margin:8px 0 6px">&nbsp;|&nbsp; 📰 ${escH(source)}</div>` : ''}
+        ${snippet ? `<div style="color:#444444;font-family:Arial,sans-serif;font-size:12px;line-height:1.5;margin-bottom:8px">${escH(snippet)}</div>` : ''}
+        <a href="${escH(i.url||'#')}" style="color:${NL_ACCENT};text-decoration:none;font-family:Arial,sans-serif;font-size:11px;font-weight:bold">Read More &rarr;</a>
+      </td></tr>
+    </table>
+  </td>`;
+}
+
+function nlNewsGrid(items) {
+  let rows = '';
+  for (let i = 0; i < items.length; i += 2) {
+    const second = items[i + 1] ? nlNewsCard(items[i + 1]) : '<td width="50%" style="padding:0 0 16px 10px">&nbsp;</td>';
+    rows += `<tr>${nlNewsCard(items[i])}${second}</tr>`;
   }
+  return `<tr><td style="padding:16px 30px 0 30px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
+  </td></tr></table></td></tr>`;
+}
+
+// Events: full-width card, alice-blue background, accent-blue left border.
+function nlEventCard(i) {
+  const loc  = i.location || '';
+  const mode = i.eventType || i.event_type || 'In Person';
+  const when = i.date || i.event_date || '';
+  const desc = i.description || i.summary || '';
+  return `<tr><td style="padding:12px 30px 0 30px">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef7fc;border-left:3px solid ${NL_ACCENT}">
+      <tr><td style="padding:14px 16px">
+        <a href="${escH(i.url||'#')}" style="color:#1A1A1A;text-decoration:none;font-family:Arial,sans-serif;font-size:14px;font-weight:bold">${escH(i.title||'(no title)')}</a>
+        <div style="color:#555555;font-family:Arial,sans-serif;font-size:11px;margin:8px 0 6px">${loc ? `📍 ${escH(loc)}&nbsp;&nbsp;|&nbsp;&nbsp;` : ''}💻 ${escH(mode)}${when ? `&nbsp;&nbsp;|&nbsp;&nbsp;${escH(when)}` : ''}</div>
+        ${desc ? `<div style="color:#444444;font-family:Arial,sans-serif;font-size:12px;line-height:1.5;margin-bottom:8px">${escH(desc)}</div>` : ''}
+        <a href="${escH(i.url||'#')}" style="color:${NL_ACCENT};text-decoration:none;font-family:Arial,sans-serif;font-size:11px;font-weight:bold">View Event &rarr;</a>
+      </td></tr>
+    </table>
+  </td></tr>`;
+}
+
+// Tenders: full-width card, cream background, darkorange left border/links.
+function nlTenderCard(i) {
+  const org  = i.organisation || i.source || '';
+  const val  = i.value || '';
+  const desc = i.description || i.summary || '';
+  return `<tr><td style="padding:12px 30px 0 30px">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFF9F0;border-left:3px solid darkorange">
+      <tr><td style="padding:14px 16px">
+        <a href="${escH(i.url||'#')}" style="color:#1A1A1A;text-decoration:none;font-family:Arial,sans-serif;font-size:14px;font-weight:bold">${escH(i.title||'(no title)')}</a>
+        <div style="color:#555555;font-family:Arial,sans-serif;font-size:11px;margin:8px 0 6px">${org ? `🏢 Organisation: ${escH(org)}` : ''}${val ? `&nbsp;&nbsp;|&nbsp;&nbsp;💰 Value: ${escH(val)}` : ''}</div>
+        ${desc ? `<div style="color:#444444;font-family:Arial,sans-serif;font-size:12px;line-height:1.5;margin-bottom:8px">${escH(desc)}</div>` : ''}
+        <a href="${escH(i.url||'#')}" style="color:darkorange;text-decoration:none;font-family:Arial,sans-serif;font-size:11px;font-weight:bold">View Tender &rarr;</a>
+      </td></tr>
+    </table>
+  </td></tr>`;
+}
+
+// NucCol Updates / Webinars: same visual family as Events (no dedicated
+// template section was in the sample — reusing that card style).
+function nlGenericCard(i) {
+  const meta = i.organiser || i.source || '';
+  const when = i.date || '';
+  const desc = i.description || i.summary || '';
+  return `<tr><td style="padding:12px 30px 0 30px">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef7fc;border-left:3px solid ${NL_ACCENT}">
+      <tr><td style="padding:14px 16px">
+        <a href="${escH(i.url||'#')}" style="color:#1A1A1A;text-decoration:none;font-family:Arial,sans-serif;font-size:14px;font-weight:bold">${escH(i.title||'(no title)')}</a>
+        <div style="color:#555555;font-family:Arial,sans-serif;font-size:11px;margin:8px 0 6px">${meta ? escH(meta) : ''}${meta && when ? '&nbsp;&nbsp;|&nbsp;&nbsp;' : ''}${when ? escH(when) : ''}</div>
+        ${desc ? `<div style="color:#444444;font-family:Arial,sans-serif;font-size:12px;line-height:1.5;margin-bottom:8px">${escH(desc)}</div>` : ''}
+        <a href="${escH(i.url||'#')}" style="color:${NL_ACCENT};text-decoration:none;font-family:Arial,sans-serif;font-size:11px;font-weight:bold">Read More &rarr;</a>
+      </td></tr>
+    </table>
+  </td></tr>`;
+}
+
+function buildNewsletterPreview() {
   const previewEl = document.getElementById('newsletter-preview');
   const sendBlock = document.getElementById('nl-send-block');
   if (!previewEl) return;
-  if (!nlItems.length) {
+
+  const sectionOrder = ['news', 'events', 'tenders', 'nuccol', 'webinars'];
+  const bySection = sectionOrder.map(type => ({ type, items: (contentStore[type] || []).filter(i => i.selected) }));
+  const hasAny = bySection.some(s => s.items.length);
+
+  if (!hasAny) {
     previewEl.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px 0">No items selected for newsletter yet. Use the NL checkboxes on content items.</div>';
     nlLastHtml = '';
     if (sendBlock) sendBlock.style.display = 'none';
     return;
   }
-  const rows = nlItems.map(i => `<tr>
-    <td style="padding:12px 8px;border-bottom:1px solid #eee;font-size:.9rem"><a href="${escH(i.url||'#')}" style="color:#1a86b0;text-decoration:none">${escH(i.title||'(no title)')}</a></td>
-    <td style="padding:12px 8px;border-bottom:1px solid #eee;font-size:.8rem;color:#666">${escH(i.date||'')}</td>
-    <td style="padding:12px 8px;border-bottom:1px solid #eee;font-size:.8rem;color:#888">${escH(i._type)}</td>
-  </tr>`).join('');
-  const tableHtml = `<table style="width:100%;border-collapse:collapse">
-    <thead><tr>
-      <th style="padding:8px;border-bottom:2px solid #1a86b0;text-align:left;font-size:.78rem">Title</th>
-      <th style="padding:8px;border-bottom:2px solid #1a86b0;text-align:left;font-size:.78rem">Date</th>
-      <th style="padding:8px;border-bottom:2px solid #1a86b0;text-align:left;font-size:.78rem">Type</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
-  previewEl.innerHTML = tableHtml;
-  nlLastHtml = tableHtml;
+
+  const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase();
+  const year = new Date().getFullYear();
+
+  let sectionsHtml = '';
+  for (const { type, items } of bySection) {
+    if (!items.length) continue;
+    sectionsHtml += nlSectionBand(NL_SECTION_LABELS[type] || type);
+    if (type === 'news')    sectionsHtml += nlNewsGrid(items);
+    else if (type === 'events')  items.forEach(i => sectionsHtml += nlEventCard(i));
+    else if (type === 'tenders') items.forEach(i => sectionsHtml += nlTenderCard(i));
+    else                          items.forEach(i => sectionsHtml += nlGenericCard(i));
+    sectionsHtml += `<tr><td style="padding:0 30px;height:6px;line-height:6px">&nbsp;</td></tr>`;
+  }
+
+  const fullHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5">
+  <tr><td style="padding:20px 10px">
+    <table role="presentation" width="650" align="center" cellpadding="0" cellspacing="0" style="max-width:650px;background:#ffffff;margin:0 auto">
+      <tr><td style="border-bottom:3px solid ${NL_ACCENT};padding:24px 30px;text-align:center">
+        <img src="${NL_LOGO_URL}" width="90" alt="NucCol" style="display:block;margin:0 auto 12px"><br>
+        <span style="font-family:Arial,sans-serif;font-size:21px;font-weight:bold;color:#1A1A1A">NucCol Members Newsletter</span><br>
+        <span style="font-family:Arial,sans-serif;font-size:11px;font-style:italic;color:#666666">Your Monthly Digest of Nuclear &amp; Clean Energy News</span><br>
+        <span style="font-family:Arial,sans-serif;font-size:9px;font-weight:bold;color:${NL_ACCENT};text-transform:uppercase;letter-spacing:.75px">${dateStr}</span>
+      </td></tr>
+      ${sectionsHtml}
+      <tr><td style="background:#1A1A1A;padding:24px 30px;text-align:center">
+        <img src="${NL_LOGO_URL}" width="70" alt="NucCol" style="display:block;margin:0 auto 12px"><br>
+        <span style="font-family:Arial,sans-serif;font-size:11px;font-weight:bold;color:#ffffff">Nuclear Industry Newsletter</span><br>
+        <span style="font-family:Arial,sans-serif;font-size:10px;color:#AAAAAA">AI-Powered News Aggregation by NucCol</span><br>
+        <span style="font-family:Arial,sans-serif;font-size:10px;color:#AAAAAA">&copy; ${year} NucCol Ltd. | <a href="https://nuccol.co.uk" style="color:${NL_ACCENT};text-decoration:none">www.nuccol.co.uk</a></span><br>
+        <span style="font-family:Arial,sans-serif;font-size:9px;color:#888888">Unit 8, Riverside Court, Riverside Road, Pride Park, Derby, DE24 8HY</span>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>`;
+
+  previewEl.innerHTML = fullHtml;
+  nlLastHtml = fullHtml;
   if (sendBlock) sendBlock.style.display = '';
 }
 
