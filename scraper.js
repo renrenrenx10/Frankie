@@ -154,29 +154,41 @@ function categTender(text) {
 async function fetchFTSTenders(seenTenders, newTenders) {
   scraperLog('📋 Tenders — searching Find a Tender (FTS) OCDS API…');
   const since = new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,19);
-  const FTS_URL = proxied('https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?stages=tender&limit=100&updatedFrom=' + since);
-  try {
-    const r = await fetch(FTS_URL, { headers:{'Accept':'application/json'}, signal:AbortSignal.timeout(20000) });
-    if (!r.ok) { scraperLog('  ✗ FTS: HTTP '+r.status,'warn'); return; }
-    const data = await r.json();
-    let n = 0;
-    for (const rel of (data.releases||[])) {
-      const t = rel.tender; if (!t) continue;
-      const sector = categTender((t.title||'') + ' ' + (t.description||''));
-      if (!sector) continue;
-      const url = 'https://www.find-tender.service.gov.uk/Notice/' + rel.id;
-      if (!rel.id || seenTenders.has(url)) continue;
-      const buyer = (rel.parties||[]).find(p => (p.roles||[]).includes('buyer'));
-      newTenders.push({ title:cleanText(t.title).slice(0,255), url,
-        organisation:cleanText(buyer && buyer.name).slice(0,255),
-        description:cleanText(t.description).slice(0,500), sector,
-        value: (t.value && t.value.amount) ? 'GBP '+Number(t.value.amount).toLocaleString() : 'Not disclosed',
-        publishedDate: rel.date||'', closingDate: (t.tenderPeriod && t.tenderPeriod.endDate) || '',
-        scraped_at:new Date().toISOString() });
-      seenTenders.add(url); n++;
-    }
-    scraperLog('  ✓ FTS: +'+n);
-  } catch(e) { scraperLog('  ✗ FTS: '+e.message,'warn'); }
+  // Small limit deliberately — full OCDS release objects (nested tender/parties/
+  // documents) are large, and corsproxy.io returns 413 Payload Too Large well
+  // before limit=100 releases' worth of JSON. Dedup means later runs still pick
+  // up anything missed by the smaller page size.
+  const path = 'https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?stages=tender&limit=25&updatedFrom=' + since;
+  // FTS is a real gov.uk open-data API and may allow direct cross-origin GETs —
+  // try that first (no proxy, no size cap) and only fall back to the proxy if
+  // it's blocked or fails.
+  const attempts = [ {url: path, label:'direct'}, {url: proxied(path), label:'proxy'} ];
+  for (const attempt of attempts) {
+    try {
+      const r = await fetch(attempt.url, { headers:{'Accept':'application/json'}, signal:AbortSignal.timeout(20000) });
+      if (!r.ok) { scraperLog('  ✗ FTS ('+attempt.label+'): HTTP '+r.status,'warn'); continue; }
+      const data = await r.json();
+      let n = 0;
+      const releases = data.releases||[];
+      for (const rel of releases) {
+        const t = rel.tender; if (!t) continue;
+        const sector = categTender((t.title||'') + ' ' + (t.description||''));
+        if (!sector) continue;
+        const url = 'https://www.find-tender.service.gov.uk/Notice/' + rel.id;
+        if (!rel.id || seenTenders.has(url)) continue;
+        const buyer = (rel.parties||[]).find(p => (p.roles||[]).includes('buyer'));
+        newTenders.push({ title:cleanText(t.title).slice(0,255), url,
+          organisation:cleanText(buyer && buyer.name).slice(0,255),
+          description:cleanText(t.description).slice(0,500), sector,
+          value: (t.value && t.value.amount) ? 'GBP '+Number(t.value.amount).toLocaleString() : 'Not disclosed',
+          publishedDate: rel.date||'', closingDate: (t.tenderPeriod && t.tenderPeriod.endDate) || '',
+          scraped_at:new Date().toISOString() });
+        seenTenders.add(url); n++;
+      }
+      scraperLog('  ✓ FTS ('+attempt.label+'): +'+n+' (of '+releases.length+' releases checked)');
+      return;
+    } catch(e) { scraperLog('  ✗ FTS ('+attempt.label+'): '+e.message,'warn'); }
+  }
 }
 
 // ── TENDER SOURCE 3: devolved portals with no public API/RSS ────────────────────
@@ -193,11 +205,14 @@ async function fetchDevolvedTenders(braveKey, seenTenders, newTenders) {
   if (!braveKey) { scraperLog('  ℹ Devolved portals (PCS/Sell2Wales/eTendersNI) skipped — add Brave key in Settings','warn'); return; }
   const allTerms = [...new Set(Object.values(TENDER_SEARCHES).flat())].slice(0,8);
   for (const src of BRAVE_TENDER_SOURCES) {
-    const query = 'site:'+src.site+' tender (' + allTerms.join(' OR ') + ')';
+    // No literal "tender" requirement — these portals' notice pages don't always
+    // contain that word, and site: + AND "tender" was over-filtering to 0 hits.
+    const query = 'site:'+src.site+' (' + allTerms.join(' OR ') + ')';
     try {
-      const data = await braveSearch(query, braveKey, 10);
+      const data = await braveSearch(query, braveKey, 15);
+      const hits = data.web?.results || [];
       let n = 0;
-      for (const r of (data.web?.results||[])) {
+      for (const r of hits) {
         if (seenTenders.has(r.url)) continue;
         const sector = categTender((r.title||'') + ' ' + (r.description||''));
         if (!sector) continue;
@@ -207,7 +222,9 @@ async function fetchDevolvedTenders(braveKey, seenTenders, newTenders) {
           scraped_at:new Date().toISOString() });
         seenTenders.add(r.url); n++;
       }
-      scraperLog('  ✓ '+src.source+' [Brave]: +'+n, 'brave');
+      // Log raw hit count too — if this stays at 0 hits (not just 0 kept), Brave
+      // isn't indexing that portal's notice pages and the query won't help.
+      scraperLog('  ✓ '+src.source+' [Brave]: +'+n+' (of '+hits.length+' hits found)', 'brave');
       await new Promise(res=>setTimeout(res,800));
     } catch(e) { scraperLog('  ✗ '+src.source+' [Brave]: '+e.message,'warn'); }
   }
