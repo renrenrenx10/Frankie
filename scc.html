@@ -3793,9 +3793,20 @@ async function nlSendDraft() {
   btn.disabled = true; btn.textContent = 'Sending…';
   msg.textContent = '';
 
+  // Sent both flat (top-level) and nested (recipients[]) so this works
+  // whichever shape the Make "Create Draft" module is actually bound to.
+  // Make's error log (2026-07-28) showed "Missing value of required
+  // parameter 'subject'" / "'content'" even though our recipients[0].subject
+  // was populated — meaning the module likely reads flat top-level fields,
+  // not something inside the recipients array. Sending 'content' (not just
+  // 'body') also matches the exact parameter name Make reported as missing.
   const payload = {
     type: 'send_drafts',
-    recipients: [{ email, subject, body: nlLastHtml }]
+    email,
+    subject,
+    content: nlLastHtml,
+    body: nlLastHtml,
+    recipients: [{ email, subject, content: nlLastHtml, body: nlLastHtml }]
   };
 
   try {
@@ -3804,7 +3815,11 @@ async function nlSendDraft() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error(`Webhook returned ${res.status}`);
+    let detail = '';
+    if (!res.ok) {
+      try { detail = (await res.text()).slice(0, 300); } catch {}
+      throw new Error(`Webhook returned ${res.status}${detail ? ' — ' + detail : ''}`);
+    }
     msg.textContent = `Draft sent to ${email} — check Outlook Drafts.`;
     msg.style.color = 'var(--ok)';
   } catch (e) {
