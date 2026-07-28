@@ -3520,10 +3520,19 @@ async function saveAllContent() {
 
 function getItemMeta(type, item) {
   const parts = [];
-  if (item.date)      parts.push(item.date);
-  if (item.source)    parts.push(item.source);
-  if (item.location)  parts.push(item.location);
-  if (item.organiser) parts.push(item.organiser);
+  // Different content types (and scraper.js vs manual "+Add") use different
+  // date/owner field names — check every variant so nothing renders blank.
+  const primaryDate = item.date || item.event_date || item.publishedDate || '';
+  if (primaryDate)     parts.push(primaryDate);
+  const owner = item.source || item.organiser || item.organisation || '';
+  if (owner)            parts.push(owner);
+  if (item.location)   parts.push(item.location);
+  if (item.value)       parts.push(item.value);
+  if (item.closingDate) parts.push('Closes ' + item.closingDate);
+  if (item.scraped_at) {
+    const d = new Date(item.scraped_at);
+    if (!isNaN(d)) parts.push('Scraped ' + d.toLocaleString('en-GB', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}));
+  }
   return parts.map(p => `<span>${escH(p)}</span>`).join(' · ');
 }
 
@@ -3562,7 +3571,18 @@ function renderContentList(type) {
     container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px 0;font-size:.88rem">No items yet. Add one above.</div>';
     return;
   }
-  container.innerHTML = items.map((item, idx) => renderItem(type, item, idx)).join('');
+  // Display newest-scraped-first so a fresh scrape run is visible at the top
+  // without scrolling. Sort a copy of (item, originalIndex) pairs — idx must
+  // stay pointing at the real position in contentStore[type] since every
+  // edit/delete/toggle handler below indexes into that array directly.
+  // Manually-added items have no scraped_at; treat them as "now" so they
+  // still float to the top, matching the existing addContentItem() unshift.
+  const ordered = items.map((item, idx) => ({item, idx})).sort((a, b) => {
+    const ta = a.item.scraped_at ? new Date(a.item.scraped_at).getTime() : Infinity;
+    const tb = b.item.scraped_at ? new Date(b.item.scraped_at).getTime() : Infinity;
+    return tb - ta;
+  });
+  container.innerHTML = ordered.map(({item, idx}) => renderItem(type, item, idx)).join('');
   updateBulkBar(type);
 }
 
@@ -3624,7 +3644,12 @@ async function loadContentTab(type) {
 function editContentItem(type, idx) {
   const item = contentStore[type][idx];
   if (!item) return;
-  const fields = ['title','url','date','source','location','organiser','category','sector','eventType','description','summary'];
+  // Show every field actually present on this item (varies: scraper.js output
+  // differs per content type and from the manual "+Add" defaults) rather than
+  // a fixed list, so nothing (e.g. tender organisation/value/scraped_at) is
+  // silently uneditable.
+  const hiddenFields = new Set(['selected', 'members', 'id']);
+  const fields = Object.keys(item).filter(f => !hiddenFields.has(f));
   const html = fields.map(f => {
     const val = item[f] != null ? item[f] : '';
     const label = f.charAt(0).toUpperCase() + f.slice(1).replace(/([A-Z])/g, ' $1');
