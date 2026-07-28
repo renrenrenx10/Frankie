@@ -43,6 +43,18 @@ const ENERGY_KW = [
 
 const TENDER_SEARCHES = {
   'Nuclear':             ['Sellafield','Hinkley Point','Sizewell','nuclear decommissioning','small modular reactor','nuclear power station','Nuclear Decommissioning Authority'],
+  // Generic manufacturing/engineering contract types — these are what NucCol's
+  // supply chain members (fabricators, machine shops, valve/vessel makers,
+  // surface treatment, NDT etc.) actually bid for, and most of them never
+  // mention "nuclear" in the notice text even when the end customer is Sellafield/
+  // EDF/RR SMR. See scc.html Granted-company list for the capability mix this
+  // is drawn from (filtration, plating, cable cleats, structural steel, valves,
+  // heat exchangers, containment systems, bearings, fabrication, castings).
+  'Manufacturing':       ['precision machining','CNC machining','structural steel fabrication','sheet metal fabrication',
+                          'stainless steel fabrication','welding fabrication','pressure vessel manufacture',
+                          'heat exchanger manufacture','valve manufacture','pipework fabrication',
+                          'castings and forgings','non-destructive testing','metal surface treatment',
+                          'storage tank manufacture','precision engineering'],
   'Hydrogen':            ['hydrogen production','green hydrogen','electrolyser','fuel cell','HyNet'],
   'CCUS':                ['carbon capture','CCUS','direct air capture','CO2 storage'],
   'Offshore Renewables': ['offshore wind','floating wind','wind farm','tidal energy'],
@@ -203,7 +215,12 @@ const BRAVE_TENDER_SOURCES = [
 
 async function fetchDevolvedTenders(braveKey, seenTenders, newTenders) {
   if (!braveKey) { scraperLog('  ℹ Devolved portals (PCS/Sell2Wales/eTendersNI) skipped — add Brave key in Settings','warn'); return; }
-  const allTerms = [...new Set(Object.values(TENDER_SEARCHES).flat())].slice(0,8);
+  // Deliberately skip 'Nuclear' terms here — Sellafield/Hinkley/Sizewell etc. are
+  // English sites that won't appear on Scottish/Welsh/NI portals, and above-
+  // threshold nuclear notices from anywhere in the UK already come through FTS/CF.
+  // What these three portals actually add is local/sub-threshold manufacturing
+  // work, so lead with the Manufacturing terms.
+  const allTerms = [...new Set(Object.entries(TENDER_SEARCHES).filter(([sec]) => sec !== 'Nuclear').flatMap(([,terms]) => terms))].slice(0,10);
   for (const src of BRAVE_TENDER_SOURCES) {
     // No literal "tender" requirement — these portals' notice pages don't always
     // contain that word, and site: + AND "tender" was over-filtering to 0 hits.
