@@ -1286,6 +1286,22 @@ button{cursor:pointer}
       <div id="newsletter-preview" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:24px;font-size:.85rem;color:var(--ink);line-height:1.6;min-height:200px">
         <div style="color:var(--muted);text-align:center;padding:40px 0">Click "Generate Newsletter Preview" to build the email HTML from your selected content items.</div>
       </div>
+      <div id="nl-send-block" style="display:none;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin-top:16px">
+        <div style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Send to Drafts</div>
+        <p style="font-size:.8rem;color:var(--muted);margin-bottom:10px">Creates ONE Outlook draft (via the Mail Merge webhook) containing this newsletter, addressed to the review email below. Nothing sends automatically — forward or BCC the full list from Outlook yourself once you're happy with it.</p>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <div class="we-field" style="flex:1;min-width:220px">
+            <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:4px;letter-spacing:.05em;text-transform:uppercase">Review email</label>
+            <input id="nl-review-email" type="email" placeholder="you@nuccol.co.uk" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box" oninput="localStorage.setItem('nlReviewEmail',this.value)">
+          </div>
+          <div class="we-field" style="flex:2;min-width:220px">
+            <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:4px;letter-spacing:.05em;text-transform:uppercase">Subject</label>
+            <input id="nl-subject" type="text" placeholder="NuCCoL Newsletter" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box">
+          </div>
+          <button class="btn primary" onclick="nlSendDraft()" id="nl-send-btn">Send to Drafts</button>
+        </div>
+        <div id="nl-send-msg" style="font-size:.82rem;margin-top:10px"></div>
+      </div>
     </div>
 
     <!-- ──────────── WEBSITE EDITOR -->
@@ -2138,6 +2154,7 @@ function nav(screen, opts) {
   if (screen === 'pcv') pcvLoad();
   if (screen === 'certgen') certInit();
   if (screen === 'mailmerge') mmInit();
+  if (screen === 'nl' || screen === 'newsletter') nlInit();
   if (screen === 'timesink' || screen === 'controlcentre') lazyLoadToolFrame(screen);
   if (screen === 'dashboard') { naSetGreeting(); naCompute(); }
   if (screen === 'dashboard' && window.TM) {
@@ -3712,15 +3729,29 @@ function openContentModal(type) {
   addContentItem(type);
 }
 
+// Holds the last successfully-built newsletter HTML (email-safe: inline
+// styles, no external CSS) so nlSendDraft() can reuse exactly what's on
+// screen without rebuilding/re-escaping it a second time.
+let nlLastHtml = '';
+
+function nlInit() {
+  const saved = localStorage.getItem('nlReviewEmail') || '';
+  const el = document.getElementById('nl-review-email');
+  if (el) el.value = saved;
+}
+
 function buildNewsletterPreview() {
   const nlItems = [];
   for (const [type, items] of Object.entries(contentStore)) {
     items.filter(i => i.selected).forEach(i => nlItems.push({ ...i, _type: type }));
   }
   const previewEl = document.getElementById('newsletter-preview');
+  const sendBlock = document.getElementById('nl-send-block');
   if (!previewEl) return;
   if (!nlItems.length) {
     previewEl.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px 0">No items selected for newsletter yet. Use the NL checkboxes on content items.</div>';
+    nlLastHtml = '';
+    if (sendBlock) sendBlock.style.display = 'none';
     return;
   }
   const rows = nlItems.map(i => `<tr>
@@ -3728,7 +3759,7 @@ function buildNewsletterPreview() {
     <td style="padding:12px 8px;border-bottom:1px solid #eee;font-size:.8rem;color:#666">${escH(i.date||'')}</td>
     <td style="padding:12px 8px;border-bottom:1px solid #eee;font-size:.8rem;color:#888">${escH(i._type)}</td>
   </tr>`).join('');
-  previewEl.innerHTML = `<table style="width:100%;border-collapse:collapse">
+  const tableHtml = `<table style="width:100%;border-collapse:collapse">
     <thead><tr>
       <th style="padding:8px;border-bottom:2px solid #1a86b0;text-align:left;font-size:.78rem">Title</th>
       <th style="padding:8px;border-bottom:2px solid #1a86b0;text-align:left;font-size:.78rem">Date</th>
@@ -3736,6 +3767,52 @@ function buildNewsletterPreview() {
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+  previewEl.innerHTML = tableHtml;
+  nlLastHtml = tableHtml;
+  if (sendBlock) sendBlock.style.display = '';
+}
+
+// Sends the compiled newsletter as ONE Outlook draft (review copy) via the
+// same Make.com webhook/scenario the Mail Merge screen uses ("send_drafts"
+// type) — reusing that pipeline rather than a second Make scenario, since
+// this account's plan only allows 2 scenarios total. Deliberately single-
+// recipient: this is a review draft, not a bulk send. Forward/BCC the real
+// list from Outlook once it looks right.
+async function nlSendDraft() {
+  const msg = document.getElementById('nl-send-msg');
+  const btn = document.getElementById('nl-send-btn');
+  const email = (document.getElementById('nl-review-email')?.value || '').trim();
+  const subject = (document.getElementById('nl-subject')?.value || '').trim() || 'NuCCoL Newsletter';
+  const webhookUrl = localStorage.getItem('mmWebhookUrl') || MM_DEFAULT_WEBHOOK;
+
+  if (!msg || !btn) return;
+  if (!nlLastHtml) { msg.textContent = 'Generate the newsletter preview first.'; msg.style.color = 'var(--red)'; return; }
+  if (!email) { msg.textContent = 'Enter a review email address first.'; msg.style.color = 'var(--red)'; return; }
+  if (!webhookUrl) { msg.textContent = 'No Mail Merge webhook URL set — add one on the Mail Merge screen first.'; msg.style.color = 'var(--red)'; return; }
+
+  btn.disabled = true; btn.textContent = 'Sending…';
+  msg.textContent = '';
+
+  const payload = {
+    type: 'send_drafts',
+    recipients: [{ email, subject, body: nlLastHtml }]
+  };
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`Webhook returned ${res.status}`);
+    msg.textContent = `Draft sent to ${email} — check Outlook Drafts.`;
+    msg.style.color = 'var(--ok)';
+  } catch (e) {
+    msg.textContent = 'Error: ' + e.message;
+    msg.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Send to Drafts';
+  }
 }
 
 // WEBSITE EDITOR
