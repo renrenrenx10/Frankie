@@ -72,6 +72,24 @@ function safeDate(str) {
   catch(e) { return new Date().toISOString().slice(0,10); }
 }
 
+// Strip HTML tags and decode common entities so stray markup/special chars
+// (&amp;, &#39;, <p>, CDATA leftovers, etc.) never make it into stored titles/
+// descriptions — these get rendered as-is in the Content Editor and newsletters.
+function cleanText(str) {
+  if (!str) return '';
+  const withoutTags = String(str).replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, ' ');
+  const withoutEntities = withoutTags
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0*39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_, dec) => { try { return String.fromCodePoint(parseInt(dec,10)); } catch(e) { return ''; } })
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => { try { return String.fromCodePoint(parseInt(hex,16)); } catch(e) { return ''; } });
+  return withoutEntities.replace(/\s+/g, ' ').trim();
+}
+
 function autoCateg(text) {
   const t = text.toLowerCase();
   if (!ENERGY_KW.some(k => t.includes(k))) return null;
@@ -88,17 +106,19 @@ function parseRSS(xmlText, feed, seenUrls) {
   const items = [...xml.querySelectorAll('item,entry')].slice(0, 15);
   const results = [];
   for (const item of items) {
-    const title = item.querySelector('title')?.textContent?.trim() || '';
+    const rawTitle = item.querySelector('title')?.textContent?.trim() || '';
     const rawLink = item.querySelector('link');
     const rawUrl = (rawLink?.textContent?.trim() || rawLink?.getAttribute('href') || '').trim();
     const url = rawUrl.replace(/([^:])(\/\/+)/g, '$1/');
-    const sum  = item.querySelector('description,summary,content')?.textContent?.trim() || '';
+    const rawSum  = item.querySelector('description,summary,content')?.textContent?.trim() || '';
     const pub  = item.querySelector('pubDate,published,updated')?.textContent?.trim() || '';
     if (!url || seenUrls.has(url)) continue;
+    const title = cleanText(rawTitle);
+    const sum   = cleanText(rawSum);
     const cat = feed.filter ? autoCateg(title + ' ' + sum) : feed.cat;
     if (!cat) continue;
     results.push({ title:title.slice(0,255), url, source:feed.source,
-      summary:sum.replace(/<[^>]+>/g,'').slice(0,500), category:cat,
+      summary:sum.slice(0,500), category:cat,
       date:safeDate(pub), scraped_at:new Date().toISOString() });
     seenUrls.add(url);
   }
@@ -118,6 +138,79 @@ async function braveSearch(query, braveKey, count) {
   });
   if (!res.ok) throw new Error('Brave HTTP ' + res.status);
   return res.json();
+}
+
+// ── TENDER SOURCE 2: Find a Tender (FTS) — official OCDS API, >£139k contracts ──
+// No keyword param on this API (unlike Contracts Finder) — pull recent "tender"
+// stage releases and filter client-side against TENDER_SEARCHES.
+function categTender(text) {
+  const t = cleanText(text).toLowerCase();
+  for (const [sector, terms] of Object.entries(TENDER_SEARCHES)) {
+    if (terms.some(term => t.includes(term.toLowerCase()))) return sector;
+  }
+  return null;
+}
+
+async function fetchFTSTenders(seenTenders, newTenders) {
+  scraperLog('📋 Tenders — searching Find a Tender (FTS) OCDS API…');
+  const since = new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,19);
+  const FTS_URL = proxied('https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?stages=tender&limit=100&updatedFrom=' + since);
+  try {
+    const r = await fetch(FTS_URL, { headers:{'Accept':'application/json'}, signal:AbortSignal.timeout(20000) });
+    if (!r.ok) { scraperLog('  ✗ FTS: HTTP '+r.status,'warn'); return; }
+    const data = await r.json();
+    let n = 0;
+    for (const rel of (data.releases||[])) {
+      const t = rel.tender; if (!t) continue;
+      const sector = categTender((t.title||'') + ' ' + (t.description||''));
+      if (!sector) continue;
+      const url = 'https://www.find-tender.service.gov.uk/Notice/' + rel.id;
+      if (!rel.id || seenTenders.has(url)) continue;
+      const buyer = (rel.parties||[]).find(p => (p.roles||[]).includes('buyer'));
+      newTenders.push({ title:cleanText(t.title).slice(0,255), url,
+        organisation:cleanText(buyer && buyer.name).slice(0,255),
+        description:cleanText(t.description).slice(0,500), sector,
+        value: (t.value && t.value.amount) ? 'GBP '+Number(t.value.amount).toLocaleString() : 'Not disclosed',
+        publishedDate: rel.date||'', closingDate: (t.tenderPeriod && t.tenderPeriod.endDate) || '',
+        scraped_at:new Date().toISOString() });
+      seenTenders.add(url); n++;
+    }
+    scraperLog('  ✓ FTS: +'+n);
+  } catch(e) { scraperLog('  ✗ FTS: '+e.message,'warn'); }
+}
+
+// ── TENDER SOURCE 3: devolved portals with no public API/RSS ────────────────────
+// Public Contracts Scotland, Sell2Wales and eTenders NI don't expose a reliable
+// keyword API or a documented RSS query string, so (like ONR/GBE/RR SMR above)
+// these are covered via Brave Search through the proxy.
+const BRAVE_TENDER_SOURCES = [
+  {site:'publiccontractsscotland.gov.uk', source:'Public Contracts Scotland'},
+  {site:'sell2wales.gov.wales',           source:'Sell2Wales'},
+  {site:'etendersni.gov.uk',              source:'eTenders NI'},
+];
+
+async function fetchDevolvedTenders(braveKey, seenTenders, newTenders) {
+  if (!braveKey) { scraperLog('  ℹ Devolved portals (PCS/Sell2Wales/eTendersNI) skipped — add Brave key in Settings','warn'); return; }
+  const allTerms = [...new Set(Object.values(TENDER_SEARCHES).flat())].slice(0,8);
+  for (const src of BRAVE_TENDER_SOURCES) {
+    const query = 'site:'+src.site+' tender (' + allTerms.join(' OR ') + ')';
+    try {
+      const data = await braveSearch(query, braveKey, 10);
+      let n = 0;
+      for (const r of (data.web?.results||[])) {
+        if (seenTenders.has(r.url)) continue;
+        const sector = categTender((r.title||'') + ' ' + (r.description||''));
+        if (!sector) continue;
+        newTenders.push({ title:cleanText(r.title).slice(0,255), url:r.url,
+          organisation:src.source, description:cleanText(r.description).slice(0,500),
+          sector, value:'Not disclosed', publishedDate:safeDate(r.page_age), closingDate:'',
+          scraped_at:new Date().toISOString() });
+        seenTenders.add(r.url); n++;
+      }
+      scraperLog('  ✓ '+src.source+' [Brave]: +'+n, 'brave');
+      await new Promise(res=>setTimeout(res,800));
+    } catch(e) { scraperLog('  ✗ '+src.source+' [Brave]: '+e.message,'warn'); }
+  }
 }
 
 // ── MAIN ───────────────────────────────────────────────────────────────────────
@@ -163,8 +256,8 @@ async function runScraper() {
           let n=0;
           for (const r of (data.web?.results||[])) {
             if (seen.has(r.url)) continue;
-            const item = { title:(r.title||'').slice(0,255), url:r.url, source:src.source,
-              summary:(r.description||'').slice(0,500), category:src.cat,
+            const item = { title:cleanText(r.title).slice(0,255), url:r.url, source:src.source,
+              summary:cleanText(r.description).slice(0,500), category:src.cat,
               date:safeDate(r.page_age), scraped_at:new Date().toISOString() };
             if (isNuccol) { newNuccol.push(item); seenNuccol.add(r.url); }
             else          { newNews.push(item);   seenNews.add(r.url); }
@@ -207,9 +300,9 @@ async function runScraper() {
             if (!url||seenTenders.has(url)) continue;
             if (!(e.title+' '+(e.description||'')).toLowerCase().includes(term.toLowerCase())) continue;
             const lo=parseFloat(e.valueLow)||0, hi=parseFloat(e.valueHigh)||0;
-            newTenders.push({ title:(e.title||'').slice(0,255), url,
-              organisation:(e.organisationName||'').slice(0,255),
-              description:(e.description||'').slice(0,500), sector,
+            newTenders.push({ title:cleanText(e.title).slice(0,255), url,
+              organisation:cleanText(e.organisationName).slice(0,255),
+              description:cleanText(e.description).slice(0,500), sector,
               value:(lo||hi)?'GBP '+(hi||lo).toLocaleString():'Not disclosed',
               publishedDate:e.publishedDate||'', closingDate:e.deadlineDate||'',
               scraped_at:new Date().toISOString() });
@@ -220,6 +313,13 @@ async function runScraper() {
         } catch(e) { scraperLog('  ✗ CF "'+term+'": '+e.message,'warn'); }
       }
     }
+
+    // ── 3b. TENDERS — Find a Tender (FTS) OCDS API, high-value (>£139k) ────────
+    await fetchFTSTenders(seenTenders, newTenders);
+
+    // ── 3c. TENDERS — devolved portals (PCS / Sell2Wales / eTenders NI) ────────
+    scraperLog('📋 Tenders — searching devolved portals…');
+    await fetchDevolvedTenders(braveKey, seenTenders, newTenders);
 
     if (newTenders.length) { const merged = [...exTenders,...newTenders]; await saveBlob('tenders.json', merged); if (window.contentStore) { window.contentStore['tenders'] = merged; if (window.contentLoaded) window.contentLoaded['tenders'] = true; } nTenders=newTenders.length; }
     scraperLog('📋 Tenders done — '+nTenders+' new');
@@ -239,7 +339,7 @@ async function runScraper() {
           const bd = await braveSearch(q, braveKey, 5);
           for (const r of (bd.web?.results||[])) {
             if (seenEvents.has(r.url)) continue;
-            let ev = {title:r.title.slice(0,255), url:r.url, description:(r.description||'').slice(0,500),
+            let ev = {title:cleanText(r.title).slice(0,255), url:r.url, description:cleanText(r.description).slice(0,500),
               category:cat, event_date:'', location:'', event_type:'In Person',
               organiser:'', scraped_at:new Date().toISOString()};
             if (groqKey) {
@@ -253,7 +353,7 @@ async function runScraper() {
                 if (gr.ok) {
                   const gd=await gr.json();
                   const m=(gd.choices?.[0]?.message?.content||'').match(/\{[\s\S]*\}/);
-                  if (m) { try { const p=JSON.parse(m[0]); Object.assign(ev,{title:(p.title||ev.title).slice(0,255),description:(p.description||ev.description).slice(0,500),event_date:p.event_date||'',location:p.location||'',event_type:p.event_type||'In Person',organiser:p.organiser||''}); } catch(pe){} }
+                  if (m) { try { const p=JSON.parse(m[0]); Object.assign(ev,{title:cleanText(p.title||ev.title).slice(0,255),description:cleanText(p.description||ev.description).slice(0,500),event_date:p.event_date||'',location:cleanText(p.location||''),event_type:p.event_type||'In Person',organiser:cleanText(p.organiser||'')}); } catch(pe){} }
                 }
               } catch(ge) { /* Groq optional */ }
             }
