@@ -5691,13 +5691,30 @@ function coTab(coId, tab) {
     btn.classList.toggle('active', CO_TABS[i] === tab);
   });
 
-  // Lazily load the two new tabs the first time they're opened.
+  // Lazily load the two new tabs the first time they're opened. Wrapped in
+  // try/catch so any failure shows up as visible text in the panel instead
+  // of silently leaving it blank.
   const key = coId + ':' + tab;
   if (coTabLoaded[key]) return;
+  if (tab !== 'nuclearready' && tab !== 'members') return;
+
+  const panelEl = document.getElementById('co-tab-' + tab + '-' + coId);
   const co = coAllCompanies.find(c => String(c.id) === String(coId));
-  if (!co) return;
-  if (tab === 'nuclearready') { coLoadNuclearReady(co); coTabLoaded[key] = true; }
-  if (tab === 'members')      { coLoadMembers(co);      coTabLoaded[key] = true; }
+  if (!co) {
+    if (panelEl) panelEl.innerHTML = `<div style="color:var(--warn);font-size:.8rem">Couldn't find this company's data locally — try refreshing the Companies list and reopening this folder.</div>`;
+    return;
+  }
+
+  try {
+    if (tab === 'nuclearready') coLoadNuclearReady(co);
+    if (tab === 'members')      Promise.resolve(coLoadMembers(co)).catch(e => {
+      if (panelEl) panelEl.innerHTML = `<div style="color:var(--warn);font-size:.8rem">Error loading portal users: ${esc2(e.message || String(e))}</div>`;
+    });
+    coTabLoaded[key] = true;
+  } catch (e) {
+    if (panelEl) panelEl.innerHTML = `<div style="color:var(--warn);font-size:.8rem">Error loading this tab: ${esc2(e.message || String(e))}</div>`;
+    // Leave coTabLoaded unset so re-clicking the tab retries.
+  }
 }
 
 function coQuickNav(coId, screen) {
