@@ -752,6 +752,41 @@ button{cursor:pointer}
           </div>
         </div>
       </div>
+
+      <!-- Add Portal User modal (Portal Users tab, per company) -->
+      <div id="pm-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:center;justify-content:center">
+        <div style="background:var(--panel);border-radius:10px;padding:26px 28px 20px;width:460px;max-width:95vw;max-height:88vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+            <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink)" id="pm-add-title">Add Portal User</div>
+            <button onclick="pmCloseAddModal()" style="background:none;border:none;cursor:pointer;font-size:1.1rem;color:var(--muted)">✕</button>
+          </div>
+          <div style="font-size:.78rem;color:var(--muted);margin-bottom:14px">Search existing portal users by name, email or company, then link them to this company.</div>
+          <input id="pm-add-search" type="text" placeholder="Search name, email or company…" oninput="pmFilterResults()"
+            style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:10px">
+          <div id="pm-add-results" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:6px;margin-bottom:12px"></div>
+
+          <div id="pm-add-selected-wrap" style="display:none">
+            <div id="pm-add-selected" style="background:var(--wash);border:1px solid var(--accent);border-radius:6px;padding:8px 10px;font-size:.8rem;margin-bottom:10px"></div>
+            <div class="we-field" style="margin-bottom:14px">
+              <label style="font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px">Role</label>
+              <select id="pm-add-role" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box">
+                <option value="Owner">Owner</option>
+                <option value="Admin">Admin</option>
+                <option value="Quality">Quality</option>
+                <option value="Operations">Operations</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Member" selected>Member</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="pm-add-msg" style="font-size:.76rem;margin-bottom:10px;min-height:1rem"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn primary" onclick="pmAddSave()" style="flex:1">Add to Company</button>
+            <button class="btn" onclick="pmCloseAddModal()">Cancel</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ADD COMPANY MODAL (used by Companies + NuclearReady Companies "+ Add Company") -->
@@ -1916,6 +1951,10 @@ button{cursor:pointer}
             <div class="ctrl-row">
               <div><div class="ctrl-label">☢️ NuclearReady Profile</div><div class="ctrl-sub">Shows/hides the NuclearReady Profile tab for every member on nuccol.co.uk/members.html</div></div>
               <label class="scc-toggle"><input type="checkbox" id="site-nuclearready" onchange="siteFeatureSave('nuclearready_enabled','site-nuclearready')"><span class="scc-toggle-track"></span></label>
+            </div>
+            <div class="ctrl-row">
+              <div><div class="ctrl-label">🤖 Frankie Link (Members Sidebar)</div><div class="ctrl-sub">Shows/hides the Frankie chat link in every member's sidebar on nuccol.co.uk/members.html. OFF by default while testing — turn on when ready to go live.</div></div>
+              <label class="scc-toggle"><input type="checkbox" id="site-frankie" onchange="siteFeatureSave('frankie_link_enabled','site-frankie')"><span class="scc-toggle-track"></span></label>
             </div>
           </div>
           <p style="margin:8px 0 0;font-size:.78rem;color:var(--muted)">This is site-wide — takes effect for all members immediately, not just this browser.</p>
@@ -3418,7 +3457,7 @@ async function groqCall(prompt, statusEl, spinnerId) {
   try {
     const res = await fetch(SCC_WORKER + '/groq/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...blobAuthHeaders() },
       body: JSON.stringify({
         model: localStorage.getItem('frankieGroqModel') || 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: prompt }],
@@ -3559,10 +3598,27 @@ Write 2-3 focused paragraphs. Professional, clear and specific. No bullet points
 // ═══════════════════════════════════════════════════════════
 // AZURE BLOB CONFIG
 // ═══════════════════════════════════════════════════════════
-const BLOB_BASE   = 'https://nuccolmedia.blob.core.windows.net/content';
-const BLOB_SAS    = 'sv=2026-02-06&ss=b&srt=o&sp=rwdctfx&se=2032-01-01T20:14:16Z&st=2026-06-16T10:59:16Z&spr=https&sig=JVx5ozHDrnCCcLKtK6npIZrswRrTi9njeifMBXgRHg4%3D';
-const VIDEOS_BASE = 'https://nuccolmedia.blob.core.windows.net/videos';
-const VIDEOS_SAS  = 'sp=rcwl&st=2026-06-16T14:52:45Z&se=2032-01-01T00:07:45Z&spr=https&sv=2026-02-06&sr=c&sig=wlQBKDoswFgW3nxexthCYm1xGljtvJ9mSGxpsYpbqHE%3D';
+// Updated 2026-08-03: BLOB_SAS/VIDEOS_SAS used to be hardcoded here in plain
+// text (visible via view-source) — BLOB_SAS in particular was an ACCOUNT-level
+// SAS (ss=b, not scoped to one container) with full read/write/delete/tag
+// permissions, valid until 2032. Content reads/writes now go through the
+// gated Cloudflare Worker (SCC_WORKER), which holds the real credential
+// server-side and requires a valid staff session — see ch-proxy-worker.js.
+//
+// Videos are split in two: list/upload/delete go through the same gated
+// Worker route, but rendered <img>/<video> src attributes and the "Copy URL"
+// feature can't carry an Authorization header, so those still need a direct,
+// client-visible SAS — VIDEOS_READ_SAS below MUST be regenerated as READ-ONLY
+// (sp=r), container-scoped, with a real expiry — do not reuse the old one.
+const BLOB_BASE        = `${SCC_WORKER}/blob/content`;
+const VIDEOS_BASE      = `${SCC_WORKER}/blob/videos`; // list/upload/delete — gated
+const VIDEOS_READ_BASE = 'https://nuccolmedia.blob.core.windows.net/videos'; // direct, read-only
+const VIDEOS_READ_SAS  = 'sp=rl&st=2026-08-03T18:39:30Z&se=2030-01-01T03:54:30Z&spr=https&sv=2026-02-06&sr=c&sig=t4fDPiKgbhIgxNZPXtPFIaes8VFBDcF2ho7FzDay4Mg%3D';
+
+function blobAuthHeaders() {
+  const token = sccSession?.access_token || '';
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
 
 const BLOB_FILES = {
   news:    'news.json',
@@ -3580,7 +3636,7 @@ let activeContentTab = 'news';
 
 async function loadBlob(type) {
   try {
-    const r = await fetch(`${BLOB_BASE}/${BLOB_FILES[type]}?${BLOB_SAS}&t=${Date.now()}`);
+    const r = await fetch(`${BLOB_BASE}/${BLOB_FILES[type]}?t=${Date.now()}`, { headers: blobAuthHeaders() });
     if (!r.ok) throw new Error(r.status);
     return await r.json();
   } catch (e) {
@@ -3601,10 +3657,10 @@ function escH(s) {
 function esc(s) { return escH(s); }
 
 async function saveBlob(filename, data) {
-  const url = `${BLOB_BASE}/${filename}?${BLOB_SAS}`;
+  const url = `${BLOB_BASE}/${filename}`;
   const res = await fetch(url, {
     method: 'PUT',
-    headers: { 'x-ms-blob-type': 'BlockBlob', 'Content-Type': 'application/json' },
+    headers: { 'x-ms-blob-type': 'BlockBlob', 'Content-Type': 'application/json', ...blobAuthHeaders() },
     body: JSON.stringify(data, null, 2)
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -4140,7 +4196,7 @@ async function weLoadMedia() {
   status.textContent = 'Loading…';
   grid.innerHTML = '<div style="color:var(--muted);grid-column:1/-1;text-align:center;padding:30px 0">Loading…</div>';
   try {
-    const r = await fetch(`${VIDEOS_BASE}?restype=container&comp=list&${VIDEOS_SAS}`);
+    const r = await fetch(`${VIDEOS_BASE}?restype=container&comp=list`, { headers: blobAuthHeaders() });
     const xml = await r.text();
     const doc  = new DOMParser().parseFromString(xml, 'text/xml');
     weMediaBlobs = [...doc.querySelectorAll('Blob')].map(b => ({
@@ -4162,7 +4218,7 @@ function weRenderMedia() {
     return;
   }
   grid.innerHTML = weMediaBlobs.map(b => {
-    const url  = `${VIDEOS_BASE}/${encodeURIComponent(b.name)}?${VIDEOS_SAS}`;
+    const url  = `${VIDEOS_READ_BASE}/${encodeURIComponent(b.name)}?${VIDEOS_READ_SAS}`;
     const isImg = /\.(jpe?g|png|gif|webp|svg)$/i.test(b.name);
     const isVid = /\.(mp4|webm|mov|ogg)$/i.test(b.name);
     const kb   = b.size > 0 ? (b.size < 1024*1024 ? (b.size/1024).toFixed(0)+'KB' : (b.size/1048576).toFixed(1)+'MB') : '';
@@ -4189,7 +4245,7 @@ function weMediaCopy(url) {
 async function weMediaDelete(name) {
   if (!confirm(`Delete "${name}" from media library? This cannot be undone.`)) return;
   try {
-    const r = await fetch(`${VIDEOS_BASE}/${encodeURIComponent(name)}?${VIDEOS_SAS}`, { method:'DELETE' });
+    const r = await fetch(`${VIDEOS_BASE}/${encodeURIComponent(name)}`, { method:'DELETE', headers: blobAuthHeaders() });
     if (!r.ok && r.status !== 404) throw new Error(r.status);
     weMediaBlobs = weMediaBlobs.filter(b => b.name !== name);
     weRenderMedia();
@@ -4204,9 +4260,9 @@ async function weUploadFile(input) {
   const status = document.getElementById('we-media-status');
   status.textContent = `Uploading ${file.name}…`;
   try {
-    const r = await fetch(`${VIDEOS_BASE}/${encodeURIComponent(file.name)}?${VIDEOS_SAS}`, {
+    const r = await fetch(`${VIDEOS_BASE}/${encodeURIComponent(file.name)}`, {
       method: 'PUT',
-      headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-ms-blob-type': 'BlockBlob' },
+      headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-ms-blob-type': 'BlockBlob', ...blobAuthHeaders() },
       body: file
     });
     if (!r.ok) throw new Error(r.status);
@@ -4226,7 +4282,7 @@ async function wePageTab(slug) {
   document.getElementById('we-publish-btn').disabled = true;
   document.getElementById('we-pages-status').textContent = 'Loading…';
   try {
-    const r = await fetch(`${BLOB_BASE}/site-pages/${slug}.json?${BLOB_SAS}`);
+    const r = await fetch(`${BLOB_BASE}/site-pages/${slug}.json`, { headers: blobAuthHeaders() });
     if (weTabVersion !== myVersion) return;
     weRows = r.ok ? await r.json() : [];
     if (!Array.isArray(weRows)) weRows = [];
@@ -4742,9 +4798,9 @@ async function wePublishPage() {
   document.getElementById('we-pages-status').textContent = 'Publishing…';
   try {
     const sorted = [...weRows].sort((a,b) => (a.sort||0)-(b.sort||0));
-    const r = await fetch(`${BLOB_BASE}/site-pages/${weCurrentPage}.json?${BLOB_SAS}`, {
+    const r = await fetch(`${BLOB_BASE}/site-pages/${weCurrentPage}.json`, {
       method: 'PUT',
-      headers: { 'Content-Type':'application/json', 'x-ms-blob-type':'BlockBlob' },
+      headers: { 'Content-Type':'application/json', 'x-ms-blob-type':'BlockBlob', ...blobAuthHeaders() },
       body: JSON.stringify(sorted, null, 2)
     });
     if (!r.ok) throw new Error(r.status);
@@ -4771,7 +4827,7 @@ async function weOpenImgPicker(rowId) {
       return;
     }
     grid.innerHTML = pics.map(b => {
-      const url = `${VIDEOS_BASE}/${encodeURIComponent(b.name)}?${VIDEOS_SAS}`;
+      const url = `${VIDEOS_READ_BASE}/${encodeURIComponent(b.name)}?${VIDEOS_READ_SAS}`;
       return `<img src="${escH(url)}" alt="${escH(b.name)}" onclick="wePickImg('${escH(url).replace(/'/g,"\\'")}')" loading="lazy" style="cursor:pointer;width:100%;height:80px;object-fit:cover;border-radius:4px;border:2px solid transparent;transition:border-color .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='transparent'">`;
     }).join('');
   } catch(e) { toast('Could not load images', true); }
@@ -4852,21 +4908,26 @@ async function coLoad() {
   if (loadEl) loadEl.style.display = 'block';
   if (listEl) listEl.innerHTML = '';
 
+  const FULL_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group';
+  const BASE_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets';
+
   const { data, error } = await db.from('nr_companies')
-    .select('id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets')
+    .select(FULL_COLS)
     .order('name');
 
   if (loadEl) loadEl.style.display = 'none';
 
   if (error) {
-    // member_user_id column might not exist yet — fall back without it
+    // Either member_user_id or the newer Supplier DB profile columns don't exist
+    // yet — fall back to the base set so the screen still loads.
     const { data: d2, error: e2 } = await db.from('nr_companies')
-      .select('id,name,status,website,description,hidden,granted_date,expiry_date,sharepoint_company_id,capabilities,accreditations,markets')
+      .select(BASE_COLS)
       .order('name');
     if (e2) { if (loadEl) { loadEl.style.display='block'; loadEl.textContent='Could not load companies: ' + e2.message; } return; }
     coAllCompanies = (d2 || []).map(c => ({ ...c, member_user_id: null }));
   } else {
     coAllCompanies = data || [];
+    sdbFieldSyncAvailable = true;
   }
 
   const countEl = document.getElementById('co-count');
@@ -4923,6 +4984,8 @@ function coRender(list) {
           <button class="co-tab" onclick="coTab('${co.id}','assessment')">Assessment</button>
           <button class="co-tab" onclick="coTab('${co.id}','internal')">Internal Docs</button>
           <button class="co-tab active" onclick="coTab('${co.id}','details')">Details</button>
+          <button class="co-tab" onclick="coTab('${co.id}','nuclearready')">NuclearReady</button>
+          <button class="co-tab" onclick="coTab('${co.id}','members')">Portal Users</button>
         </div>
         <div class="co-tab-panel" id="co-tab-evidence-${co.id}">
           <div style="color:var(--muted);font-size:.8rem">Loading evidence…</div>
@@ -4930,6 +4993,8 @@ function coRender(list) {
         <div class="co-tab-panel" id="co-tab-assessment-${co.id}"></div>
         <div class="co-tab-panel" id="co-tab-internal-${co.id}"></div>
         <div class="co-tab-panel active" id="co-tab-details-${co.id}"></div>
+        <div class="co-tab-panel" id="co-tab-nuclearready-${co.id}"></div>
+        <div class="co-tab-panel" id="co-tab-members-${co.id}"></div>
       </div>
     </div>`;
   }).join('');
@@ -5296,6 +5361,7 @@ function coLoadDetails(co) {
   const panel = document.getElementById('co-tab-details-' + co.id);
   if (!panel) return;
   const fmt = d => d ? new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+  const locationBits = [co.address, co.city, co.county, co.postcode].filter(Boolean).join(', ');
 
   panel.innerHTML = `
     <div class="co-detail-grid">
@@ -5303,6 +5369,11 @@ function coLoadDetails(co) {
       <div class="co-detail"><div class="co-detail-lbl">Website</div><div class="co-detail-val">${co.website ? `<a href="${esc2(co.website)}" target="_blank" style="color:var(--accent)">${esc2(co.website)}</a>` : '—'}</div></div>
       <div class="co-detail"><div class="co-detail-lbl">Granted</div><div class="co-detail-val">${fmt(co.granted_date)}</div></div>
       <div class="co-detail"><div class="co-detail-lbl">Expires</div><div class="co-detail-val">${fmt(co.expiry_date)}</div></div>
+      ${locationBits ? `<div class="co-detail"><div class="co-detail-lbl">Location <span style="color:var(--sp-purple,#5b4bd4);font-weight:700;font-size:.62rem">SUPPLIER DB</span></div><div class="co-detail-val">${esc2(locationBits)}</div></div>` : ''}
+      ${co.region ? `<div class="co-detail"><div class="co-detail-lbl">Region <span style="color:var(--sp-purple,#5b4bd4);font-weight:700;font-size:.62rem">SUPPLIER DB</span></div><div class="co-detail-val">${esc2(co.region)}</div></div>` : ''}
+      ${co.employees ? `<div class="co-detail"><div class="co-detail-lbl">Employees <span style="color:var(--sp-purple,#5b4bd4);font-weight:700;font-size:.62rem">SUPPLIER DB</span></div><div class="co-detail-val">${esc2(co.employees)}</div></div>` : ''}
+      ${co.turnover ? `<div class="co-detail"><div class="co-detail-lbl">Turnover <span style="color:var(--sp-purple,#5b4bd4);font-weight:700;font-size:.62rem">SUPPLIER DB</span></div><div class="co-detail-val">${esc2(co.turnover)}</div></div>` : ''}
+      ${co.main_commodity_group ? `<div class="co-detail"><div class="co-detail-lbl">Main Commodity Group <span style="color:var(--sp-purple,#5b4bd4);font-weight:700;font-size:.62rem">SUPPLIER DB</span></div><div class="co-detail-val">${esc2(co.main_commodity_group)}</div></div>` : ''}
     </div>
     ${co.description ? `<div style="font-size:.82rem;color:var(--muted);margin-bottom:14px">${esc2(co.description)}</div>` : ''}
     ${coTagChips(co)}
@@ -5314,18 +5385,319 @@ function coLoadDetails(co) {
       <button class="co-act-btn" onclick="coShowLinkSupplierModal('${co.id}','${esc2(co.name)}')">
         ${co.sharepoint_company_id ? '🔗 Re-link Supplier DB' : '🔗 Link Supplier DB'}
       </button>
+      ${!co.sharepoint_company_id ? `<span style="font-size:.72rem;color:var(--warn)">⚠ Not linked — location/size/turnover won't stay in sync until linked</span>` : ''}
     </div>`;
 }
 
+// ── NuclearReady tab — the same controls that used to live only on the
+// separate "NuclearReady Companies" admin grid, now on the one company view ──
+const NUCLEARREADY_EXPLORER_BASE = ''; // e.g. 'https://nuccol.co.uk/nuclearready/' — set once known, enables the "View live" link below
+
+function coSlugify(name) {
+  return String(name || '').toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function coNrUpdateField(coId, field, value) {
+  const { error } = await db.from('nr_companies').update({ [field]: value || null }).eq('id', coId);
+  if (error) { toast('Error: ' + error.message); return; }
+  const co = coAllCompanies.find(c => String(c.id) === String(coId));
+  if (co) { co[field] = value || null; coRefreshFolderHeader(co); }
+  toast('Saved');
+}
+
+// Updates just the status pill + dates line in a folder's collapsed header,
+// without re-rendering (and thereby collapsing) the whole Companies list.
+function coRefreshFolderHeader(co) {
+  const folder = document.getElementById('co-folder-' + co.id);
+  if (!folder) return;
+  const isGranted = co.status === 'granted';
+  const fmt = d => d ? new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+  const datesMeta  = isGranted
+    ? `Granted ${fmt(co.granted_date)} · Expires ${fmt(co.expiry_date)}`
+    : 'Assessment in progress';
+  const linked     = co.member_user_id ? '🔗 Member Linked' : '⚠ Member Not Linked';
+  const linkedCls  = co.member_user_id ? 'color:var(--ok)' : 'color:var(--warn)';
+  const sdbLinked    = co.sharepoint_company_id ? '🔗 Supplier DB' : '— Supplier DB';
+  const sdbLinkedCls = co.sharepoint_company_id ? 'color:var(--accent)' : 'color:var(--muted)';
+
+  const metaEl = folder.querySelector('.co-folder-meta');
+  if (metaEl) {
+    metaEl.innerHTML = `${datesMeta} &nbsp;·&nbsp; <span style="${linkedCls};font-size:.7rem">${linked}</span> &nbsp;·&nbsp; <span style="${sdbLinkedCls};font-size:.7rem">${sdbLinked}</span> &nbsp;·&nbsp; <span id="co-interactions-${co.id}"></span>`;
+  }
+  const badgeEl = folder.querySelector('.hcp-badge');
+  if (badgeEl) {
+    badgeEl.className = 'hcp-badge ' + (isGranted ? 'hcp-granted' : 'hcp-progress');
+    badgeEl.textContent = isGranted ? 'F4N Granted' : 'In progress';
+  }
+}
+
+async function coNrToggleHide(coId, hide) {
+  const { error } = await db.from('nr_companies').update({ hidden: hide }).eq('id', coId);
+  if (error) { toast('Error: ' + error.message); return; }
+  const co = coAllCompanies.find(c => String(c.id) === String(coId));
+  if (co) co.hidden = hide;
+  toast(hide ? 'Hidden from Explorer' : 'Visible on Explorer');
+  coLoadNuclearReady(co);
+}
+
+// Sync just this one company's logo from the website section (same source
+// nrcSyncLogos() uses for the bulk version), without touching everyone else.
+async function coSyncSingleLogo(coId) {
+  const co = coAllCompanies.find(c => String(c.id) === String(coId));
+  if (!co) return;
+  if (typeof WE_SEED_COMPANIES === 'undefined') { toast('Website company list not available'); return; }
+  const match = WE_SEED_COMPANIES.find(c => c && c.title && nrcNormName(c.title) === nrcNormName(co.name));
+  if (!match || !match.imageUrl) { toast('No matching logo found on the website for this company'); return; }
+  const { error } = await db.from('nr_companies').update({ logo_url: match.imageUrl }).eq('id', co.id);
+  if (error) { toast('Error: ' + error.message); return; }
+  co.logo_url = match.imageUrl;
+  toast('✓ Logo synced from website');
+  coLoadNuclearReady(co);
+}
+
+function coLoadNuclearReady(co) {
+  const panel = document.getElementById('co-tab-nuclearready-' + co.id);
+  if (!panel) return;
+  const isGranted = co.status === 'granted';
+  const liveUrl = NUCLEARREADY_EXPLORER_BASE ? `${NUCLEARREADY_EXPLORER_BASE}#company/${coSlugify(co.name)}` : '';
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)">
+      <label class="scc-toggle">
+        <input type="checkbox" ${!co.hidden ? 'checked' : ''} onchange="coNrToggleHide('${co.id}', !this.checked)">
+        <span class="scc-toggle-track"></span>
+      </label>
+      <div>
+        <div style="font-weight:600;font-size:.86rem">${co.hidden ? 'Hidden from Explorer' : 'Visible on Explorer'}</div>
+        <div style="font-size:.72rem;color:var(--muted)">Controls whether this company appears in the public NuclearReady Explorer</div>
+      </div>
+      ${co.logo_url ? `<img src="${esc2(co.logo_url)}" alt="" style="width:44px;height:44px;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff;margin-left:auto">` : ''}
+      <button class="co-act-btn" onclick="coSyncSingleLogo('${co.id}')" style="${co.logo_url ? '' : 'margin-left:auto'}">🖼 Sync Logo from Website</button>
+    </div>
+
+    <div class="co-detail-grid" style="margin-bottom:14px">
+      <div class="co-detail">
+        <div class="co-detail-lbl">Status</div>
+        <select onchange="coNrUpdateField('${co.id}','status',this.value)"
+          style="width:100%;background:${isGranted ? '#dcfce7' : '#fef3c7'};border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:.8rem;font-weight:600;color:${isGranted ? '#166534' : '#92400e'};cursor:pointer;outline:none">
+          <option value="granted"     ${isGranted  ? 'selected' : ''}>✓ F4N Granted</option>
+          <option value="in_progress" ${!isGranted ? 'selected' : ''}>◎ On Journey</option>
+        </select>
+      </div>
+      <div class="co-detail">
+        <div class="co-detail-lbl">Granted Date</div>
+        <input type="date" value="${co.granted_date || ''}" onchange="coNrUpdateField('${co.id}','granted_date',this.value||null)"
+          style="width:100%;background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:.8rem;color:var(--navy);outline:none;box-sizing:border-box"/>
+      </div>
+      <div class="co-detail">
+        <div class="co-detail-lbl">Expiry Date</div>
+        <input type="date" value="${co.expiry_date || ''}" onchange="coNrUpdateField('${co.id}','expiry_date',this.value||null)"
+          style="width:100%;background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:.8rem;color:var(--navy);outline:none;box-sizing:border-box"/>
+      </div>
+    </div>
+
+    ${coTagChips(co)}
+
+    <div style="margin-top:12px;font-size:.78rem;color:var(--muted)">
+      ${liveUrl
+        ? `<a href="${liveUrl}" target="_blank" style="color:var(--accent)">🌐 View live on Explorer ↗</a>`
+        : `🌐 Public link — set NUCLEARREADY_EXPLORER_BASE in scc.html to enable a direct "View live" link here`}
+    </div>`;
+}
+
+// ── Portal Users tab — company_members (Supabase) linking many users to one company ──
+// SQL to run once: company_members.sql (creates the table).
+//
+// User search reuses the same Make webhook as the Mail Merge "existing members"
+// list (mmFetchExisting), since the anon key here can't read auth.users directly
+// and profiles has no email column of its own — but keeps each profile's id,
+// which mmFetchExisting doesn't expose, since we need it to write company_members.user_id.
+let pmProfilesCache = null; // [{id, name, email, company, job_title}]
+let pmAddTarget = null;     // company id currently being edited
+let pmAddResults = [];
+let pmSelectedUser = null;
+
+async function pmFetchAllProfiles(force) {
+  if (pmProfilesCache && !force) return pmProfilesCache;
+  const webhookUrl = localStorage.getItem('mmWebhookUrl') || MM_DEFAULT_WEBHOOK;
+  if (!webhookUrl) { pmProfilesCache = []; return pmProfilesCache; }
+
+  let payload;
+  try {
+    const res = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'get_existing_members' }) });
+    if (!res.ok) throw new Error(`Webhook returned ${res.status}`);
+    payload = await res.json();
+  } catch (e) {
+    pmProfilesCache = [];
+    return pmProfilesCache;
+  }
+
+  const profiles = payload?.profiles || [];
+  let rawUsers = payload?.users;
+  if (Array.isArray(rawUsers) && rawUsers.length === 1 && rawUsers[0] && Array.isArray(rawUsers[0].users)) {
+    rawUsers = rawUsers[0].users;
+  } else if (rawUsers && !Array.isArray(rawUsers) && Array.isArray(rawUsers.users)) {
+    rawUsers = rawUsers.users;
+  }
+  const users = Array.isArray(rawUsers) ? rawUsers : [];
+  const emailById = {};
+  users.forEach(u => { if (u?.id) emailById[u.id] = u.email; });
+
+  pmProfilesCache = profiles
+    .map(p => ({
+      id:      p.id,
+      name:    (p.full_name || '').trim() || (emailById[p.id] || 'Unnamed user'),
+      email:   emailById[p.id] || '',
+      company: p.company || '',
+      job_title: p.job_title || ''
+    }))
+    .filter(p => p.id && p.email);
+
+  return pmProfilesCache;
+}
+
+function pmInitials(name) {
+  return String(name || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+}
+
+async function coLoadMembers(co) {
+  const panel = document.getElementById('co-tab-members-' + co.id);
+  if (!panel) return;
+  panel.innerHTML = `<div style="color:var(--muted);font-size:.8rem">Loading portal users…</div>`;
+
+  const { data: rows, error } = await db.from('company_members').select('*').eq('company_id', co.id);
+  if (error) {
+    panel.innerHTML = `<div style="font-size:.8rem;color:var(--warn)">Portal users aren't set up yet — run company_members.sql in Supabase, then reload. (${esc2(error.message)})</div>`;
+    return;
+  }
+
+  const profiles = await pmFetchAllProfiles();
+  const byId = {}; profiles.forEach(p => { byId[p.id] = p; });
+
+  const members = (rows || []).map(r => ({ ...r, profile: byId[r.user_id] || null }));
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-family:'Barlow Condensed';font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">
+        ${members.length} user${members.length === 1 ? '' : 's'} linked to this company
+      </div>
+      <button class="co-act-btn" onclick="pmShowAddModal('${co.id}')">+ Add User</button>
+    </div>
+    ${members.length ? `<div style="display:flex;flex-direction:column;gap:8px">${members.map(m => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--wash)">
+        <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#1d64a7,#2bb9e7);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed';font-weight:800;font-size:.72rem;flex-shrink:0">${pmInitials(m.profile?.name)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.84rem;font-weight:600">${esc2(m.profile?.name || 'Unknown user')}</div>
+          <div style="font-size:.72rem;color:var(--muted)">${esc2(m.profile?.email || m.user_id)}</div>
+        </div>
+        <span style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:3px 8px">${esc2(m.role || 'Member')}</span>
+        <button onclick="pmRemoveMember('${m.id}','${co.id}')" title="Remove"
+          style="background:none;border:1px solid #fca5a5;border-radius:6px;padding:4px 7px;cursor:pointer;color:#dc2626;font-size:.72rem">✕</button>
+      </div>`).join('')}</div>`
+      : `<div style="color:var(--muted);font-size:.82rem">No portal users linked yet.</div>`}
+  `;
+}
+
+function pmShowAddModal(coId) {
+  pmAddTarget = coId;
+  pmSelectedUser = null;
+  document.getElementById('pm-add-search').value = '';
+  document.getElementById('pm-add-results').innerHTML = '';
+  document.getElementById('pm-add-selected-wrap').style.display = 'none';
+  document.getElementById('pm-add-msg').textContent = '';
+  document.getElementById('pm-add-modal').style.display = 'flex';
+  pmFilterResults();
+}
+
+function pmCloseAddModal() {
+  document.getElementById('pm-add-modal').style.display = 'none';
+  pmAddTarget = null;
+  pmSelectedUser = null;
+}
+
+async function pmFilterResults() {
+  const q = (document.getElementById('pm-add-search').value || '').toLowerCase().trim();
+  const resultsEl = document.getElementById('pm-add-results');
+  resultsEl.innerHTML = `<div style="padding:10px;color:var(--muted);font-size:.78rem">Searching…</div>`;
+
+  const profiles = await pmFetchAllProfiles();
+  // Exclude users already linked to this company.
+  const { data: existing } = await db.from('company_members').select('user_id').eq('company_id', pmAddTarget);
+  const existingIds = new Set((existing || []).map(r => r.user_id));
+
+  const filtered = profiles
+    .filter(p => !existingIds.has(p.id))
+    .filter(p => !q || p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q) || p.company.toLowerCase().includes(q))
+    .slice(0, 30);
+
+  pmAddResults = filtered;
+  if (!filtered.length) { resultsEl.innerHTML = `<div style="padding:10px;color:var(--muted);font-size:.78rem">No matching users found.</div>`; return; }
+
+  resultsEl.innerHTML = filtered.map((p, i) => `
+    <div onclick="pmSelectUser(${i})" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.82rem" onmouseover="this.style.background='var(--wash)'" onmouseout="this.style.background=''">
+      <div style="font-weight:600">${esc2(p.name)}</div>
+      <div style="font-size:.72rem;color:var(--muted)">${esc2(p.email)}${p.company ? ' · ' + esc2(p.company) : ''}</div>
+    </div>`).join('');
+}
+
+function pmSelectUser(i) {
+  pmSelectedUser = pmAddResults[i];
+  if (!pmSelectedUser) return;
+  document.getElementById('pm-add-selected-wrap').style.display = 'block';
+  document.getElementById('pm-add-selected').innerHTML = `<b>${esc2(pmSelectedUser.name)}</b><br>${esc2(pmSelectedUser.email)}`;
+}
+
+async function pmAddSave() {
+  const msgEl = document.getElementById('pm-add-msg');
+  if (!pmSelectedUser) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Pick a user from the search results first.'; return; }
+  const role = document.getElementById('pm-add-role').value;
+  msgEl.style.color = 'var(--muted)'; msgEl.textContent = 'Saving…';
+
+  const { error } = await db.from('company_members').insert({ company_id: pmAddTarget, user_id: pmSelectedUser.id, role });
+  if (error) {
+    msgEl.style.color = 'var(--red)';
+    msgEl.textContent = error.message.includes('company_members')
+      ? 'Portal users table missing — run company_members.sql in Supabase first.'
+      : error.message;
+    return;
+  }
+  toast('✓ User added to company');
+  pmCloseAddModal();
+  const co = coAllCompanies.find(c => String(c.id) === String(pmAddTarget));
+  if (co) coLoadMembers(co);
+}
+
+async function pmRemoveMember(memberRowId, coId) {
+  if (!confirm('Remove this user from the company?')) return;
+  const { error } = await db.from('company_members').delete().eq('id', memberRowId);
+  if (error) { toast('Error: ' + error.message); return; }
+  toast('Removed');
+  const co = coAllCompanies.find(c => String(c.id) === String(coId));
+  if (co) coLoadMembers(co);
+}
+
+const CO_TABS = ['evidence','assessment','internal','details','nuclearready','members'];
+const coTabLoaded = {}; // `${coId}:${tab}` -> true once lazily loaded
+
 function coTab(coId, tab) {
-  ['evidence','assessment','internal','details'].forEach(t => {
+  CO_TABS.forEach(t => {
     const panel = document.getElementById('co-tab-' + t + '-' + coId);
     if (panel) panel.classList.toggle('active', t === tab);
   });
   const folder = document.getElementById('co-folder-' + coId);
   if (folder) folder.querySelectorAll('.co-tab').forEach((btn, i) => {
-    btn.classList.toggle('active', ['evidence','assessment','internal','details'][i] === tab);
+    btn.classList.toggle('active', CO_TABS[i] === tab);
   });
+
+  // Lazily load the two new tabs the first time they're opened.
+  const key = coId + ':' + tab;
+  if (coTabLoaded[key]) return;
+  const co = coAllCompanies.find(c => String(c.id) === String(coId));
+  if (!co) return;
+  if (tab === 'nuclearready') { coLoadNuclearReady(co); coTabLoaded[key] = true; }
+  if (tab === 'members')      { coLoadMembers(co);      coTabLoaded[key] = true; }
 }
 
 function coQuickNav(coId, screen) {
@@ -5449,14 +5821,29 @@ async function evLoadCompanies() {
   const list = document.getElementById('ev-company-list');
   list.innerHTML = evCompanies.map(c => `
     <div style="border:1px solid #d8e2ec;border-radius:8px;overflow:hidden;background:#fff;">
-      <button onclick="evToggleCompany('${c.userId}')" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:none;border:none;cursor:pointer;font-family:inherit;text-align:left">
-        <span style="font-weight:700;font-size:.95rem;color:#10243a">📂 ${c.company}</span>
-        <span style="font-size:.75rem;color:#65758a" id="ev-toggle-label-${c.userId}">▼ Show files</span>
-      </button>
+      <div style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 18px">
+        <button onclick="evToggleCompany('${c.userId}')" style="flex:1;text-align:left;display:flex;align-items:center;justify-content:space-between;background:none;border:none;cursor:pointer;font-family:inherit;padding:0">
+          <span style="font-weight:700;font-size:.95rem;color:#10243a">📂 ${c.company}</span>
+          <span style="font-size:.75rem;color:#65758a;margin-right:12px" id="ev-toggle-label-${c.userId}">▼ Show files</span>
+        </button>
+        <button onclick="evOpenCompanyProfile('${c.userId}')" title="Open the full company profile (Details, NuclearReady, Portal Users…)"
+          style="background:none;border:1px solid var(--accent,#26a9d8);border-radius:6px;padding:4px 8px;cursor:pointer;color:var(--accent,#26a9d8);font-size:.72rem;white-space:nowrap;flex-shrink:0">
+          🔗 View Profile
+        </button>
+      </div>
       <div id="ev-files-${c.userId}" style="display:none;border-top:1px solid #d8e2ec;padding:16px 18px">
         <div style="color:#65758a;font-size:.82rem">Loading…</div>
       </div>
     </div>`).join('');
+}
+
+// Evidence Vault folders are keyed by member_user_id, not company id — find
+// the matching nr_companies row and jump into its unified profile view.
+async function evOpenCompanyProfile(userId) {
+  if (!coAllCompanies || !coAllCompanies.length) await coLoad();
+  const co = coAllCompanies.find(c => c.member_user_id === userId);
+  if (!co) { toast('No linked company found for this evidence folder yet.'); return; }
+  coOpenProfile(co.id, 'evidence');
 }
 
 async function evToggleCompany(userId) {
@@ -5617,15 +6004,20 @@ function apiCtrlRestore() {
 // Website-wide feature flags (nr_site_settings table — affects members.html
 // for every member immediately, unlike the tool toggles above which are per-browser).
 async function siteFeatureRestore() {
-  const el = document.getElementById('site-nuclearready');
+  await siteFeatureRestoreOne('site-nuclearready', 'nuclearready_enabled', true);  // default ON — already-live feature
+  await siteFeatureRestoreOne('site-frankie',      'frankie_link_enabled', false); // default OFF — staged rollout, not yet live
+}
+
+async function siteFeatureRestoreOne(elId, key, defaultWhenMissing) {
+  const el = document.getElementById(elId);
   if (!el) return;
   try {
-    const { data, error } = await db.from('nr_site_settings').select('value').eq('key', 'nuclearready_enabled').maybeSingle();
+    const { data, error } = await db.from('nr_site_settings').select('value').eq('key', key).maybeSingle();
     if (error) throw error;
-    el.checked = !data || data.value !== false; // default ON if table/row not set up yet
+    el.checked = data ? data.value !== false : defaultWhenMissing;
   } catch (e) {
-    el.checked = true;
-    console.warn('siteFeatureRestore failed (has nr_site_settings.sql been run?)', e);
+    el.checked = defaultWhenMissing;
+    console.warn(`siteFeatureRestore failed for ${key} (has nr_site_settings.sql been run?)`, e);
   }
 }
 
@@ -5645,18 +6037,40 @@ async function siteFeatureSave(key, elId) {
 }
 
 async function loadKbStats() {
+  // Fixed 2026-08-03: was reading the superseded frankie6_kb.json (pre-rebuild
+  // single-file KB). Frankie is now 4 partitions — sum stats across all of them
+  // so this panel reflects the current rebuild, not a stale snapshot.
+  const PARTITION_FILES = [
+    './kb/frankie7_supplier_kb.json',
+    './kb/frankie_toolkit_kb.json',
+    './kb/frankie_regs_kb.json',
+    './kb/frankie_reactors_kb.json',
+  ];
   try {
-    const r = await fetch('./kb/frankie6_kb.json');
-    if (!r.ok) throw new Error('KB not found');
-    const data = await r.json();
-    const meta   = data?.meta ?? {};
-    const chunks = meta.total_chunks ?? (Array.isArray(data?.chunks) ? data.chunks.length : '?');
-    const legacy = meta.base_chunks ?? '?';
-    const cats   = meta.categories ? Object.keys(meta.categories).length : '?';
+    const metas = await Promise.all(PARTITION_FILES.map(async (path) => {
+      try {
+        const r = await fetch(path);
+        if (!r.ok) return null;
+        const data = await r.json();
+        return data?.meta ?? null;
+      } catch (e) {
+        return null;
+      }
+    }));
+
+    const loaded = metas.filter(Boolean);
+    if (loaded.length === 0) throw new Error('No KB partitions found');
+
+    const chunks = loaded.reduce((sum, m) => sum + (m.total_chunks ?? 0), 0);
+    const catSet = new Set();
+    loaded.forEach(m => { if (m.categories) Object.keys(m.categories).forEach(c => catSet.add(c)); });
+
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = typeof val === 'number' ? val.toLocaleString() : val; };
     set('scc-chunkCount',  chunks);
-    set('scc-fileCount',   cats);
-    set('scc-legacyCount', legacy);
+    set('scc-fileCount',   catSet.size);
+    // Partitions loaded (e.g. "4/4") — replaces the old single-KB "legacy chunks" metric,
+    // which has no equivalent now that Frankie is split across 4 partition files.
+    set('scc-legacyCount', `${loaded.length}/${PARTITION_FILES.length}`);
   } catch (e) {
     ['scc-chunkCount','scc-fileCount','scc-legacyCount'].forEach(id => {
       const el = document.getElementById(id); if (el) el.textContent = '?';
@@ -5730,6 +6144,11 @@ function saveContentModal() {
 
   var WORKER = 'https://ch.rene-dorset.workers.dev';
 
+  function apiPingAuthHeaders() {
+    var token = (typeof sccSession !== 'undefined' && sccSession && sccSession.access_token) || '';
+    return token ? { 'Authorization': 'Bearer ' + token } : {};
+  }
+
   var APIS = [
     {
       id: 'claude', label: 'Claude (Anthropic)',
@@ -5737,7 +6156,7 @@ function saveContentModal() {
         // Ping a minimal Claude request via worker — just check HTTP 200 vs 401
         return fetch(WORKER + '/claude/v1/messages', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: Object.assign({ 'Content-Type': 'application/json' }, apiPingAuthHeaders()),
           body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] })
         }).then(function(r) {
           if (r.status === 401 || r.status === 403) return 'fail';
@@ -5754,7 +6173,7 @@ function saveContentModal() {
     {
       id: 'groq', label: 'Groq',
       ping: function() {
-        return fetch(WORKER + '/groq/openai/v1/models')
+        return fetch(WORKER + '/groq/openai/v1/models', { headers: apiPingAuthHeaders() })
           .then(function(r) { return r.ok ? 'ok' : (r.status === 401 ? 'fail' : 'ok'); })
           .catch(function() { return 'fail'; });
       },
@@ -5767,7 +6186,7 @@ function saveContentModal() {
       id: 'brave', label: 'Brave Search',
       ping: function() {
         return fetch(WORKER + '/brave/res/v1/web/search?q=test&count=1', {
-          headers: { 'Accept': 'application/json' }
+          headers: Object.assign({ 'Accept': 'application/json' }, apiPingAuthHeaders())
         }).then(function(r) { return r.ok ? 'ok' : (r.status === 401 ? 'fail' : 'ok'); })
           .catch(function() { return 'fail'; });
       },
@@ -5780,7 +6199,7 @@ function saveContentModal() {
       id: 'openai-embed', label: 'OpenAI (Embeddings)',
       ping: function() {
         return fetch(WORKER + '/embed/v1/models', {
-          headers: { 'Content-Type': 'application/json' }
+          headers: Object.assign({ 'Content-Type': 'application/json' }, apiPingAuthHeaders())
         }).then(function(r) { return r.ok ? 'ok' : (r.status === 401 ? 'fail' : 'ok'); })
           .catch(function() { return 'fail'; });
       },
@@ -6546,7 +6965,7 @@ async function fjUnpublishCaseStudy(id) {
 // content-type files above) — used for site-pages/*.json reads.
 async function loadBlob2(path) {
   try {
-    const r = await fetch(`${BLOB_BASE}/${path}?${BLOB_SAS}&t=${Date.now()}`);
+    const r = await fetch(`${BLOB_BASE}/${path}?t=${Date.now()}`, { headers: blobAuthHeaders() });
     if (!r.ok) return null;
     return await r.json();
   } catch (e) {
@@ -6853,6 +7272,11 @@ function nrcRender() {
           ${co.website ? `<div style="font-size:.76rem;color:var(--muted);margin-top:1px">${escH(co.website)}</div>` : ''}
           ${nrcTagChips(co)}
         </div>
+        <button onclick="coOpenProfile('${safeId}','nuclearready')"
+          title="Open the full company profile"
+          style="background:none;border:1px solid var(--accent);border-radius:6px;padding:4px 8px;cursor:pointer;color:var(--accent);display:flex;align-items:center;font-size:.73rem;white-space:nowrap">
+          🔗 View Profile
+        </button>
         <button onclick="coShowLinkSupplierModal('${safeId}','${safeName}')"
           title="${co.sharepoint_company_id ? 'Linked to Supplier Database — click to re-link' : 'Link to Supplier Database'}"
           style="background:none;border:1px solid var(--line);border-radius:6px;padding:4px 8px;cursor:pointer;color:${co.sharepoint_company_id ? 'var(--ok)' : 'var(--muted)'};display:flex;align-items:center;gap:4px;font-size:.73rem;white-space:nowrap">
@@ -7166,7 +7590,7 @@ async function pcvLoad() {
   const list = document.getElementById('pcv-list');
   if (list) list.innerHTML = '<div style="padding:12px;font-size:.8rem;color:var(--muted)">Loading…</div>';
   try {
-    const r = await fetch(`${BLOB_BASE}/${PCV_FILE}?${BLOB_SAS}&t=${Date.now()}`);
+    const r = await fetch(`${BLOB_BASE}/${PCV_FILE}?t=${Date.now()}`, { headers: blobAuthHeaders() });
     pcvSlides = r.ok ? (await r.json()) : [];
   } catch(e) { pcvSlides = []; }
   pcvRender();
@@ -7302,11 +7726,11 @@ function pcvConfirmAdd() {
 }
 
 async function pcvPublish() {
-  const url = `${BLOB_BASE}/${PCV_FILE}?${BLOB_SAS}`;
+  const url = `${BLOB_BASE}/${PCV_FILE}`;
   try {
     const r = await fetch(url, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'x-ms-blob-type': 'BlockBlob' },
+      headers: { 'Content-Type': 'application/json', 'x-ms-blob-type': 'BlockBlob', ...blobAuthHeaders() },
       body: JSON.stringify(pcvSlides, null, 2)
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -7919,6 +8343,9 @@ let sdbJunctions = { caps: [], coms: [], acreds: [], mkts: [] };
 let sdbCrmByShareId = {};   // sharepoint_company_id -> nr_companies row
 let sdbFiltered = [];
 let sdbSelected = null;
+// Set once nr_companies_supplierdb_fields.sql has been run and the extra
+// location/size columns exist — gates whether sdbSyncTagsToCrm also writes them.
+let sdbFieldSyncAvailable = false;
 
 function sdbOpen() {
   const banner = document.getElementById('sdb-signin-banner');
@@ -7973,9 +8400,21 @@ async function sdbLoad(force) {
     sdbState.loaded = true;
 
     await sharedCosLoad();
-    const { data: crmLinks } = await db.from('nr_companies')
-      .select('id,name,sharepoint_company_id,capabilities,accreditations,markets')
+    const CRM_LINK_COLS_FULL = 'id,name,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group';
+    const CRM_LINK_COLS_BASE = 'id,name,sharepoint_company_id,capabilities,accreditations,markets';
+    let { data: crmLinks, error: crmLinksErr } = await db.from('nr_companies')
+      .select(CRM_LINK_COLS_FULL)
       .not('sharepoint_company_id', 'is', null);
+    if (crmLinksErr) {
+      // New location/size columns not migrated yet — fall back to tags-only until
+      // nr_companies_supplierdb_fields.sql has been run.
+      ({ data: crmLinks } = await db.from('nr_companies')
+        .select(CRM_LINK_COLS_BASE)
+        .not('sharepoint_company_id', 'is', null));
+      sdbFieldSyncAvailable = false;
+    } else {
+      sdbFieldSyncAvailable = true;
+    }
     sdbCrmByShareId = {};
     (crmLinks || []).forEach(c => { sdbCrmByShareId[String(c.sharepoint_company_id)] = c; });
 
@@ -8267,6 +8706,28 @@ function sdbTagsFor(c) {
   };
 }
 
+// Location/size/commodity fields the Supplier Database (SharePoint) owns.
+// Only non-empty SharePoint values are ever copied across, so a blank field
+// in SharePoint never wipes out a value someone entered by hand in the CRM.
+function sdbProfileFieldsFor(c) {
+  const fields = {
+    region:               c.RegionalIA,
+    city:                 c.City,
+    county:               c.County,
+    postcode:             c.Postcode,
+    address:              c.Address,
+    employees:            c.Employees,
+    turnover:             c.Turnover,
+    main_commodity_group: c.MainCommodityGroup
+  };
+  const out = {};
+  Object.keys(fields).forEach(k => {
+    const v = fields[k];
+    if (v !== undefined && v !== null && String(v).trim() !== '') out[k] = v;
+  });
+  return out;
+}
+
 function sdbArraysEqual(a, b) {
   a = a || []; b = b || [];
   if (a.length !== b.length) return false;
@@ -8274,22 +8735,30 @@ function sdbArraysEqual(a, b) {
   return as.every((v, i) => v === bs[i]);
 }
 
-// Copies capability/accreditation/market tags from the SharePoint Supplier
-// Database onto a linked nr_companies row — only writes if something changed.
+// Copies capability/accreditation/market tags — and, once the extra columns
+// exist (nr_companies_supplierdb_fields.sql), location/size/commodity fields
+// too — from the SharePoint Supplier Database onto a linked nr_companies row.
+// Only writes fields that actually changed, and never overwrites a populated
+// CRM field with an empty SharePoint one.
 async function sdbSyncTagsToCrm(spCompany, crmRow) {
   if (!crmRow) return;
   const tags = sdbTagsFor(spCompany);
-  const unchanged =
-    sdbArraysEqual(tags.capabilities, crmRow.capabilities) &&
-    sdbArraysEqual(tags.accreditations, crmRow.accreditations) &&
-    sdbArraysEqual(tags.markets, crmRow.markets);
-  if (unchanged) return;
-  const { error } = await db.from('nr_companies').update(tags).eq('id', crmRow.id);
-  if (!error) {
-    crmRow.capabilities = tags.capabilities;
-    crmRow.accreditations = tags.accreditations;
-    crmRow.markets = tags.markets;
+  const payload = {};
+
+  if (!sdbArraysEqual(tags.capabilities, crmRow.capabilities))     payload.capabilities   = tags.capabilities;
+  if (!sdbArraysEqual(tags.accreditations, crmRow.accreditations)) payload.accreditations = tags.accreditations;
+  if (!sdbArraysEqual(tags.markets, crmRow.markets))               payload.markets        = tags.markets;
+
+  if (sdbFieldSyncAvailable) {
+    const profileFields = sdbProfileFieldsFor(spCompany);
+    Object.keys(profileFields).forEach(k => {
+      if (String(crmRow[k] ?? '') !== String(profileFields[k])) payload[k] = profileFields[k];
+    });
   }
+
+  if (!Object.keys(payload).length) return;
+  const { error } = await db.from('nr_companies').update(payload).eq('id', crmRow.id);
+  if (!error) Object.assign(crmRow, payload);
 }
 
 async function sdbLinkCompany(spCompanyRowId, crmId) {
@@ -8327,10 +8796,12 @@ async function sdbCreateCrmCompany(spCompanyRowId) {
   const shareId = String(c.CompanyID ?? c.ID);
   const status = c.F4NCandidate === 'Y' ? 'in_progress' : 'in_progress';
   const tags = sdbTagsFor(c);
+  const profileFields = sdbFieldSyncAvailable ? sdbProfileFieldsFor(c) : {};
   const { data, error } = await db.from('nr_companies').insert({
     name: c.Title, status, website: c.Website || null, description: c.QuickDescription || null,
     hidden: false, sharepoint_company_id: shareId,
-    capabilities: tags.capabilities, accreditations: tags.accreditations, markets: tags.markets
+    capabilities: tags.capabilities, accreditations: tags.accreditations, markets: tags.markets,
+    ...profileFields
   }).select().single();
   if (error) { toast('Error creating company: ' + error.message); return; }
   sharedCos.push(data);
@@ -8347,6 +8818,21 @@ function sdbOpenCrmCompany(companyId) {
     coSearch('');
     const el = document.getElementById('co-folder-' + companyId);
     if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); coToggle(companyId); }
+  }, 250);
+}
+
+// Single entry point into "the one way to view a company folder" — used from
+// the NuclearReady Companies admin grid and the Evidence Vault list so they
+// open the same tabbed Companies view instead of duplicating it.
+function coOpenProfile(companyId, tab) {
+  nav('companies');
+  setTimeout(() => {
+    coSearch('');
+    const el = document.getElementById('co-folder-' + companyId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!el.classList.contains('open')) coToggle(companyId);
+    if (tab) setTimeout(() => coTab(companyId, tab), 200);
   }, 250);
 }
 </script>
