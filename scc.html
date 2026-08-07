@@ -892,7 +892,7 @@ button{cursor:pointer}
 
     <!-- ──────────── F4N TRACKER -->
     <div class="screen" id="screen-f4ntracker">
-      <div style="max-width:1400px">
+      <div>
 
         <!-- Stats -->
         <div class="stats-row" id="f4n-stats" style="grid-template-columns:repeat(7,1fr);margin-bottom:16px">
@@ -4906,7 +4906,7 @@ async function sharedCosLoad(force) {
   if (sharedCos.length && !force) return sharedCos;
   // Reuse coAllCompanies if already loaded
   if (coAllCompanies.length && !force) { sharedCos = coAllCompanies; return sharedCos; }
-  const { data } = await db.from('nr_companies').select('id,name,status').eq('hidden', false).order('name');
+  const { data } = await db.from('nr_companies').select('id,name,status,expiry_date').eq('hidden', false).order('name');
   sharedCos = data || [];
   return sharedCos;
 }
@@ -7954,6 +7954,18 @@ function f4nMapStatusToCrm(f4nStatus) {
   return (f4nStatus || '').toLowerCase().startsWith('granted') ? 'granted' : 'in_progress';
 }
 
+// Most F4N expiry dates already live on the linked CRM company record
+// (nr_companies.expiry_date). For linked bookings, that's the source of
+// truth; only fall back to the tracker's own expiry_date for bookings
+// with no linked company.
+function f4nEffectiveExpiry(r) {
+  if (r.company_id) {
+    const co = sharedCos.find(c => c.id === r.company_id);
+    if (co && co.expiry_date) return co.expiry_date;
+  }
+  return r.expiry_date || null;
+}
+
 async function f4nLoad() {
   const loading = document.getElementById('f4n-loading');
   const banner  = document.getElementById('f4n-seed-banner');
@@ -7999,8 +8011,9 @@ function f4nUpdateStats() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const in2mo = new Date(today); in2mo.setMonth(in2mo.getMonth() + 2);
   set('f4n-stat-duesoon', f4nAll.filter(r => {
-    if (!r.expiry_date) return false;
-    const d = new Date(r.expiry_date);
+    const exp = f4nEffectiveExpiry(r);
+    if (!exp) return false;
+    const d = new Date(exp);
     return d >= today && d <= in2mo;
   }).length);
 
@@ -8049,14 +8062,18 @@ function f4nRender() {
     const sc = f4nStatusColor(r.f4n_status);
     const match = !r.company_id ? f4nFindMatch(r.company_name) : null;
 
+    const effExpiry = f4nEffectiveExpiry(r);
     let expColor = 'var(--ink)', expBorder = 'var(--line)', expWeight = '400';
-    if (r.expiry_date) {
+    if (effExpiry) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const in2mo = new Date(today); in2mo.setMonth(in2mo.getMonth() + 2);
-      const d = new Date(r.expiry_date);
+      const d = new Date(effExpiry);
       if (d < today)        { expColor = 'var(--red)';  expBorder = 'var(--red)';  expWeight = '700'; }
       else if (d <= in2mo)  { expColor = 'var(--warn)'; expBorder = 'var(--warn)'; expWeight = '700'; }
     }
+    const expTitle = r.company_id
+      ? 'Synced with the linked CRM company\u2019s expiry date — editing here updates both'
+      : 'No linked CRM company — this date is tracker-only';
 
     let nameHtml, linkCell = '';
     if (r.company_id) {
@@ -8115,7 +8132,7 @@ function f4nRender() {
           style="width:100%;border:1px solid var(--line);background:var(--wash);color:var(--ink);font-size:.76rem;padding:3px 5px;border-radius:4px;box-sizing:border-box">
       </td>
       <td style="padding:7px 10px">
-        <input type="date" value="${r.expiry_date || ''}" onchange="f4nUpdateField('${r.id}','expiry_date',this.value)"
+        <input type="date" value="${effExpiry || ''}" title="${expTitle}" onchange="f4nUpdateExpiry('${r.id}',this.value)"
           style="width:100%;border:1px solid ${expBorder};background:var(--wash);color:${expColor};font-weight:${expWeight};font-size:.76rem;padding:3px 5px;border-radius:4px;box-sizing:border-box">
       </td>
       <td style="padding:7px 10px">
@@ -8138,8 +8155,9 @@ function f4nShowExpiryModal() {
   const in2mo = new Date(today); in2mo.setMonth(in2mo.getMonth() + 2);
 
   const rows = f4nAll
-    .filter(r => r.expiry_date)
-    .map(r => ({ r, d: new Date(r.expiry_date) }))
+    .map(r => ({ r, exp: f4nEffectiveExpiry(r) }))
+    .filter(x => x.exp)
+    .map(x => ({ ...x, d: new Date(x.exp) }))
     .sort((a, b) => a.d - b.d);
 
   if (!rows.length) {
@@ -8154,7 +8172,7 @@ function f4nShowExpiryModal() {
           <th style="padding:7px 9px;border-bottom:1px solid var(--line)"></th>
         </tr>
       </thead>
-      <tbody>${rows.map(({ r, d }) => {
+      <tbody>${rows.map(({ r, exp, d }) => {
         const overdue = d < today;
         const soon = !overdue && d <= in2mo;
         const color = overdue ? 'var(--red)' : (soon ? 'var(--warn)' : 'var(--ink)');
@@ -8165,7 +8183,7 @@ function f4nShowExpiryModal() {
         return `<tr style="border-bottom:1px solid var(--line)">
           <td style="padding:6px 9px">${nameHtml}</td>
           <td style="padding:6px 9px;color:var(--muted)">${escH(r.f4n_status || '—')}</td>
-          <td style="padding:6px 9px;font-weight:700;color:${color}">${f4nFmtDate(r.expiry_date)}</td>
+          <td style="padding:6px 9px;font-weight:700;color:${color}">${f4nFmtDate(exp)}</td>
           <td style="padding:6px 9px;color:${color};font-size:.72rem;font-weight:600">${tag}</td>
         </tr>`;
       }).join('')}</tbody>
@@ -8173,6 +8191,24 @@ function f4nShowExpiryModal() {
   }
 
   modal.style.display = 'flex';
+}
+
+// Expiry Date is dual-written: the tracker row (for search/sort here) and,
+// when the booking is linked to a CRM company, nr_companies.expiry_date too
+// (the actual source of truth for most already-recorded expiry dates).
+async function f4nUpdateExpiry(id, value) {
+  const row = f4nAll.find(r => r.id === id);
+  await f4nUpdateField(id, 'expiry_date', value);
+  if (row && row.company_id) {
+    const { error } = await db.from('nr_companies').update({ expiry_date: value || null }).eq('id', row.company_id);
+    if (error) { toast('Tracker saved, but CRM sync failed: ' + error.message); return; }
+    const co = sharedCos.find(c => c.id === row.company_id);
+    if (co) co.expiry_date = value || null;
+    if (typeof coAllCompanies !== 'undefined') {
+      const co2 = coAllCompanies.find(c => c.id === row.company_id);
+      if (co2) co2.expiry_date = value || null;
+    }
+  }
 }
 
 async function f4nUpdateField(id, field, value) {
