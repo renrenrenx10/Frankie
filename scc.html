@@ -2251,8 +2251,8 @@ const TOPBAR = {
   f4njourney:  {title:'F4N Journey / Case Studies', sub:'Review member-submitted F4N journeys and turn them into published case studies', actions:`<button class="tb-btn primary" onclick="fjLoadSubmissions()">↻ Refresh</button>`},
   pcv:         {title:'Programme Country View', sub:'Edit and publish quarterly nuclear programme slide briefings', actions:`<button class="tb-btn primary" onclick="pcvPublish()">&#9650; Publish to Members</button><button class="tb-btn" onclick="pcvAddSlide()" style="margin-left:8px">+ Add Slide</button>`},
   certgen:     {title:'F4N Certificate Generator', sub:'Issue F4N Granted Status certificates', actions:`<button class="tb-btn primary" onclick="certDownload()">&#11015; Download PDF</button>`},
-  timesink:     {title:'TimeSink', sub:'Log time and expenses against your projects', actions:`<button class="tb-btn" onclick="refreshToolFrame('timesink')">↻ Refresh</button>`},
-  controlcentre: {title:'Control Centre', sub:'Project delivery, budgets and the sales pipeline', actions:`<button class="tb-btn" onclick="refreshToolFrame('controlcentre')">↻ Refresh</button>`},
+  timesink:     {title:'TimeSink', sub:'Log time and expenses against your projects', actions:`<button class="tb-btn" onclick="document.getElementById('frm-timesink').src=document.getElementById('frm-timesink').src">↻ Refresh</button>`},
+  controlcentre: {title:'Control Centre', sub:'Project delivery, budgets and the sales pipeline', actions:`<button class="tb-btn" onclick="document.getElementById('frm-controlcentre').src=document.getElementById('frm-controlcentre').src">↻ Refresh</button>`},
   mailmerge: {title:'Mail Merge', sub:'Send templated emails to a segment of members — lands in Outlook Drafts for review before sending', actions:''}
 };
 
@@ -2349,19 +2349,6 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 function lazyLoadToolFrame(screen) {
   const frame = document.getElementById(screen === 'timesink' ? 'frm-timesink' : 'frm-controlcentre');
   if (frame && !frame.src && frame.dataset.src) frame.src = frame.dataset.src;
-}
-
-// Force a genuine reload of an embedded tool iframe (e.g. after adding a
-// project in Control Centre, so TimeSink re-fetches its project list).
-// NOTE: assigning frame.src = frame.src is a no-op in most browsers when the
-// value doesn't change, so no navigation happens and nothing actually
-// refreshes. Appending a cache-busting query string forces a real reload.
-function refreshToolFrame(screen) {
-  const frame = document.getElementById(screen === 'timesink' ? 'frm-timesink' : 'frm-controlcentre');
-  if (!frame) return;
-  const base = (frame.dataset.src || frame.src || '').split('?')[0];
-  if (!base) return;
-  frame.src = base + '?_r=' + Date.now();
 }
 
 // Lightweight postMessage bridge so the embedded tools can ask the hub to
@@ -5383,7 +5370,6 @@ function coLoadDetails(co) {
       <div class="co-detail"><div class="co-detail-lbl">Granted</div><div class="co-detail-val">${fmt(co.granted_date)}</div></div>
       <div class="co-detail"><div class="co-detail-lbl">Expires</div><div class="co-detail-val">${fmt(co.expiry_date)}</div></div>
       ${locationBits ? `<div class="co-detail"><div class="co-detail-lbl">Location <span style="color:var(--sp-purple,#5b4bd4);font-weight:700;font-size:.62rem">SUPPLIER DB</span></div><div class="co-detail-val">${esc2(locationBits)}</div></div>` : ''}
-      ${co.region ? `<div class="co-detail"><div class="co-detail-lbl">Region <span style="color:var(--sp-purple,#5b4bd4);font-weight:700;font-size:.62rem">SUPPLIER DB</span></div><div class="co-detail-val">${esc2(co.region)}</div></div>` : ''}
       ${co.employees ? `<div class="co-detail"><div class="co-detail-lbl">Employees <span style="color:var(--sp-purple,#5b4bd4);font-weight:700;font-size:.62rem">SUPPLIER DB</span></div><div class="co-detail-val">${esc2(co.employees)}</div></div>` : ''}
       ${co.turnover ? `<div class="co-detail"><div class="co-detail-lbl">Turnover <span style="color:var(--sp-purple,#5b4bd4);font-weight:700;font-size:.62rem">SUPPLIER DB</span></div><div class="co-detail-val">${esc2(co.turnover)}</div></div>` : ''}
       ${co.main_commodity_group ? `<div class="co-detail"><div class="co-detail-lbl">Main Commodity Group <span style="color:var(--sp-purple,#5b4bd4);font-weight:700;font-size:.62rem">SUPPLIER DB</span></div><div class="co-detail-val">${esc2(co.main_commodity_group)}</div></div>` : ''}
@@ -5404,7 +5390,7 @@ function coLoadDetails(co) {
 
 // ── NuclearReady tab — the same controls that used to live only on the
 // separate "NuclearReady Companies" admin grid, now on the one company view ──
-const NUCLEARREADY_EXPLORER_BASE = ''; // e.g. 'https://nuccol.co.uk/nuclearready/' — set once known, enables the "View live" link below
+const NUCLEARREADY_EXPLORER_BASE = 'https://renrenrenx10.github.io/nuccol-tools/NuclearReady_Explorer_v3.html'; // public Explorer — links use #company/<slug>
 
 function coSlugify(name) {
   return String(name || '').toLowerCase().trim()
@@ -5457,17 +5443,11 @@ async function coNrToggleHide(coId, hide) {
 
 // Sync just this one company's logo from the website section (same source
 // nrcSyncLogos() uses for the bulk version), without touching everyone else.
-// Matches against the LIVE website content (site-pages/f4n-companies.json),
-// not the static WE_SEED_COMPANIES array — that array is a one-off seed
-// snapshot used only by the "Seed Current Content" button and never reflects
-// companies added afterwards, which was causing "No matching logo found" for
-// every newly-added company regardless of how many times the page was refreshed.
 async function coSyncSingleLogo(coId) {
   const co = coAllCompanies.find(c => String(c.id) === String(coId));
   if (!co) return;
-  const liveRows = await loadBlob2('site-pages/f4n-companies.json') || [];
-  if (!Array.isArray(liveRows) || !liveRows.length) { toast('Website company list not available'); return; }
-  const match = liveRows.find(c => c && c.title && nrcNormName(c.title) === nrcNormName(co.name));
+  if (typeof WE_SEED_COMPANIES === 'undefined') { toast('Website company list not available'); return; }
+  const match = WE_SEED_COMPANIES.find(c => c && c.title && nrcNormName(c.title) === nrcNormName(co.name));
   if (!match || !match.imageUrl) { toast('No matching logo found on the website for this company'); return; }
   const { error } = await db.from('nr_companies').update({ logo_url: match.imageUrl }).eq('id', co.id);
   if (error) { toast('Error: ' + error.message); return; }
@@ -7208,18 +7188,14 @@ function nrcNormName(s) {
     .trim();
 }
 
-// Copy company logos held in the website section (live site-pages/f4n-companies.json,
-// same source coSyncSingleLogo() uses) into nr_companies.logo_url, matching by
-// name. Only fills rows whose logo is currently empty so member-uploaded logos
-// are never overwritten. Previously matched against the static WE_SEED_COMPANIES
-// array (a one-off seed snapshot), which meant companies added after that seed
-// was written could never be found — fixed to read the live content instead.
+// Copy company logos held in the website section (WE_SEED_COMPANIES image URLs)
+// into nr_companies.logo_url, matching by name. Only fills rows whose logo is
+// currently empty so member-uploaded logos are never overwritten.
 async function nrcSyncLogos() {
-  const liveRows = await loadBlob2('site-pages/f4n-companies.json') || [];
-  if (!Array.isArray(liveRows) || !liveRows.length) { toast('Website company list not available'); return; }
+  if (typeof WE_SEED_COMPANIES === 'undefined') { toast('Website company list not available'); return; }
   // Build a name -> logo URL map from the website section.
   const webLogos = {};
-  liveRows.forEach(c => {
+  WE_SEED_COMPANIES.forEach(c => {
     if (c && c.title && c.imageUrl) webLogos[nrcNormName(c.title)] = c.imageUrl;
   });
 
@@ -8756,7 +8732,9 @@ function sdbTagsFor(c) {
 // in SharePoint never wipes out a value someone entered by hand in the CRM.
 function sdbProfileFieldsFor(c) {
   const fields = {
-    region:               c.RegionalIA,
+    // NOT region: field_9/"RegionalIA" is the assigned Regional Industry
+    // Advisor's name (a staff member), not a geographic region — there's no
+    // separate region field in the Supplier Database, so we don't sync one.
     city:                 c.City,
     county:               c.County,
     postcode:             c.Postcode,
