@@ -6,7 +6,15 @@
 (function () {
     'use strict';
 
-    const ANSWERS_URL = './kb/faq-answers.json';
+    // Updated 2026-08-03: served behind the gated Worker /kb/* route (Azure
+    // Blob-backed), not as a static relative path — see ch-proxy-worker.js.
+    const WORKER_URL = 'https://ch.rene-dorset.workers.dev';
+    const ANSWERS_URL = `${WORKER_URL}/kb/faq-answers.json`;
+
+    function authHeaders() {
+        const token = localStorage.getItem('frankieUserToken');
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
 
     let prebakedAnswers = {}; // populated on init
 
@@ -171,7 +179,7 @@
 
     async function init() {
         try {
-            const r = await fetch(ANSWERS_URL);
+            const r = await fetch(ANSWERS_URL, { headers: authHeaders() });
             if (r.ok) prebakedAnswers = await r.json();
         } catch (e) {
             console.warn('FAQ answers not loaded:', e.message);

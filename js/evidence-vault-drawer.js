@@ -9,7 +9,15 @@
   const SUPABASE_URL  = 'https://qkyvmtouwrzrcyagkheo.supabase.co';
   const ANON_KEY      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFreXZtdG91d3J6cmN5YWdraGVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzODQzNjMsImV4cCI6MjA5MDk2MDM2M30.gKEgkVA-VjOnS_084W79kpzOdZhFQkhFp63MAe_FTd4';
   const BUCKET        = 'evidence-docs';
-  const DATA_FILE     = 'kb/be_evidence_map.json';
+  // Updated 2026-08-03: served behind the gated Worker /kb/* route (Azure
+  // Blob-backed), not as a static relative path — see ch-proxy-worker.js.
+  const KB_WORKER_URL = 'https://ch.rene-dorset.workers.dev';
+  const DATA_FILE     = `${KB_WORKER_URL}/kb/be_evidence_map.json`;
+
+  function kbAuthHeaders() {
+    const token = localStorage.getItem('frankieUserToken');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  }
 
   let DATA        = null;
   let sectionIdx  = 0;
@@ -153,7 +161,7 @@
   async function loadData() {
     if (DATA) return true;
     try {
-      const r = await fetch(DATA_FILE);
+      const r = await fetch(DATA_FILE, { headers: kbAuthHeaders() });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       DATA = await r.json();
       return true;

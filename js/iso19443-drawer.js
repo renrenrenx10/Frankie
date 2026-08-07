@@ -5,8 +5,16 @@
 (function () {
   'use strict';
 
-  var DATA_FILE   = 'kb/iso19443_mapping.json';
-  var HB_MAP_FILE = 'kb/handbook_url_map.json';
+  // Updated 2026-08-03: served behind the gated Worker /kb/* route (Azure
+  // Blob-backed), not as static relative paths — see ch-proxy-worker.js.
+  var KB_WORKER_URL = 'https://ch.rene-dorset.workers.dev';
+  var DATA_FILE   = KB_WORKER_URL + '/kb/iso19443_mapping.json';
+  var HB_MAP_FILE = KB_WORKER_URL + '/kb/handbook_url_map.json';
+
+  function kbAuthHeaders() {
+    var token = localStorage.getItem('frankieUserToken');
+    return token ? { 'Authorization': 'Bearer ' + token } : {};
+  }
   var DRAWER_ID   = 'iso19443-drawer';
 
   var SUPA_URL  = 'https://qkyvmtouwrzrcyagkheo.supabase.co';
@@ -91,8 +99,8 @@
     if (loading) return Promise.resolve(null);
     loading = true;
     return Promise.all([
-      fetch(DATA_FILE).then(function (r) { return r.json(); }),
-      fetch(HB_MAP_FILE).then(function (r) { return r.json(); }).catch(function () { return {}; })
+      fetch(DATA_FILE, { headers: kbAuthHeaders() }).then(function (r) { return r.json(); }),
+      fetch(HB_MAP_FILE, { headers: kbAuthHeaders() }).then(function (r) { return r.json(); }).catch(function () { return {}; })
     ]).then(function (res) {
       HB_MAP  = res[1] || {};
       loading = false;

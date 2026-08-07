@@ -22,6 +22,12 @@
   // FCDO UK Consolidated Sanctions List (public CSV, no auth)
   var SANCTIONS_CSV_URL = WORKER_BASE + '/sanctions/ConList.csv';
 
+  // Auth gate (added 2026-08-03): every Worker route now requires a valid member session.
+  function authHeaders() {
+    var token = localStorage.getItem('frankieUserToken');
+    return token ? { 'Authorization': 'Bearer ' + token } : {};
+  }
+
   var state = {
     phase: 'search',        // 'search' | 'loading' | 'results'
     query: '',
@@ -215,7 +221,7 @@
 
   function resolveCompanyNumber(name, num) {
     if (num) return Promise.resolve(num);
-    return fetch(CH_PROXY + '/search/companies?q=' + encodeURIComponent(name) + '&items_per_page=5')
+    return fetch(CH_PROXY + '/search/companies?q=' + encodeURIComponent(name) + '&items_per_page=5', { headers: authHeaders() })
       .then(function (r) {
         if (!r.ok) throw new Error('Companies House search failed (' + r.status + '). Check the company name and try again.');
         return r.json();
@@ -237,16 +243,16 @@
   function fetchAllCHData(num) {
     if (!num) return Promise.resolve(null);
     return Promise.all([
-      fetch(CH_PROXY + '/company/' + encodeURIComponent(num))
+      fetch(CH_PROXY + '/company/' + encodeURIComponent(num), { headers: authHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; }),
-      fetch(CH_PROXY + '/company/' + encodeURIComponent(num) + '/officers?items_per_page=20')
+      fetch(CH_PROXY + '/company/' + encodeURIComponent(num) + '/officers?items_per_page=20', { headers: authHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; }),
-      fetch(CH_PROXY + '/company/' + encodeURIComponent(num) + '/filing-history?items_per_page=15')
+      fetch(CH_PROXY + '/company/' + encodeURIComponent(num) + '/filing-history?items_per_page=15', { headers: authHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; }),
-      fetch(CH_PROXY + '/company/' + encodeURIComponent(num) + '/persons-with-significant-control')
+      fetch(CH_PROXY + '/company/' + encodeURIComponent(num) + '/persons-with-significant-control', { headers: authHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; }),
     ]).then(function (results) {
@@ -263,7 +269,7 @@
 
   function fetchVAT(vat) {
     var clean = vat.replace(/^GB/i, '').replace(/\D/g, '');
-    return fetch(WORKER_BASE + '/hmrc/organisations/vat/check-vat-number/lookup/' + encodeURIComponent(clean))
+    return fetch(WORKER_BASE + '/hmrc/organisations/vat/check-vat-number/lookup/' + encodeURIComponent(clean), { headers: authHeaders() })
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; });
   }
@@ -309,10 +315,10 @@
   function fetchCHExtra(num) {
     if (!num) return Promise.resolve({ charges: null, insolvency: null });
     return Promise.all([
-      fetch(CH_PROXY + '/company/' + encodeURIComponent(num) + '/charges')
+      fetch(CH_PROXY + '/company/' + encodeURIComponent(num) + '/charges', { headers: authHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; }),
-      fetch(CH_PROXY + '/company/' + encodeURIComponent(num) + '/insolvency')
+      fetch(CH_PROXY + '/company/' + encodeURIComponent(num) + '/insolvency', { headers: authHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; }),
     ]).then(function (res) {
@@ -813,7 +819,7 @@
     var getContent = braveSummary
       ? Promise.resolve(braveSummary)
       : (siteUrl
-          ? fetch(WORKER_BASE + '/fetch?url=' + encodeURIComponent(siteUrl))
+          ? fetch(WORKER_BASE + '/fetch?url=' + encodeURIComponent(siteUrl), { headers: authHeaders() })
               .then(function (r) { return r.ok ? r.json() : null; })
               .then(function (d) { return d && d.text ? d.text.slice(0, 6000) : ''; })
               .catch(function () { return ''; })
@@ -831,7 +837,7 @@
       var groqModel = localStorage.getItem('frankieGroqModel') || 'llama-3.1-8b-instant';
       return fetch(WORKER_BASE + '/groq/openai/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
         body: JSON.stringify({ model: groqModel, max_tokens: 200, temperature: 0, messages: [{ role: 'user', content: prompt }] }),
       })
         .then(function (r) { return r.json(); })
@@ -902,7 +908,7 @@
 
   function braveSearch(query, withSummary) {
     var url = WORKER_BASE + '/brave/res/v1/web/search?q=' + encodeURIComponent(query) + '&count=5&country=gb&search_lang=en' + (withSummary ? '&summary=1' : '');
-    return fetch(url, { headers: { 'Accept': 'application/json' } })
+    return fetch(url, { headers: Object.assign({ 'Accept': 'application/json' }, authHeaders()) })
       .then(function (r) { return r.ok ? r.json() : { web: { results: [] } }; })
       .then(function (d) {
         var results = (d.web && d.web.results) || [];
@@ -911,7 +917,7 @@
         // If summarizer key is present, fetch the AI summary too
         var summarizerKey = d.summarizer && d.summarizer.key;
         if (!withSummary || !summarizerKey) return { results: results, summary: null };
-        return fetch(WORKER_BASE + '/brave/res/v1/summarizer/search?key=' + encodeURIComponent(summarizerKey) + '&entity_info=1', { headers: { 'Accept': 'application/json' } })
+        return fetch(WORKER_BASE + '/brave/res/v1/summarizer/search?key=' + encodeURIComponent(summarizerKey) + '&entity_info=1', { headers: Object.assign({ 'Accept': 'application/json' }, authHeaders()) })
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (s) {
             // Extract plain text from summary message segments
@@ -943,7 +949,7 @@
     var groqModel = localStorage.getItem('frankieGroqModel') || 'llama-3.1-8b-instant';
     return fetch(WORKER_BASE + '/groq/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
       body: JSON.stringify({ model: groqModel, max_tokens: 120, temperature: 0, messages: [{ role: 'user', content: prompt }] }),
     })
       .then(function (r) { return r.json(); })
@@ -1059,7 +1065,7 @@
     var groqModel = localStorage.getItem('frankieGroqModel') || 'llama-3.1-8b-instant';
     return fetch(WORKER_BASE + '/groq/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
       body: JSON.stringify({
         model: groqModel,
         max_tokens: 500,

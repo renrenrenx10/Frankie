@@ -6,22 +6,46 @@
 
     const WORKER = 'https://ch.rene-dorset.workers.dev';
 
+    function authHeaders() {
+        const token = localStorage.getItem('frankieUserToken');
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
+
     const LS = {
         groqModel:   'frankieGroqModel',
         claudeModel: 'frankieClaudeModel',
     };
 
     // ── Checks ────────────────────────────────────────────────────────────
+    // Fixed 2026-08-03: these two checks read the superseded single-file
+    // frankie6_kb.json / frankie6_vectors.json — stale since the KB rebuild
+    // split Frankie into 4 partitions. Now sums across all 4.
+
+    // Updated 2026-08-03: KB files now live behind the gated Worker /kb/* route
+    // (Azure Blob-backed), not as static relative paths — see ch-proxy-worker.js.
+    const KB_PARTITIONS = [
+        { kb: `${WORKER}/kb/frankie7_supplier_kb.json`,  vectors: `${WORKER}/kb/frankie7_supplier_vectors.json` },
+        { kb: `${WORKER}/kb/frankie_toolkit_kb.json`,    vectors: `${WORKER}/kb/frankie_toolkit_vectors.json` },
+        { kb: `${WORKER}/kb/frankie_regs_kb.json`,       vectors: `${WORKER}/kb/frankie_regs_vectors.json` },
+        { kb: `${WORKER}/kb/frankie_reactors_kb.json`,   vectors: null }, // 1.8GB — not loaded client-side
+    ];
 
     async function checkBrain() {
         try {
-            const r = await fetch('./kb/frankie6_kb.json');
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            const data  = await r.json();
-            const count = Array.isArray(data) ? data.length
-                        : Array.isArray(data?.chunks) ? data.chunks.length
-                        : '?';
-            return log('Brain', { status: 'ok', label: 'Loaded', detail: `${count} chunks · frankie6_kb.json` });
+            const results = await Promise.all(KB_PARTITIONS.map(async (p) => {
+                const r = await fetch(p.kb, { headers: authHeaders() });
+                if (!r.ok) return { count: 0, ok: false };
+                const data = await r.json();
+                const count = Array.isArray(data) ? data.length
+                            : Array.isArray(data?.chunks) ? data.chunks.length
+                            : (data?.meta?.total_chunks ?? 0);
+                return { count, ok: true };
+            }));
+            const loadedCount = results.filter(r => r.ok).length;
+            const total = results.reduce((sum, r) => sum + r.count, 0);
+            if (loadedCount === 0) throw new Error('No KB partitions found');
+            const status = loadedCount === KB_PARTITIONS.length ? 'ok' : 'warn';
+            return log('Brain', { status, label: 'Loaded', detail: `${total} chunks · ${loadedCount}/${KB_PARTITIONS.length} partitions` });
         } catch (e) {
             return log('Brain', { status: 'fail', label: 'Missing', detail: e.message });
         }
@@ -29,12 +53,20 @@
 
     async function checkStitches() {
         try {
-            const r = await fetch('./kb/frankie6_vectors.json');
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            const data  = await r.json();
-            const count = data?.chunk_count ?? data?.vectors?.length ?? '?';
-            const dims  = data?.dimensions ?? '?';
-            return log('Vectors', { status: 'ok', label: 'File loaded', detail: `${count} vectors · ${dims}d · file ready` });
+            const withVectors = KB_PARTITIONS.filter(p => p.vectors);
+            const results = await Promise.all(withVectors.map(async (p) => {
+                const r = await fetch(p.vectors, { headers: authHeaders() });
+                if (!r.ok) return { count: 0, dims: '?', ok: false };
+                const data = await r.json();
+                return { count: data?.chunk_count ?? data?.vectors?.length ?? 0, dims: data?.dimensions ?? '?', ok: true };
+            }));
+            const loadedCount = results.filter(r => r.ok).length;
+            if (loadedCount === 0) throw new Error('No vector partitions found');
+            const total = results.reduce((sum, r) => sum + r.count, 0);
+            const dims  = results.find(r => r.ok)?.dims ?? '?';
+            const status = loadedCount === withVectors.length ? 'ok' : 'warn';
+            const detail = `${total} vectors · ${dims}d · ${loadedCount}/${withVectors.length} partitions (reactors keyword+graph only)`;
+            return log('Vectors', { status, label: 'File loaded', detail });
         } catch (e) {
             return log('Vectors', { status: 'fail', label: 'Missing', detail: e.message });
         }
@@ -55,7 +87,7 @@
         try {
             const r = await fetch(`${WORKER}/groq/openai/v1/chat/completions`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
                 body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: 'user', content: 'ping' }] })
             });
             if (r.status === 401) return log('Groq', { status: 'fail', label: 'Key error', detail: 'Check GROQ_KEY in Cloudflare Worker' });
@@ -74,7 +106,7 @@
         try {
             const r = await fetch(`${WORKER}/claude/v1/messages`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
                 body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: 'user', content: 'ping' }] })
             });
             if (r.status === 401) return log('Claude', { status: 'fail', label: 'Key error', detail: 'Check CLAUDE_KEY in Cloudflare Worker' });

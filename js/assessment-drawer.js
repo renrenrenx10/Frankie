@@ -10,7 +10,15 @@
 (function () {
     'use strict';
 
-    const DATA_FILE = 'kb/assessment_data.json';
+    // Updated 2026-08-03: served behind the gated Worker /kb/* route (Azure
+    // Blob-backed), not as a static relative path — see ch-proxy-worker.js.
+    const WORKER_URL = 'https://ch.rene-dorset.workers.dev';
+    const DATA_FILE = `${WORKER_URL}/kb/assessment_data.json`;
+
+    function authHeaders() {
+        const token = localStorage.getItem('frankieUserToken');
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
 
     const TYPE_LABELS = {
         be:  'Business Excellence',
@@ -82,7 +90,7 @@
         if (loading) return null;
         loading = true;
         try {
-            const res = await fetch(DATA_FILE);
+            const res = await fetch(DATA_FILE, { headers: authHeaders() });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             DATA    = await res.json();
             loading = false;

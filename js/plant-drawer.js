@@ -10,7 +10,15 @@
 (function () {
     'use strict';
 
-    const DATA_FILE = 'kb/plant_tree_data.json';
+    // Updated 2026-08-03: served behind the gated Worker /kb/* route (Azure
+    // Blob-backed), not as a static relative path — see ch-proxy-worker.js.
+    const WORKER_URL = 'https://ch.rene-dorset.workers.dev';
+    const DATA_FILE = `${WORKER_URL}/kb/plant_tree_data.json`;
+
+    function authHeaders() {
+        const token = localStorage.getItem('frankieUserToken');
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
 
     // Zone number → building label + colour (fallback if data doesn't load)
     const ZONE_COLOURS = {
@@ -68,7 +76,7 @@
         loading = true;
         try {
             console.log('[PlantDrawer] Fetching:', DATA_FILE, '— page:', location.href);
-            const res  = await fetch(DATA_FILE);
+            const res  = await fetch(DATA_FILE, { headers: authHeaders() });
             console.log('[PlantDrawer] Response:', res.status, res.statusText, res.url);
             if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} — ${res.url}`);
             PLANT_DATA = await res.json();

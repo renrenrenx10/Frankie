@@ -109,12 +109,18 @@ function buildRequestBody(query, sources, history, mode, confProfile, stream = f
     };
 }
 
+function authHeaders() {
+    const token = localStorage.getItem('frankieUserToken');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 function buildFetchOptions(body, signal) {
     return {
         method: 'POST',
         signal,
         headers: {
             'Content-Type': 'application/json',
+            ...authHeaders(),
         },
         body: JSON.stringify(body)
     };

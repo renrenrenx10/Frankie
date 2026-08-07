@@ -4,16 +4,28 @@
 // Multi-partition: supplier, toolkit, regs, reactors.
 // Graph entity boosting: known entities in query → pinned chunk IDs.
 
+// ── Worker + auth ──────────────────────────────────────────────────────────────
+// KB/vector files are no longer served as static relative paths — they live in
+// a private Azure Blob container behind the Cloudflare Worker's /kb/* route,
+// which requires a valid member session (see ch-proxy-worker.js, added 2026-08-03).
+
+const WORKER_URL = 'https://ch.rene-dorset.workers.dev';
+
+function authHeaders() {
+    const token = localStorage.getItem('frankieUserToken');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 // ── Partition config ──────────────────────────────────────────────────────────
 
 const PARTITIONS = [
-    { kb: './kb/frankie7_supplier_kb.json',  vectors: './kb/frankie7_supplier_vectors.json', lazy: false, name: 'supplier'  },
-    { kb: './kb/frankie_toolkit_kb.json',    vectors: './kb/frankie_toolkit_vectors.json',   lazy: false, name: 'toolkit'   },
-    { kb: './kb/frankie_regs_kb.json',       vectors: null,  /* 243MB — keyword only */      lazy: false, name: 'regs'      },
-    { kb: './kb/frankie_reactors_kb.json',   vectors: null,  /* 2.1GB — graph + keyword */   lazy: true,  name: 'reactors'  },
+    { kb: `${WORKER_URL}/kb/frankie7_supplier_kb.json`,  vectors: `${WORKER_URL}/kb/frankie7_supplier_vectors.json`, lazy: false, name: 'supplier'  },
+    { kb: `${WORKER_URL}/kb/frankie_toolkit_kb.json`,    vectors: `${WORKER_URL}/kb/frankie_toolkit_vectors.json`,   lazy: false, name: 'toolkit'   },
+    { kb: `${WORKER_URL}/kb/frankie_regs_kb.json`,       vectors: `${WORKER_URL}/kb/frankie_regs_vectors.json`, lazy: false, name: 'regs'      },
+    { kb: `${WORKER_URL}/kb/frankie_reactors_kb.json`,   vectors: null,  /* 2.1GB — graph + keyword */   lazy: true,  name: 'reactors'  },
 ];
 
-const GRAPH_FILE   = './kb/frankie_graph.json';
+const GRAPH_FILE   = `${WORKER_URL}/kb/frankie_graph.json`;
 const VECTOR_DIMS  = 1536;  // all new vectors built at full 1536 dims
 
 // Blend weight: 0 = pure keyword, 1 = pure vector. 0.6 favours semantic.
@@ -165,7 +177,7 @@ function extractQueryEntities(query) {
 async function loadGraph() {
     if (graphCache) return graphCache;
     try {
-        const r = await fetch(GRAPH_FILE);
+        const r = await fetch(GRAPH_FILE, { headers: authHeaders() });
         if (!r.ok) return null;
         graphCache = await r.json();
         console.log(`Frankie: graph loaded — ${graphCache.meta.total_nodes} nodes, ${graphCache.meta.entity_keys} entity keys`);
@@ -180,7 +192,7 @@ async function loadGraph() {
 
 async function loadPartitionKb(partition) {
     try {
-        const r = await fetch(partition.kb);
+        const r = await fetch(partition.kb, { headers: authHeaders() });
         if (!r.ok) return [];
         const data = await r.json();
         const chunks = Array.isArray(data) ? data : (data.chunks || []);
@@ -229,7 +241,7 @@ async function loadVectors() {
     const vectorPartitions = PARTITIONS.filter(p => p.vectors);
     for (const partition of vectorPartitions) {
         try {
-            const r = await fetch(partition.vectors);
+            const r = await fetch(partition.vectors, { headers: authHeaders() });
             if (!r.ok) continue;
             const data = await r.json();
             let loaded = 0;
@@ -249,7 +261,6 @@ async function loadVectors() {
 // ── Embedding query via OpenAI ────────────────────────────────────────────────
 
 const EMBED_TIMEOUT_MS = 10000;
-const WORKER_URL = 'https://ch.rene-dorset.workers.dev';
 
 async function embedQuery(query) {
     if (localStorage.getItem('frankieEmbedEnabled') === 'false') return null;
@@ -260,7 +271,7 @@ async function embedQuery(query) {
         const response = await fetch(`${WORKER_URL}/embed/v1/embeddings`, {
             method: 'POST',
             signal: controller.signal,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({
                 model: 'text-embedding-3-small',
                 input: query.slice(0, 8000),

@@ -7,6 +7,11 @@ import { CONFIG } from './config.js';
 const GROQ_TIMEOUT_MS = 30000;
 const WORKER_URL = 'https://ch.rene-dorset.workers.dev';
 
+function authHeaders() {
+    const token = localStorage.getItem('frankieUserToken');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 const FALLBACK_RESULT = {
     intent: 'Question',
     rewrittenQueries: [],
@@ -42,6 +47,7 @@ export async function enhanceWithGroq(query, signal) {
             signal: controller.signal,
             headers: {
                 'Content-Type': 'application/json',
+                ...authHeaders(),
             },
             body: JSON.stringify({
                 model: CONFIG.groqModel,
