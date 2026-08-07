@@ -651,7 +651,7 @@ function toast(msg, type='ok') {
    DATA LOADERS
 ================================================================ */
 async function loadRefData() {
-  const proj = await spGet(`${listItems(CFG.lists.projects)}?$select=ID,Title,Company,ProjectTitle0,Stage&$orderby=Title asc`);
+  const proj = await spGet(`${listItems(CFG.lists.projects)}?$select=ID,Title,Company,ProjectTitle0,Stage&$top=5000&$orderby=Title asc`);
   // Build DisplayName client-side (calculated columns not returned by REST API)
   S.allProjects = proj.value.map(p => ({
     ...p,
