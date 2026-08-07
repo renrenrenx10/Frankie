@@ -2251,8 +2251,8 @@ const TOPBAR = {
   f4njourney:  {title:'F4N Journey / Case Studies', sub:'Review member-submitted F4N journeys and turn them into published case studies', actions:`<button class="tb-btn primary" onclick="fjLoadSubmissions()">↻ Refresh</button>`},
   pcv:         {title:'Programme Country View', sub:'Edit and publish quarterly nuclear programme slide briefings', actions:`<button class="tb-btn primary" onclick="pcvPublish()">&#9650; Publish to Members</button><button class="tb-btn" onclick="pcvAddSlide()" style="margin-left:8px">+ Add Slide</button>`},
   certgen:     {title:'F4N Certificate Generator', sub:'Issue F4N Granted Status certificates', actions:`<button class="tb-btn primary" onclick="certDownload()">&#11015; Download PDF</button>`},
-  timesink:     {title:'TimeSink', sub:'Log time and expenses against your projects', actions:`<button class="tb-btn" onclick="document.getElementById('frm-timesink').src=document.getElementById('frm-timesink').src">↻ Refresh</button>`},
-  controlcentre: {title:'Control Centre', sub:'Project delivery, budgets and the sales pipeline', actions:`<button class="tb-btn" onclick="document.getElementById('frm-controlcentre').src=document.getElementById('frm-controlcentre').src">↻ Refresh</button>`},
+  timesink:     {title:'TimeSink', sub:'Log time and expenses against your projects', actions:`<button class="tb-btn" onclick="refreshToolFrame('timesink')">↻ Refresh</button>`},
+  controlcentre: {title:'Control Centre', sub:'Project delivery, budgets and the sales pipeline', actions:`<button class="tb-btn" onclick="refreshToolFrame('controlcentre')">↻ Refresh</button>`},
   mailmerge: {title:'Mail Merge', sub:'Send templated emails to a segment of members — lands in Outlook Drafts for review before sending', actions:''}
 };
 
@@ -2349,6 +2349,19 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 function lazyLoadToolFrame(screen) {
   const frame = document.getElementById(screen === 'timesink' ? 'frm-timesink' : 'frm-controlcentre');
   if (frame && !frame.src && frame.dataset.src) frame.src = frame.dataset.src;
+}
+
+// Force a genuine reload of an embedded tool iframe (e.g. after adding a
+// project in Control Centre, so TimeSink re-fetches its project list).
+// NOTE: assigning frame.src = frame.src is a no-op in most browsers when the
+// value doesn't change, so no navigation happens and nothing actually
+// refreshes. Appending a cache-busting query string forces a real reload.
+function refreshToolFrame(screen) {
+  const frame = document.getElementById(screen === 'timesink' ? 'frm-timesink' : 'frm-controlcentre');
+  if (!frame) return;
+  const base = (frame.dataset.src || frame.src || '').split('?')[0];
+  if (!base) return;
+  frame.src = base + '?_r=' + Date.now();
 }
 
 // Lightweight postMessage bridge so the embedded tools can ask the hub to
