@@ -5457,11 +5457,17 @@ async function coNrToggleHide(coId, hide) {
 
 // Sync just this one company's logo from the website section (same source
 // nrcSyncLogos() uses for the bulk version), without touching everyone else.
+// Matches against the LIVE website content (site-pages/f4n-companies.json),
+// not the static WE_SEED_COMPANIES array — that array is a one-off seed
+// snapshot used only by the "Seed Current Content" button and never reflects
+// companies added afterwards, which was causing "No matching logo found" for
+// every newly-added company regardless of how many times the page was refreshed.
 async function coSyncSingleLogo(coId) {
   const co = coAllCompanies.find(c => String(c.id) === String(coId));
   if (!co) return;
-  if (typeof WE_SEED_COMPANIES === 'undefined') { toast('Website company list not available'); return; }
-  const match = WE_SEED_COMPANIES.find(c => c && c.title && nrcNormName(c.title) === nrcNormName(co.name));
+  const liveRows = await loadBlob2('site-pages/f4n-companies.json') || [];
+  if (!Array.isArray(liveRows) || !liveRows.length) { toast('Website company list not available'); return; }
+  const match = liveRows.find(c => c && c.title && nrcNormName(c.title) === nrcNormName(co.name));
   if (!match || !match.imageUrl) { toast('No matching logo found on the website for this company'); return; }
   const { error } = await db.from('nr_companies').update({ logo_url: match.imageUrl }).eq('id', co.id);
   if (error) { toast('Error: ' + error.message); return; }
@@ -7202,14 +7208,18 @@ function nrcNormName(s) {
     .trim();
 }
 
-// Copy company logos held in the website section (WE_SEED_COMPANIES image URLs)
-// into nr_companies.logo_url, matching by name. Only fills rows whose logo is
-// currently empty so member-uploaded logos are never overwritten.
+// Copy company logos held in the website section (live site-pages/f4n-companies.json,
+// same source coSyncSingleLogo() uses) into nr_companies.logo_url, matching by
+// name. Only fills rows whose logo is currently empty so member-uploaded logos
+// are never overwritten. Previously matched against the static WE_SEED_COMPANIES
+// array (a one-off seed snapshot), which meant companies added after that seed
+// was written could never be found — fixed to read the live content instead.
 async function nrcSyncLogos() {
-  if (typeof WE_SEED_COMPANIES === 'undefined') { toast('Website company list not available'); return; }
+  const liveRows = await loadBlob2('site-pages/f4n-companies.json') || [];
+  if (!Array.isArray(liveRows) || !liveRows.length) { toast('Website company list not available'); return; }
   // Build a name -> logo URL map from the website section.
   const webLogos = {};
-  WE_SEED_COMPANIES.forEach(c => {
+  liveRows.forEach(c => {
     if (c && c.title && c.imageUrl) webLogos[nrcNormName(c.title)] = c.imageUrl;
   });
 
