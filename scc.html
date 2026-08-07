@@ -895,13 +895,14 @@ button{cursor:pointer}
       <div style="max-width:1400px">
 
         <!-- Stats -->
-        <div class="stats-row" id="f4n-stats" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px">
+        <div class="stats-row" id="f4n-stats" style="grid-template-columns:repeat(7,1fr);margin-bottom:16px">
           <div class="stat-card"><div class="val" id="f4n-stat-total">0</div><div class="lbl">Total Bookings</div></div>
           <div class="stat-card"><div class="val" id="f4n-stat-new" style="color:#075985">0</div><div class="lbl">New</div></div>
           <div class="stat-card"><div class="val" id="f4n-stat-partway" style="color:#92400e">0</div><div class="lbl">Part Way</div></div>
           <div class="stat-card"><div class="val" id="f4n-stat-granted" style="color:#166534">0</div><div class="lbl">Granted</div></div>
           <div class="stat-card"><div class="val" id="f4n-stat-linked" style="color:var(--accent)">0</div><div class="lbl">Linked to CRM</div></div>
           <div class="stat-card"><div class="val" id="f4n-stat-novisit" style="color:var(--red)">0</div><div class="lbl">No Site Visit Yet</div></div>
+          <div class="stat-card tm-trigger" onclick="f4nShowExpiryModal()" title="Companies with F4N expiry in the next 2 months — click for the full expiry schedule"><div class="val" id="f4n-stat-duesoon" style="color:var(--warn)">0</div><div class="lbl">Due to Expire (2mo)</div></div>
         </div>
 
         <!-- Seed banner -->
@@ -935,7 +936,7 @@ button{cursor:pointer}
 
         <!-- Table -->
         <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px" id="f4n-table-wrap">
-          <table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:1200px">
+          <table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:1550px">
             <thead>
               <tr style="background:var(--wash);text-align:left">
                 <th style="padding:8px 10px;border-bottom:1px solid var(--line)">#</th>
@@ -948,6 +949,9 @@ button{cursor:pointer}
                 <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Invite</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Website</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:140px">F4N Status</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:120px">M&amp;S1 Date</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:120px">M&amp;S2 Date</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:120px">Expiry Date</th>
                 <th style="padding:8px 10px;border-bottom:1px solid var(--line)"></th>
               </tr>
             </thead>
@@ -984,6 +988,18 @@ button{cursor:pointer}
             <button class="btn primary" onclick="f4nSaveModal()" style="flex:1">Save</button>
             <button class="btn" onclick="document.getElementById('f4n-modal').style.display='none'">Cancel</button>
           </div>
+        </div>
+      </div>
+
+      <!-- Expiry schedule modal -->
+      <div id="f4n-expiry-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:720;align-items:center;justify-content:center">
+        <div style="background:var(--panel);border-radius:10px;padding:22px 24px 18px;width:640px;max-width:95vw;max-height:85vh;overflow-y:auto">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink)">F4N Expiry Schedule</div>
+            <button onclick="document.getElementById('f4n-expiry-modal').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:1.1rem;line-height:1">✕</button>
+          </div>
+          <div style="font-size:.78rem;color:var(--muted);margin-bottom:14px">Every booking with an expiry date on record, soonest first. <span style="color:var(--warn);font-weight:600">Amber</span> = due within 2 months · <span style="color:var(--red);font-weight:600">Red</span> = overdue.</div>
+          <div id="f4n-expiry-list"></div>
         </div>
       </div>
     </div><!-- /screen-f4ntracker -->
@@ -7979,6 +7995,15 @@ function f4nUpdateStats() {
   set('f4n-stat-granted', f4nAll.filter(r => (r.f4n_status || '').toLowerCase().startsWith('granted')).length);
   set('f4n-stat-linked', f4nAll.filter(r => r.company_id).length);
   set('f4n-stat-novisit', f4nAll.filter(r => !r.site_visit).length);
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const in2mo = new Date(today); in2mo.setMonth(in2mo.getMonth() + 2);
+  set('f4n-stat-duesoon', f4nAll.filter(r => {
+    if (!r.expiry_date) return false;
+    const d = new Date(r.expiry_date);
+    return d >= today && d <= in2mo;
+  }).length);
+
   const badge = document.getElementById('sb-f4n-count');
   if (badge) badge.textContent = f4nAll.length || '0';
 }
@@ -8023,6 +8048,15 @@ function f4nRender() {
   tbody.innerHTML = f4nFiltered.map(r => {
     const sc = f4nStatusColor(r.f4n_status);
     const match = !r.company_id ? f4nFindMatch(r.company_name) : null;
+
+    let expColor = 'var(--ink)', expBorder = 'var(--line)', expWeight = '400';
+    if (r.expiry_date) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const in2mo = new Date(today); in2mo.setMonth(in2mo.getMonth() + 2);
+      const d = new Date(r.expiry_date);
+      if (d < today)        { expColor = 'var(--red)';  expBorder = 'var(--red)';  expWeight = '700'; }
+      else if (d <= in2mo)  { expColor = 'var(--warn)'; expBorder = 'var(--warn)'; expWeight = '700'; }
+    }
 
     let nameHtml, linkCell = '';
     if (r.company_id) {
@@ -8073,10 +8107,72 @@ function f4nRender() {
         </select>
       </td>
       <td style="padding:7px 10px">
+        <input type="date" value="${r.ms1_date || ''}" onchange="f4nUpdateField('${r.id}','ms1_date',this.value)"
+          style="width:100%;border:1px solid var(--line);background:var(--wash);color:var(--ink);font-size:.76rem;padding:3px 5px;border-radius:4px;box-sizing:border-box">
+      </td>
+      <td style="padding:7px 10px">
+        <input type="date" value="${r.ms2_date || ''}" onchange="f4nUpdateField('${r.id}','ms2_date',this.value)"
+          style="width:100%;border:1px solid var(--line);background:var(--wash);color:var(--ink);font-size:.76rem;padding:3px 5px;border-radius:4px;box-sizing:border-box">
+      </td>
+      <td style="padding:7px 10px">
+        <input type="date" value="${r.expiry_date || ''}" onchange="f4nUpdateField('${r.id}','expiry_date',this.value)"
+          style="width:100%;border:1px solid ${expBorder};background:var(--wash);color:${expColor};font-weight:${expWeight};font-size:.76rem;padding:3px 5px;border-radius:4px;box-sizing:border-box">
+      </td>
+      <td style="padding:7px 10px">
         <button onclick="f4nDeleteRow('${r.id}','${escH(r.company_name).replace(/'/g, "\\'")}')" title="Delete row" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.85rem">✕</button>
       </td>
     </tr>`;
   }).join('');
+}
+
+function f4nFmtDate(d) {
+  return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+}
+
+function f4nShowExpiryModal() {
+  const wrap = document.getElementById('f4n-expiry-list');
+  const modal = document.getElementById('f4n-expiry-modal');
+  if (!wrap || !modal) return;
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const in2mo = new Date(today); in2mo.setMonth(in2mo.getMonth() + 2);
+
+  const rows = f4nAll
+    .filter(r => r.expiry_date)
+    .map(r => ({ r, d: new Date(r.expiry_date) }))
+    .sort((a, b) => a.d - b.d);
+
+  if (!rows.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:12px 0">No expiry dates recorded yet — add them in the tracker table.</div>';
+  } else {
+    wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.82rem">
+      <thead>
+        <tr style="text-align:left;background:var(--wash)">
+          <th style="padding:7px 9px;border-bottom:1px solid var(--line)">Company</th>
+          <th style="padding:7px 9px;border-bottom:1px solid var(--line)">F4N Status</th>
+          <th style="padding:7px 9px;border-bottom:1px solid var(--line)">Expiry Date</th>
+          <th style="padding:7px 9px;border-bottom:1px solid var(--line)"></th>
+        </tr>
+      </thead>
+      <tbody>${rows.map(({ r, d }) => {
+        const overdue = d < today;
+        const soon = !overdue && d <= in2mo;
+        const color = overdue ? 'var(--red)' : (soon ? 'var(--warn)' : 'var(--ink)');
+        const tag = overdue ? '⚠ Overdue' : (soon ? '⏳ Due soon' : '');
+        const nameHtml = r.company_id
+          ? `<span onclick="f4nOpenCompany('${r.company_id}')" style="cursor:pointer;color:var(--accent);text-decoration:underline;font-weight:600">${escH(r.company_name)}</span>`
+          : `<span style="font-weight:600">${escH(r.company_name)}</span>`;
+        return `<tr style="border-bottom:1px solid var(--line)">
+          <td style="padding:6px 9px">${nameHtml}</td>
+          <td style="padding:6px 9px;color:var(--muted)">${escH(r.f4n_status || '—')}</td>
+          <td style="padding:6px 9px;font-weight:700;color:${color}">${f4nFmtDate(r.expiry_date)}</td>
+          <td style="padding:6px 9px;color:${color};font-size:.72rem;font-weight:600">${tag}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  }
+
+  modal.style.display = 'flex';
 }
 
 async function f4nUpdateField(id, field, value) {
