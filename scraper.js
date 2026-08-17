@@ -58,7 +58,20 @@ const TENDER_SEARCHES = {
   'Hydrogen':            ['hydrogen production','green hydrogen','electrolyser','fuel cell','HyNet'],
   'CCUS':                ['carbon capture','CCUS','direct air capture','CO2 storage'],
   'Offshore Renewables': ['offshore wind','floating wind','wind farm','tidal energy'],
-  'Fusion':              ['nuclear fusion','UKAEA','STEP programme','tokamak']
+  'Fusion':              ['nuclear fusion','UKAEA','STEP programme','tokamak'],
+  // Cross-sector: F4N companies are engineering/manufacturing SMEs first and
+  // nuclear suppliers second — the same fabrication/machining/NDT/valve/casting
+  // capability that wins nuclear work is directly biddable in these sectors too,
+  // and diversification revenue is part of the point of the F4N programme.
+  'Rail':                ['rolling stock manufacture','railway signalling','Network Rail framework','rail depot maintenance',
+                          'rail infrastructure','train maintenance','rail vehicle overhaul'],
+  'Oil & Gas':           ['oil and gas','offshore platform','subsea engineering','pipeline construction',
+                          'refinery maintenance','North Sea decommissioning','FPSO','topside fabrication'],
+  'Defence':             ['Ministry of Defence','naval shipbuilding','submarine build','defence engineering support',
+                          'armoured vehicle','MOD equipment support','warship maintenance'],
+  'Aerospace':           ['aerospace component manufacture','aircraft structures','aerospace machining','MRO aviation'],
+  'Water & Utilities':   ['water treatment infrastructure','wastewater treatment works','water industry AMP7',
+                          'utilities infrastructure maintenance']
 };
 
 const BRAVE_EVENT_CATS = ['Nuclear','Hydrogen','CCUS','Offshore Renewables'];
@@ -170,7 +183,10 @@ async function fetchFTSTenders(seenTenders, newTenders) {
   // documents) are large, and corsproxy.io returns 413 Payload Too Large well
   // before limit=100 releases' worth of JSON. Dedup means later runs still pick
   // up anything missed by the smaller page size.
-  const path = 'https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?stages=tender&limit=25&updatedFrom=' + since;
+  // stages covers planning (PIN — early warning before a tender opens), tender
+  // (live opportunities) and award (who won, for how much — competitor/buyer
+  // intelligence, same as the AWARD notices in a Contracts Advance digest).
+  const path = 'https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?stages=planning,tender,award&limit=25&updatedFrom=' + since;
   // FTS is a real gov.uk open-data API and may allow direct cross-origin GETs —
   // try that first (no proxy, no size cap) and only fall back to the proxy if
   // it's blocked or fails.
@@ -189,11 +205,23 @@ async function fetchFTSTenders(seenTenders, newTenders) {
         const url = 'https://www.find-tender.service.gov.uk/Notice/' + rel.id;
         if (!rel.id || seenTenders.has(url)) continue;
         const buyer = (rel.parties||[]).find(p => (p.roles||[]).includes('buyer'));
+        const tags = rel.tag || [];
+        const noticeType = tags.includes('award') ? 'AWARD' : (tags.includes('planning') ? 'PIN' : 'TENDER');
+        // On award releases, OCDS carries the winning supplier under
+        // rel.awards[].suppliers — surface it so award records double as
+        // competitor/buyer-behaviour intel, not just a closed-out tender.
+        let awardedTo = '';
+        if (noticeType === 'AWARD' && Array.isArray(rel.awards) && rel.awards.length) {
+          const suppliers = rel.awards.flatMap(a => a.suppliers||[]).map(s => s.name).filter(Boolean);
+          awardedTo = cleanText(suppliers.join(', ')).slice(0,255);
+        }
+        const value = (t.value && t.value.amount) ? 'GBP '+Number(t.value.amount).toLocaleString()
+                    : (noticeType === 'AWARD' && rel.awards && rel.awards[0] && rel.awards[0].value)
+                      ? 'GBP '+Number(rel.awards[0].value.amount).toLocaleString() : 'Not disclosed';
         newTenders.push({ title:cleanText(t.title).slice(0,255), url,
           organisation:cleanText(buyer && buyer.name).slice(0,255),
-          description:cleanText(t.description).slice(0,500), sector,
-          value: (t.value && t.value.amount) ? 'GBP '+Number(t.value.amount).toLocaleString() : 'Not disclosed',
-          publishedDate: rel.date||'', closingDate: (t.tenderPeriod && t.tenderPeriod.endDate) || '',
+          description:cleanText(t.description).slice(0,500), sector, noticeType, awardedTo,
+          value, publishedDate: rel.date||'', closingDate: (t.tenderPeriod && t.tenderPeriod.endDate) || '',
           scraped_at:new Date().toISOString() });
         seenTenders.add(url); n++;
       }
@@ -327,10 +355,13 @@ async function runScraper() {
     for (const [sector, terms] of Object.entries(TENDER_SEARCHES)) {
       for (const term of terms) {
         try {
+          // statuses includes 'Awarded' alongside 'Open' so award notices come
+          // through too — these are the competitor/buyer-intelligence records
+          // (who won, for how much), not just live opportunities to bid.
           const r = await fetch(CF_URL, {
             method:'POST',
             headers:{'Content-Type':'application/json','Accept':'application/json'},
-            body:JSON.stringify({searchCriteria:{keyword:term,statuses:['Open'],types:['Contract','Pipeline']},size:100}),
+            body:JSON.stringify({searchCriteria:{keyword:term,statuses:['Open','Awarded'],types:['Contract','Pipeline']},size:100}),
             signal:AbortSignal.timeout(20000)
           });
           if (!r.ok) { scraperLog('  ✗ CF "'+term+'": HTTP '+r.status,'warn'); continue; }
@@ -342,9 +373,10 @@ async function runScraper() {
             if (!url||seenTenders.has(url)) continue;
             if (!(e.title+' '+(e.description||'')).toLowerCase().includes(term.toLowerCase())) continue;
             const lo=parseFloat(e.valueLow)||0, hi=parseFloat(e.valueHigh)||0;
+            const noticeType = e.status === 'Awarded' ? 'AWARD' : (e.type === 'Pipeline' ? 'PIN' : 'TENDER');
             newTenders.push({ title:cleanText(e.title).slice(0,255), url,
               organisation:cleanText(e.organisationName).slice(0,255),
-              description:cleanText(e.description).slice(0,500), sector,
+              description:cleanText(e.description).slice(0,500), sector, noticeType,
               value:(lo||hi)?'GBP '+(hi||lo).toLocaleString():'Not disclosed',
               publishedDate:e.publishedDate||'', closingDate:e.deadlineDate||'',
               scraped_at:new Date().toISOString() });
