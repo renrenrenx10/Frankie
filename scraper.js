@@ -205,70 +205,78 @@ async function fetchFTSTenders(seenTenders, newTenders) {
   // when routed through corsproxy.io (the comma likely isn't surviving the
   // round trip through the proxy's own query-string handling intact). Single
   // stage values are the documented example and are known to work.
+  //
+  // updatedFrom only returns the newest N releases across ALL of UK public-
+  // sector procurement — nuclear/rail/defence/manufacturing notices are a
+  // small fraction of that firehose, so a single page of 25 essentially never
+  // happens to contain one. FTS's response includes a links.next cursor URL
+  // (confirmed via the API docs), so page a few requests deep per stage to
+  // actually scan a meaningful slice of the 30-day window rather than just
+  // the most recent handful of updates from any UK buyer.
   const stages = [
     {stage:'tender',   noticeType:'TENDER'},
     {stage:'planning', noticeType:'PIN'},
     {stage:'award',    noticeType:'AWARD'}
   ];
+  const MAX_PAGES = 3; // 3 stages × 3 pages = 9 proxy requests — kept modest so this doesn't eat into the same corsproxy.io rate-limit budget as the CF/Brave calls elsewhere in a run
   let totalNew = 0;
   for (const {stage, noticeType} of stages) {
-    const path = 'https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?stages=' + stage + '&limit=25&updatedFrom=' + since;
-    // FTS is a real gov.uk open-data API and may allow direct cross-origin GETs —
-    // try that first (no proxy, no size cap) and only fall back to the proxy if
-    // it's blocked or fails.
-    const attempts = [ {url: path, label:'direct'}, {url: proxied(path), label:'proxy'} ];
-    let done = false;
-    for (const attempt of attempts) {
-      try {
-        const r = await fetch(attempt.url, { headers:{'Accept':'application/json'}, signal:AbortSignal.timeout(20000) });
-        if (!r.ok) { scraperLog('  ✗ FTS ['+stage+'] ('+attempt.label+'): HTTP '+r.status,'warn'); continue; }
-        const rawText = await r.text();
-        let data;
-        try { data = JSON.parse(rawText); }
-        catch(pe) { scraperLog('  ✗ FTS ['+stage+'] ('+attempt.label+'): non-JSON response — '+rawText.slice(0,120),'warn'); continue; }
-        const releases = data.releases || [];
-        if (!releases.length) {
-          // 0 releases with a 200 OK is suspicious for a 30-day window — log a
-          // snippet of the raw body so a genuine empty result vs a mangled/
-          // error response wrapped as 200 can actually be told apart later.
-          scraperLog('  ⚠ FTS ['+stage+'] ('+attempt.label+'): 0 releases — raw: '+rawText.slice(0,150), 'warn');
-          done = true; continue;
+    let nextUrl = 'https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?stages=' + stage + '&limit=25&updatedFrom=' + since;
+    let page = 0, stageNew = 0, stageChecked = 0;
+    while (nextUrl && page < MAX_PAGES) {
+      page++;
+      // FTS is a real gov.uk open-data API and may allow direct cross-origin
+      // GETs — try that first only on page 1 (no proxy, no size cap); once we
+      // know direct is blocked for this run there's no point retrying it on
+      // every subsequent page, so later pages go straight to the proxy.
+      const attempts = page === 1
+        ? [ {url: nextUrl, label:'direct'}, {url: proxied(nextUrl), label:'proxy'} ]
+        : [ {url: proxied(nextUrl), label:'proxy'} ];
+      let pageData = null, usedLabel = '';
+      for (const attempt of attempts) {
+        try {
+          const r = await fetch(attempt.url, { headers:{'Accept':'application/json'}, signal:AbortSignal.timeout(20000) });
+          if (!r.ok) { scraperLog('  ✗ FTS ['+stage+' p'+page+'] ('+attempt.label+'): HTTP '+r.status,'warn'); continue; }
+          const rawText = await r.text();
+          try { pageData = JSON.parse(rawText); usedLabel = attempt.label; break; }
+          catch(pe) { scraperLog('  ✗ FTS ['+stage+' p'+page+'] ('+attempt.label+'): non-JSON response — '+rawText.slice(0,120),'warn'); continue; }
+        } catch(e) { scraperLog('  ✗ FTS ['+stage+' p'+page+'] ('+attempt.label+'): '+e.message,'warn'); }
+      }
+      if (!pageData) { scraperLog('  ✗ FTS ['+stage+' p'+page+']: all attempts failed, stopping this stage','warn'); break; }
+      const releases = pageData.releases || [];
+      stageChecked += releases.length;
+      for (const rel of releases) {
+        const t = rel.tender; if (!t) continue;
+        const sector = categTender((t.title||'') + ' ' + (t.description||''));
+        if (!sector) continue;
+        const url = 'https://www.find-tender.service.gov.uk/Notice/' + rel.id;
+        if (!rel.id || seenTenders.has(url)) continue;
+        const buyer = (rel.parties||[]).find(p => (p.roles||[]).includes('buyer'));
+        const closingDate = (t.tenderPeriod && t.tenderPeriod.endDate) || '';
+        if (isStaleTender(closingDate, noticeType)) continue;
+        // On award releases, OCDS carries the winning supplier under
+        // rel.awards[].suppliers — surface it so award records double as
+        // competitor/buyer-behaviour intel, not just a closed-out tender.
+        let awardedTo = '';
+        if (noticeType === 'AWARD' && Array.isArray(rel.awards) && rel.awards.length) {
+          const suppliers = rel.awards.flatMap(a => a.suppliers||[]).map(s => s.name).filter(Boolean);
+          awardedTo = cleanText(suppliers.join(', ')).slice(0,255);
         }
-        let n = 0;
-        for (const rel of releases) {
-          const t = rel.tender; if (!t) continue;
-          const sector = categTender((t.title||'') + ' ' + (t.description||''));
-          if (!sector) continue;
-          const url = 'https://www.find-tender.service.gov.uk/Notice/' + rel.id;
-          if (!rel.id || seenTenders.has(url)) continue;
-          const buyer = (rel.parties||[]).find(p => (p.roles||[]).includes('buyer'));
-          const closingDate = (t.tenderPeriod && t.tenderPeriod.endDate) || '';
-          if (isStaleTender(closingDate, noticeType)) continue;
-          // On award releases, OCDS carries the winning supplier under
-          // rel.awards[].suppliers — surface it so award records double as
-          // competitor/buyer-behaviour intel, not just a closed-out tender.
-          let awardedTo = '';
-          if (noticeType === 'AWARD' && Array.isArray(rel.awards) && rel.awards.length) {
-            const suppliers = rel.awards.flatMap(a => a.suppliers||[]).map(s => s.name).filter(Boolean);
-            awardedTo = cleanText(suppliers.join(', ')).slice(0,255);
-          }
-          const value = (t.value && t.value.amount) ? 'GBP '+Number(t.value.amount).toLocaleString()
-                      : (noticeType === 'AWARD' && rel.awards && rel.awards[0] && rel.awards[0].value)
-                        ? 'GBP '+Number(rel.awards[0].value.amount).toLocaleString() : 'Not disclosed';
-          newTenders.push({ title:cleanText(t.title).slice(0,255), url,
-            organisation:cleanText(buyer && buyer.name).slice(0,255),
-            description:cleanText(t.description).slice(0,500), sector, noticeType, awardedTo,
-            value, publishedDate: rel.date||'', closingDate,
-            scraped_at:new Date().toISOString() });
-          seenTenders.add(url); n++;
-        }
-        scraperLog('  ✓ FTS ['+stage+'] ('+attempt.label+'): +'+n+' (of '+releases.length+' releases checked)');
-        totalNew += n; done = true;
-        break;
-      } catch(e) { scraperLog('  ✗ FTS ['+stage+'] ('+attempt.label+'): '+e.message,'warn'); }
+        const value = (t.value && t.value.amount) ? 'GBP '+Number(t.value.amount).toLocaleString()
+                    : (noticeType === 'AWARD' && rel.awards && rel.awards[0] && rel.awards[0].value)
+                      ? 'GBP '+Number(rel.awards[0].value.amount).toLocaleString() : 'Not disclosed';
+        newTenders.push({ title:cleanText(t.title).slice(0,255), url,
+          organisation:cleanText(buyer && buyer.name).slice(0,255),
+          description:cleanText(t.description).slice(0,500), sector, noticeType, awardedTo,
+          value, publishedDate: rel.date||'', closingDate,
+          scraped_at:new Date().toISOString() });
+        seenTenders.add(url); stageNew++;
+      }
+      nextUrl = (pageData.links && pageData.links.next) || null;
+      await new Promise(res=>setTimeout(res,400));
     }
-    if (!done) scraperLog('  ✗ FTS ['+stage+']: both direct and proxy attempts failed','warn');
-    await new Promise(res=>setTimeout(res,400));
+    scraperLog('  ✓ FTS ['+stage+']: +'+stageNew+' (of '+stageChecked+' releases checked across '+page+' page(s))');
+    totalNew += stageNew;
   }
   return totalNew;
 }
