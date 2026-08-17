@@ -42,7 +42,14 @@ const ENERGY_KW = [
 ];
 
 const TENDER_SEARCHES = {
-  'Nuclear':             ['Sellafield','Hinkley Point','Sizewell','nuclear decommissioning','small modular reactor','nuclear power station','Nuclear Decommissioning Authority'],
+  // NOTE: each term here = one POST request through corsproxy.io per scraper
+  // run, and the free public proxy rate-limits (429) somewhere around ~50-60
+  // requests in quick succession — after which EVERY subsequent proxied call
+  // in that run fails, including FTS and Brave, not just the remaining CF
+  // terms. Keep the total list short and high-signal rather than exhaustive;
+  // it's better to run more often with fewer terms than to blow the budget
+  // in one run and get zero results everywhere.
+  'Nuclear':             ['Sellafield','Hinkley Point','Sizewell','nuclear decommissioning','small modular reactor'],
   // Generic manufacturing/engineering contract types — these are what NucCol's
   // supply chain members (fabricators, machine shops, valve/vessel makers,
   // surface treatment, NDT etc.) actually bid for, and most of them never
@@ -50,28 +57,22 @@ const TENDER_SEARCHES = {
   // EDF/RR SMR. See scc.html Granted-company list for the capability mix this
   // is drawn from (filtration, plating, cable cleats, structural steel, valves,
   // heat exchangers, containment systems, bearings, fabrication, castings).
-  'Manufacturing':       ['precision machining','CNC machining','structural steel fabrication','sheet metal fabrication',
-                          'stainless steel fabrication','welding fabrication','pressure vessel manufacture',
-                          'heat exchanger manufacture','valve manufacture','pipework fabrication',
-                          'castings and forgings','non-destructive testing','metal surface treatment',
-                          'storage tank manufacture','precision engineering'],
-  'Hydrogen':            ['hydrogen production','green hydrogen','electrolyser','fuel cell','HyNet'],
-  'CCUS':                ['carbon capture','CCUS','direct air capture','CO2 storage'],
-  'Offshore Renewables': ['offshore wind','floating wind','wind farm','tidal energy'],
-  'Fusion':              ['nuclear fusion','UKAEA','STEP programme','tokamak'],
+  'Manufacturing':       ['precision machining','structural steel fabrication','pressure vessel manufacture',
+                          'valve manufacture','castings and forgings','non-destructive testing',
+                          'storage tank manufacture'],
+  'Hydrogen':            ['hydrogen production','electrolyser','HyNet'],
+  'CCUS':                ['carbon capture','CCUS'],
+  'Offshore Renewables': ['offshore wind','floating wind'],
+  'Fusion':              ['nuclear fusion','UKAEA STEP programme'],
   // Cross-sector: F4N companies are engineering/manufacturing SMEs first and
   // nuclear suppliers second — the same fabrication/machining/NDT/valve/casting
   // capability that wins nuclear work is directly biddable in these sectors too,
   // and diversification revenue is part of the point of the F4N programme.
-  'Rail':                ['rolling stock manufacture','railway signalling','Network Rail framework','rail depot maintenance',
-                          'rail infrastructure','train maintenance','rail vehicle overhaul'],
-  'Oil & Gas':           ['oil and gas','offshore platform','subsea engineering','pipeline construction',
-                          'refinery maintenance','North Sea decommissioning','FPSO','topside fabrication'],
-  'Defence':             ['Ministry of Defence','naval shipbuilding','submarine build','defence engineering support',
-                          'armoured vehicle','MOD equipment support','warship maintenance'],
-  'Aerospace':           ['aerospace component manufacture','aircraft structures','aerospace machining','MRO aviation'],
-  'Water & Utilities':   ['water treatment infrastructure','wastewater treatment works','water industry AMP7',
-                          'utilities infrastructure maintenance']
+  'Rail':                ['rolling stock manufacture','railway signalling','rail depot maintenance'],
+  'Oil & Gas':           ['offshore platform','subsea engineering','North Sea decommissioning'],
+  'Defence':             ['naval shipbuilding','defence engineering support','MOD equipment support'],
+  'Aerospace':           ['aerospace component manufacture','MRO aviation'],
+  'Water & Utilities':   ['water treatment infrastructure','water industry AMP7']
 };
 
 const BRAVE_EVENT_CATS = ['Nuclear','Hydrogen','CCUS','Offshore Renewables'];
@@ -393,18 +394,43 @@ async function runScraper() {
     const newTenders=[];
     const CF_URL = proxied('https://www.contractsfinder.service.gov.uk/api/rest/2/search_notices/json');
 
+    // Circuit breaker: corsproxy.io's free tier rate-limits (429) after enough
+    // requests in quick succession, and once it does, EVERY further proxied
+    // call in this run will fail too (including FTS's proxy fallback, Brave
+    // events, and the external tender portals) — not just the remaining CF
+    // terms. Rather than hammering a proxy that's already throttling us and
+    // logging a wall of confusing cascading failures, stop on the first 429
+    // (after one retry) and skip the other proxy-dependent sections cleanly.
+    let proxyRateLimited = false;
+    outer:
     for (const [sector, terms] of Object.entries(TENDER_SEARCHES)) {
       for (const term of terms) {
+        if (proxyRateLimited) break outer;
         try {
           // statuses includes 'Awarded' alongside 'Open' so award notices come
           // through too — these are the competitor/buyer-intelligence records
           // (who won, for how much), not just live opportunities to bid.
-          const r = await fetch(CF_URL, {
+          let r = await fetch(CF_URL, {
             method:'POST',
             headers:{'Content-Type':'application/json','Accept':'application/json'},
             body:JSON.stringify({searchCriteria:{keyword:term,statuses:['Open','Awarded'],types:['Contract','Pipeline']},size:100}),
             signal:AbortSignal.timeout(20000)
           });
+          if (r.status === 429) {
+            scraperLog('  ⚠ CF "'+term+'": 429 rate-limited by proxy — waiting 4s and retrying once…','warn');
+            await new Promise(res=>setTimeout(res,4000));
+            r = await fetch(CF_URL, {
+              method:'POST',
+              headers:{'Content-Type':'application/json','Accept':'application/json'},
+              body:JSON.stringify({searchCriteria:{keyword:term,statuses:['Open','Awarded'],types:['Contract','Pipeline']},size:100}),
+              signal:AbortSignal.timeout(20000)
+            });
+          }
+          if (r.status === 429) {
+            scraperLog('  ✗ CF "'+term+'": still 429 after retry — proxy is rate-limited, stopping remaining tender searches for this run. Try again in a few minutes.','error');
+            proxyRateLimited = true;
+            break outer;
+          }
           if (!r.ok) { scraperLog('  ✗ CF "'+term+'": HTTP '+r.status,'warn'); continue; }
           const data = await r.json();
           let n=0;
@@ -425,17 +451,28 @@ async function runScraper() {
             seenTenders.add(url); n++;
           }
           if (n) scraperLog('  ✓ "'+term+'": +'+n);
-          await new Promise(r=>setTimeout(r,500));
+          await new Promise(r=>setTimeout(r,700));
         } catch(e) { scraperLog('  ✗ CF "'+term+'": '+e.message,'warn'); }
       }
     }
 
     // ── 3b. TENDERS — Find a Tender (FTS) OCDS API, high-value (>£139k) ────────
-    await fetchFTSTenders(seenTenders, newTenders);
+    // FTS tries a direct (non-proxied) request first, but in-browser that's
+    // almost always CORS-blocked, so in practice this falls through to the
+    // same rate-limited proxy — skip it if CF already tripped the 429.
+    if (proxyRateLimited) {
+      scraperLog('  ℹ FTS skipped — proxy rate-limited this run','warn');
+    } else {
+      await fetchFTSTenders(seenTenders, newTenders);
+    }
 
     // ── 3c. TENDERS — external portals (devolved / MOD DCO / Delta / In-tend) ──
-    scraperLog('📋 Tenders — searching devolved + defence + e-sourcing portals…');
-    await fetchExternalTenderPortals(braveKey, seenTenders, newTenders);
+    if (proxyRateLimited) {
+      scraperLog('  ℹ External tender portals skipped — proxy rate-limited this run','warn');
+    } else {
+      scraperLog('📋 Tenders — searching devolved + defence + e-sourcing portals…');
+      await fetchExternalTenderPortals(braveKey, seenTenders, newTenders);
+    }
 
     if (newTenders.length || exTenders.length) {
       // Prune stale entries out of what's already stored too — not just new
@@ -456,6 +493,8 @@ async function runScraper() {
     // ── 4. EVENTS — Brave via proxy + Groq ────────────────────────────────────
     if (!braveKey) {
       scraperLog('📅 Events skipped — add Brave key in Settings below','warn');
+    } else if (proxyRateLimited) {
+      scraperLog('  ℹ Events skipped — proxy rate-limited this run','warn');
     } else {
       scraperLog('📅 Events — Brave search via proxy…','brave');
       const exEvents  = await loadBlob('events') || [];
@@ -498,12 +537,15 @@ async function runScraper() {
     }
 
     // ── SUMMARY ────────────────────────────────────────────────────────────────
+    const rateLimitBadge = proxyRateLimited ? ' <span style="background:#f38ba8;color:#1e1e2e;padding:4px 12px;border-radius:20px;font-size:.82rem;font-weight:600">⚠ Proxy rate-limited — run again in a few minutes</span>' : '';
     document.getElementById('scraper-stats').innerHTML =
       ['📰 +'+nNews+' news','🔵 +'+nNuccol+' NucCol','📅 +'+nEvents+' events','📋 +'+nTenders+' tenders']
       .map(s=>'<span style="background:var(--surface2);padding:4px 12px;border-radius:20px;font-size:.82rem">'+s+'</span>')
-      .join(' ');
-    scraperLog('✅ Complete — news:+'+nNews+' nuccol:+'+nNuccol+' events:+'+nEvents+' tenders:+'+nTenders);
-    toast('Scraper done: +'+nNews+' news, +'+nNuccol+' NucCol, +'+nEvents+' events, +'+nTenders+' tenders');
+      .join(' ') + rateLimitBadge;
+    scraperLog('✅ Complete — news:+'+nNews+' nuccol:+'+nNuccol+' events:+'+nEvents+' tenders:+'+nTenders + (proxyRateLimited ? ' (proxy rate-limited partway through — some sections skipped, try again shortly)' : ''));
+    toast(proxyRateLimited
+      ? 'Scraper hit proxy rate limit — +'+nNews+' news, +'+nTenders+' tenders so far. Try again in a few minutes for the rest.'
+      : 'Scraper done: +'+nNews+' news, +'+nNuccol+' NucCol, +'+nEvents+' events, +'+nTenders+' tenders');
 
     // Re-render whichever content tab is currently active so the editor updates immediately
     if (typeof renderContentList === 'function' && typeof activeContentTab !== 'undefined') {
