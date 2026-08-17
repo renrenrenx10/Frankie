@@ -97,6 +97,21 @@ function safeDate(str) {
   catch(e) { return new Date().toISOString().slice(0,10); }
 }
 
+// A TENDER notice with a closing date in the past is stale — the source hasn't
+// re-flagged it as closed but it's no longer biddable, so drop it. PIN and
+// AWARD records are exempt: PINs often carry no deadline by design (they're an
+// early-warning signal, not a bid window), and AWARDs are inherently
+// retrospective (competitor/buyer intel), so an old date there is expected,
+// not a staleness bug.
+function isStaleTender(closingDate, noticeType) {
+  if (noticeType && noticeType !== 'TENDER') return false;
+  if (!closingDate) return false;
+  const d = new Date(closingDate);
+  if (isNaN(d)) return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  return d < today;
+}
+
 // Strip HTML tags and decode common entities so stray markup/special chars
 // (&amp;, &#39;, <p>, CDATA leftovers, etc.) never make it into stored titles/
 // descriptions — these get rendered as-is in the Content Editor and newsletters.
@@ -207,6 +222,8 @@ async function fetchFTSTenders(seenTenders, newTenders) {
         const buyer = (rel.parties||[]).find(p => (p.roles||[]).includes('buyer'));
         const tags = rel.tag || [];
         const noticeType = tags.includes('award') ? 'AWARD' : (tags.includes('planning') ? 'PIN' : 'TENDER');
+        const closingDate = (t.tenderPeriod && t.tenderPeriod.endDate) || '';
+        if (isStaleTender(closingDate, noticeType)) continue;
         // On award releases, OCDS carries the winning supplier under
         // rel.awards[].suppliers — surface it so award records double as
         // competitor/buyer-behaviour intel, not just a closed-out tender.
@@ -221,7 +238,7 @@ async function fetchFTSTenders(seenTenders, newTenders) {
         newTenders.push({ title:cleanText(t.title).slice(0,255), url,
           organisation:cleanText(buyer && buyer.name).slice(0,255),
           description:cleanText(t.description).slice(0,500), sector, noticeType, awardedTo,
-          value, publishedDate: rel.date||'', closingDate: (t.tenderPeriod && t.tenderPeriod.endDate) || '',
+          value, publishedDate: rel.date||'', closingDate,
           scraped_at:new Date().toISOString() });
         seenTenders.add(url); n++;
       }
@@ -374,6 +391,7 @@ async function runScraper() {
             if (!(e.title+' '+(e.description||'')).toLowerCase().includes(term.toLowerCase())) continue;
             const lo=parseFloat(e.valueLow)||0, hi=parseFloat(e.valueHigh)||0;
             const noticeType = e.status === 'Awarded' ? 'AWARD' : (e.type === 'Pipeline' ? 'PIN' : 'TENDER');
+            if (isStaleTender(e.deadlineDate, noticeType)) continue;
             newTenders.push({ title:cleanText(e.title).slice(0,255), url,
               organisation:cleanText(e.organisationName).slice(0,255),
               description:cleanText(e.description).slice(0,500), sector, noticeType,
@@ -395,7 +413,20 @@ async function runScraper() {
     scraperLog('📋 Tenders — searching devolved + defence + e-sourcing portals…');
     await fetchExternalTenderPortals(braveKey, seenTenders, newTenders);
 
-    if (newTenders.length) { const merged = [...exTenders,...newTenders]; await saveBlob('tenders.json', merged); if (window.contentStore) { window.contentStore['tenders'] = merged; if (window.contentLoaded) window.contentLoaded['tenders'] = true; } nTenders=newTenders.length; }
+    if (newTenders.length || exTenders.length) {
+      // Prune stale entries out of what's already stored too — not just new
+      // scrapes — so old closed-out tenders that were saved before this check
+      // existed (or that closed since the last run) drop off automatically.
+      const prunedEx = exTenders.filter(x => !isStaleTender(x.closingDate, x.noticeType));
+      const removed = exTenders.length - prunedEx.length;
+      const merged = [...prunedEx, ...newTenders];
+      if (newTenders.length || removed) {
+        await saveBlob('tenders.json', merged);
+        if (window.contentStore) { window.contentStore['tenders'] = merged; if (window.contentLoaded) window.contentLoaded['tenders'] = true; }
+      }
+      nTenders = newTenders.length;
+      if (removed) scraperLog('  🗑 Pruned '+removed+' stale/closed tender(s) from existing list');
+    }
     scraperLog('📋 Tenders done — '+nTenders+' new');
 
     // ── 4. EVENTS — Brave via proxy + Groq ────────────────────────────────────
