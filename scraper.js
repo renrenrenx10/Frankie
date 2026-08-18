@@ -78,14 +78,18 @@ const ENERGY_KW = [
 ];
 
 const TENDER_SEARCHES = {
-  // NOTE: each term here = one POST request through corsproxy.io per scraper
-  // run, and the free public proxy rate-limits (429) somewhere around ~50-60
-  // requests in quick succession — after which EVERY subsequent proxied call
-  // in that run fails, including FTS and Brave, not just the remaining CF
-  // terms. Keep the total list short and high-signal rather than exhaustive;
-  // it's better to run more often with fewer terms than to blow the budget
-  // in one run and get zero results everywhere.
-  'Nuclear':             ['Sellafield','Hinkley Point','Sizewell','nuclear decommissioning','small modular reactor'],
+  // NOTE: each term here = one POST request for Contracts Finder per scraper
+  // run (now routed through the gated Worker when signed in — see cfFetch —
+  // so the old ~50-70 request corsproxy.io rate-limit ceiling no longer
+  // applies to a signed-in run; it still applies to the signed-out fallback
+  // path, so keep the list high-signal rather than exhaustive regardless).
+  // These terms also double as the client-side text filter for FTS/PCS/
+  // Sell2Wales/Brave-covered portals (see categTender()) — expanded
+  // 2026-08-18 to catch real notices that CPV-code matching (see
+  // CPV_SECTORS below) also doesn't cover cleanly, or as a second signal
+  // alongside it.
+  'Nuclear':             ['Sellafield','Hinkley Point','Sizewell','nuclear decommissioning','small modular reactor',
+                          'radioactive waste','nuclear safety'],
   // Generic manufacturing/engineering contract types — these are what NucCol's
   // supply chain members (fabricators, machine shops, valve/vessel makers,
   // surface treatment, NDT etc.) actually bid for, and most of them never
@@ -95,21 +99,129 @@ const TENDER_SEARCHES = {
   // heat exchangers, containment systems, bearings, fabrication, castings).
   'Manufacturing':       ['precision machining','structural steel fabrication','pressure vessel manufacture',
                           'valve manufacture','castings and forgings','non-destructive testing',
-                          'storage tank manufacture'],
-  'Hydrogen':            ['hydrogen production','electrolyser','HyNet'],
-  'CCUS':                ['carbon capture','CCUS'],
-  'Offshore Renewables': ['offshore wind','floating wind'],
-  'Fusion':              ['nuclear fusion','UKAEA STEP programme'],
+                          'storage tank manufacture','CNC machining','metal fabrication','foundry',
+                          'welding fabrication'],
+  'Hydrogen':            ['hydrogen production','electrolyser','HyNet','fuel cell','green hydrogen'],
+  'CCUS':                ['carbon capture','CCUS','CO2 capture','carbon dioxide storage'],
+  'Offshore Renewables': ['offshore wind','floating wind','wind turbine','wind farm construction'],
+  'Fusion':              ['nuclear fusion','UKAEA STEP programme','tokamak','fusion energy'],
   // Cross-sector: F4N companies are engineering/manufacturing SMEs first and
   // nuclear suppliers second — the same fabrication/machining/NDT/valve/casting
   // capability that wins nuclear work is directly biddable in these sectors too,
   // and diversification revenue is part of the point of the F4N programme.
-  'Rail':                ['rolling stock manufacture','railway signalling','rail depot maintenance'],
-  'Oil & Gas':           ['offshore platform','subsea engineering','North Sea decommissioning'],
-  'Defence':             ['naval shipbuilding','defence engineering support','MOD equipment support'],
-  'Aerospace':           ['aerospace component manufacture','MRO aviation'],
-  'Water & Utilities':   ['water treatment infrastructure','water industry AMP7']
+  'Rail':                ['rolling stock manufacture','railway signalling','rail depot maintenance',
+                          'railway infrastructure','train maintenance'],
+  'Oil & Gas':           ['offshore platform','subsea engineering','North Sea decommissioning',
+                          'well decommissioning','pipeline construction'],
+  'Defence':             ['naval shipbuilding','defence engineering support','MOD equipment support',
+                          'submarine','armoured vehicle'],
+  'Aerospace':           ['aerospace component manufacture','MRO aviation','aircraft component','airframe'],
+  'Water & Utilities':   ['water treatment infrastructure','water industry AMP7','sewage treatment',
+                          'wastewater treatment']
 };
+
+// ── CPV CODE SECTOR MAP ──────────────────────────────────────────────────────
+// CPV (Common Procurement Vocabulary) codes are the EU/UK-standard structured
+// classification every OCDS release carries under tender.classification
+// (scheme "CPV"). They catch real sector-relevant notices that literal
+// phrase-matching above misses because free-text titles/descriptions are
+// worded unpredictably — e.g. a real live example: an AMRC "Fibre Reinforced
+// Thermoplastic Tape Winding Equipment Upgrade" tender (genuinely pressure-
+// vessel/composites manufacturing work) carries CPV 42000000 "Industrial
+// machinery" but contains none of our literal terms. Curated 2026-08-18 from
+// the official CPV 2008 code list (cpv/cpv_2008_xml.zip in this repo) —
+// verified against all ~9,450 codes to contain zero cross-sector collisions
+// (see scratch validation). Sectors with no clean dedicated CPV code (CCUS,
+// Fusion) are intentionally omitted here and rely on text terms only. Prefix
+// length varies per entry: short prefixes are used only where the whole CPV
+// sub-block is genuinely homogeneous (e.g. '346' is exclusively railway
+// rolling stock — verified); noisier parent blocks (e.g. tanks/containers
+// under '4461', which also covers unrelated packaging like corks and food
+// cans) are listed as explicit longer codes instead to avoid false positives.
+const CPV_SECTORS = {
+  'Nuclear': [
+    '09340','09341','09343',             // nuclear fuels, uranium, radioactive materials
+    '4215',                              // nuclear reactors and parts (clean block)
+    '45251110','45251111',               // nuclear-power station / reactor construction
+    '90521',                             // radioactive waste services (excludes 90523 non-radioactive)
+    '98113100',                          // nuclear safety services
+    '35113110','35113200','35113210','35113420', // nuclear/radiological protection equipment
+  ],
+  'Manufacturing': [
+    '4213',                              // valves/taps/actuators (clean block)
+    '44610000','44611400','44615',       // tanks/pressure vessels (explicit — parent has packaging noise)
+    '45223210',                          // structural steelworks
+    '45262400','45262410','45262420','45262423','45262425','45262426','45262670', // structural steel erection / metalworking
+    '71632200','71631',                  // NDT + technical inspection services
+    '43415000','43420000','24957100',    // foundry moulds/machinery/binders
+    '42610000','42611000','42612',       // machining centres / machine tools
+    '42662','44315100','44315200','45262680','45442000','45442120','45442200', // welding + protective coating
+  ],
+  'Hydrogen': ['24111600','31122100'],
+  'Offshore Renewables': [
+    '311213',                            // windmills/wind turbines/generators/wind farm
+    '45262421','45262424',               // offshore mooring / offshore-module fabrication
+    '7652','60651600',                   // offshore installation/supply services
+  ],
+  'Rail': [
+    '346',                               // railway/tramway locomotives, rolling stock, parts (clean block)
+    '3494',                              // railway equipment/track materials
+    '45234',                             // construction work for railways (clean block)
+    '5022',                              // repair/maintenance of locomotives/rolling stock
+    '71311230',                          // railway engineering services
+  ],
+  'Oil & Gas': [
+    '4313','34514',                      // drilling/production platforms & equipment incl. subsea (clean block)
+    '4416',                              // pipelines/piping (clean block)
+    '45231200','45231210','45231220',    // construction work for oil/gas pipelines
+    '45255',                             // oil & gas industry construction — platforms/wells/refinery/terminal/drilling (clean block)
+    '76300000','76310000','76320000','76330000','76331000','76340000', // drilling services
+    '76430','76600000','76121000',       // well-drilling/production services, pipeline/subsea inspection
+    '45262422',                          // subsea drilling work
+    '44161400','44161410',               // underwater/subsea pipelines
+  ],
+  'Defence': [
+    '354','355','356','357',             // military vehicles/warships/aircraft/electronic systems (clean blocks)
+    '506','5084',                        // repair/maintenance of defence materiel & weapon systems (508 alone catches unrelated 5080-5088x "misc repair" junk)
+    '7342','7343',                       // military R&D / test & evaluation
+    '75220000','75221000','75222000',    // defence services
+  ],
+  'Aerospace': [
+    '347',                               // civil aircraft/spacecraft, parts, equipment (clean block)
+    '5021',                              // repair/maintenance of aircraft
+    '4813',                              // aviation ground support/test software
+    '7221213',                           // aviation software development services
+  ],
+  'Water & Utilities': [
+    '651',                               // water distribution (clean, small block)
+    '45231300','45232100','45232150',    // water/sewage pipeline construction
+    '45245',                             // dredging/pumping for water treatment plant
+    '45252',                             // sewage/purification treatment plant construction
+    '45259100',                          // wastewater-plant repair/maintenance
+    '904',                               // sewage services (clean block)
+    '90733400',                          // surface water treatment services
+    '42996',                             // sewage treatment machinery
+  ],
+};
+
+function cpvSector(cpvCode) {
+  if (!cpvCode) return null;
+  const digits = String(cpvCode).split('-')[0];
+  for (const [sector, prefixes] of Object.entries(CPV_SECTORS)) {
+    if (prefixes.some(p => digits.startsWith(p))) return sector;
+  }
+  return null;
+}
+
+// CPV first (precise, catches unpredictable wording), text terms as fallback.
+function sectorForRelease(rel) {
+  const cls = rel.tender?.classification;
+  if (cls?.scheme === 'CPV' && cls.id) {
+    const s = cpvSector(cls.id);
+    if (s) return s;
+  }
+  return categTender((rel.tender?.title || '') + ' ' + (rel.tender?.description || ''));
+}
 
 const BRAVE_EVENT_CATS = ['Nuclear','Hydrogen','CCUS','Offshore Renewables'];
 let scraperRunning = false;
@@ -236,19 +348,31 @@ function awardSuppliers(rel) {
 }
 
 // ── TENDER SOURCE 2: Find a Tender (FTS) — official OCDS API, >£139k contracts ──
-// No keyword param on this API — pull recent releases per stage and filter
-// client-side via categTender(). Three separate requests (tender/planning/
-// award) because a combined stages=list returned 0 releases when proxied
-// (the comma likely doesn't survive some proxy query-string handling), and
-// paginate a few pages deep via links.next since a single 25-release page
-// sampled from all UK public procurement will rarely happen to contain a
-// niche-sector match. Confirmed live (2026-08-18): release.id is the notice's
-// human-facing ID (https://www.find-tender.service.gov.uk/Notice/<id>),
-// release.tag is an array ('tender'/'planning'/['award','contract']), and
-// award releases carry the winning supplier under awards[].suppliers[].name.
+// No keyword param on this API — pull releases per stage and filter
+// client-side via sectorForRelease() (CPV code, falling back to
+// categTender()). Three separate requests (tender/planning/award) because a
+// combined stages=list returned 0 releases when proxied (the comma likely
+// doesn't survive some proxy query-string handling). Confirmed live
+// (2026-08-18): release.id is the notice's human-facing ID
+// (https://www.find-tender.service.gov.uk/Notice/<id>), release.tag is an
+// array ('tender'/'planning'/['award','contract']), award releases carry the
+// winning supplier under awards[].suppliers[].name, and `limit` is capped at
+// 100 server-side (200 returns 400 Bad Request).
+//
+// Paging strategy (rewritten 2026-08-18): a single run used to always
+// restart at "most recent N days, page 1" and only look 4×25=100 releases
+// deep — so anything past page 4 was permanently invisible, every run,
+// forever, not just missed once. Now each stage persists its links.next
+// cursor in a small blob (fts-progress.json) and resumes from there next
+// run, sweeping deeper into the window over successive runs instead of
+// resampling the same top slice. When a stage's cursor runs out
+// (links.next === null) the window is exhausted and the next run starts a
+// fresh one from FTS_LOOKBACK_DAYS ago — cheap per run, cumulative coverage
+// over time, and bounded (never walks back through years of history).
 const FTS_STAGES = ['tender', 'planning', 'award'];
-const FTS_MAX_PAGES = 4;
-const FTS_LOOKBACK_DAYS = 14;
+const FTS_PAGE_LIMIT = 100; // API max, confirmed live
+const FTS_MAX_PAGES = 10;   // per run, per stage — up to 1,000 releases/stage/run (was 100)
+const FTS_LOOKBACK_DAYS = 30; // window used only when starting a fresh sweep
 
 function ftsNoticeType(tag) {
   if (!Array.isArray(tag)) return 'TENDER';
@@ -259,10 +383,16 @@ function ftsNoticeType(tag) {
 
 async function fetchFTS(seenTenders, newTenders) {
   scraperLog('📋 Tenders — Find a Tender (FTS)…');
-  const updatedFrom = new Date(Date.now() - FTS_LOOKBACK_DAYS*24*60*60*1000).toISOString().split('.')[0];
+  const progress = (await loadBlob2('fts-progress.json')) || {};
+  let progressChanged = false;
   for (const stage of FTS_STAGES) {
-    let pathOrUrl = `/api/1.0/ocdsReleasePackages?stages=${stage}&limit=25&updatedFrom=${updatedFrom}`;
-    let n = 0, pages = 0;
+    const resuming = !!progress[stage]?.next;
+    let pathOrUrl = progress[stage]?.next;
+    if (!pathOrUrl) {
+      const updatedFrom = new Date(Date.now() - FTS_LOOKBACK_DAYS*24*60*60*1000).toISOString().split('.')[0];
+      pathOrUrl = `/api/1.0/ocdsReleasePackages?stages=${stage}&limit=${FTS_PAGE_LIMIT}&updatedFrom=${updatedFrom}`;
+    }
+    let n = 0, pages = 0, lastNext = null;
     for (let page = 0; page < FTS_MAX_PAGES && pathOrUrl; page++) {
       try {
         const { url, headers } = govApiUrl('fts', pathOrUrl);
@@ -272,10 +402,10 @@ async function fetchFTS(seenTenders, newTenders) {
         pages++;
         for (const rel of (data.releases || [])) {
           const noticeType = ftsNoticeType(rel.tag);
+          const sector = sectorForRelease(rel);
+          if (!sector) continue;
           const title = rel.tender?.title || '';
           const description = rel.tender?.description || '';
-          const sector = categTender(title + ' ' + description);
-          if (!sector) continue;
           const noticeUrl = rel.id ? 'https://www.find-tender.service.gov.uk/Notice/' + rel.id : '';
           if (!noticeUrl || seenTenders.has(noticeUrl)) continue;
           const closingDate = rel.tender?.tenderPeriod?.endDate || '';
@@ -293,12 +423,17 @@ async function fetchFTS(seenTenders, newTenders) {
           });
           seenTenders.add(noticeUrl); n++;
         }
-        pathOrUrl = data.links?.next || null;
+        lastNext = data.links?.next || null;
+        pathOrUrl = lastNext;
         await new Promise(res => setTimeout(res, 400));
       } catch(e) { scraperLog('  ✗ FTS ['+stage+']: '+e.message, 'warn'); break; }
     }
-    scraperLog('  ✓ FTS ['+stage+']: +'+n+' (scanned '+pages+' page'+(pages===1?'':'s')+')');
+    progress[stage] = lastNext ? { next: lastNext } : null;
+    progressChanged = true;
+    scraperLog('  ✓ FTS ['+stage+']: +'+n+' (scanned '+pages+' page'+(pages===1?'':'s')+
+      (resuming ? ', resumed' : ', new window') + (lastNext ? ', more remaining next run' : ', window complete') + ')');
   }
+  if (progressChanged) { try { await saveBlob('fts-progress.json', progress); } catch(e) { scraperLog('  ✗ FTS — failed to save paging progress: '+e.message, 'warn'); } }
 }
 
 // ── TENDER SOURCE 3: Public Contracts Scotland + Sell2Wales — same vendor ──────
@@ -346,10 +481,10 @@ async function fetchKlickstream(seenTenders, newTenders) {
         const data = await r.json();
         let n = 0;
         for (const rel of (data.releases || [])) {
+          const sector = sectorForRelease(rel);
+          if (!sector) continue;
           const title = rel.tender?.title || '';
           const description = rel.tender?.description || '';
-          const sector = categTender(title + ' ' + description);
-          if (!sector) continue;
           const id = ocidToId(rel.ocid);
           const noticeUrl = id ? src.urlBase + id : '';
           if (!noticeUrl || seenTenders.has(noticeUrl)) continue;
@@ -528,7 +663,7 @@ async function runScraper() {
     // fate, so FTS/PCS/Sell2Wales run regardless. Stop on the first 429
     // (after one retry) and skip the other proxy-dependent sections cleanly.
     let proxyRateLimited = false;
-    let cfSawVariedScores = false; // sanity check — see note below
+    let cfConfirmedWorking = false; // sanity check — see note below
     outer:
     for (const [sector, terms] of Object.entries(TENDER_SEARCHES)) {
       for (const term of terms) {
@@ -551,23 +686,15 @@ async function runScraper() {
           }
           if (!r.ok) { scraperLog('  ✗ CF "'+term+'": HTTP '+r.status,'warn'); continue; }
           const data = await r.json();
-          // Sanity check for the exact failure we just diagnosed: a real
-          // keyword search returns varying relevance scores. If every single
-          // result has an identical score, the proxy is likely dropping the
-          // search criteria again and CF is quietly returning its unfiltered
-          // index — flag it once so this doesn't go unnoticed a second time.
-          const scores = (data.noticeList||[]).map(x => x.score);
-          if (scores.length > 3 && new Set(scores).size === 1) {
-            scraperLog('  ⚠ CF "'+term+'": all '+scores.length+' results have identical relevance score — proxy may be dropping the search again','warn');
-          } else if (scores.length > 1) {
-            cfSawVariedScores = true;
-          }
-          let n=0;
-          for (const entry of (data.noticeList||[])) {
-            const e=entry.item; if (!e) continue;
+          const raw = data.noticeList || [];
+          const hitCount = data.hitCount || 0;
+          let n = 0, matched = 0;
+          for (const entry of raw) {
+            const e = entry.item; if (!e) continue;
+            const isRelevant = (e.title+' '+(e.description||'')).toLowerCase().includes(term.toLowerCase());
+            if (isRelevant) matched++; else continue;
             const url = e.id ? 'https://www.contractsfinder.service.gov.uk/notice/'+e.id : '';
             if (!url||seenTenders.has(url)) continue;
-            if (!(e.title+' '+(e.description||'')).toLowerCase().includes(term.toLowerCase())) continue;
             const lo=parseFloat(e.valueLow)||0, hi=parseFloat(e.valueHigh)||0;
             const noticeType = e.status === 'Awarded' ? 'AWARD' : (e.type === 'Pipeline' ? 'PIN' : 'TENDER');
             if (isStaleTender(e.deadlineDate, noticeType)) continue;
@@ -579,14 +706,28 @@ async function runScraper() {
               scraped_at:new Date().toISOString() });
             seenTenders.add(url); n++;
           }
+          if (matched) cfConfirmedWorking = true;
+          // Real signal for the documented failure mode (proxy silently
+          // drops the POST body and CF falls back to its generic unfiltered
+          // index): a large raw hit count where literally none of the
+          // returned results mention the search term. NOTE: a uniform
+          // relevance `score` across results is NOT a reliable signal on its
+          // own — confirmed live (2026-08-18) that CF returns score:1
+          // uniformly even on fully relevant, genuinely keyword-filtered
+          // results routed through the gated Worker, so that check (used in
+          // an earlier version of this file) produced false alarms on every
+          // working request and has been replaced with this one.
+          if (raw.length >= 10 && matched === 0 && hitCount > 5000) {
+            scraperLog('  ⚠ CF "'+term+'": '+raw.length+' results (hitCount '+hitCount+'), none mention "'+term+'" — search may not be filtering','warn');
+          }
           if (n) scraperLog('  ✓ "'+term+'": +'+n);
           await new Promise(r=>setTimeout(r,700));
         } catch(e) { scraperLog('  ✗ CF "'+term+'": '+e.message,'warn'); }
       }
     }
     scraperLog(cfViaWorker
-      ? (cfSawVariedScores ? '  ✓ CF ran via the gated Worker — real keyword-filtered results confirmed' : '  ℹ CF ran via the gated Worker')
-      : (cfSawVariedScores ? '  ✓ CF ran via public proxy fallback (no staff session) — real keyword-filtered results confirmed' : '  ℹ CF ran via public proxy fallback (no staff session) — sign in for reliable results'));
+      ? (cfConfirmedWorking ? '  ✓ CF ran via the gated Worker — genuine keyword-relevant results confirmed' : '  ℹ CF ran via the gated Worker — no term-relevant results this run')
+      : (cfConfirmedWorking ? '  ✓ CF ran via public proxy fallback (no staff session) — genuine keyword-relevant results confirmed' : '  ℹ CF ran via public proxy fallback (no staff session) — sign in for reliable results'));
 
     // ── 3b. TENDERS — Find a Tender + PCS/Sell2Wales, via the gated Worker ─────
     // These don't share fate with the corsproxy.io circuit breaker above (they
