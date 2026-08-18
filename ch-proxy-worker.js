@@ -10,12 +10,25 @@
  *   /groq/*       → Groq chat completions      (env: GROQ_KEY)
  *   /claude/*     → Claude Messages API        (env: CLAUDE_KEY)
  *   /embed/*      → OpenAI Embeddings API      (env: EMBED_KEY)
+ *   /cf/*         → Contracts Finder API       (no auth — public gov.uk API)
+ *   /fts/*        → Find a Tender OCDS API     (no auth — public gov.uk API)
+ *   /pcs/*        → Public Contracts Scotland API (no auth — public gov.uk API)
+ *   /sell2wales/* → Sell2Wales API             (no auth — public gov.wales API)
  *   /kb/*         → Frankie KB/vector files, read-only, from a private
  *                   Azure Blob container       (env: KB_BLOB_BASE, KB_BLOB_SAS)
  *   /blob/content/*  → scc.html Content Editor / Website Editor storage
  *                      (env: CONTENT_BLOB_BASE, CONTENT_BLOB_SAS)
  *   /blob/videos/*   → scc.html video library storage
  *                      (env: VIDEOS_BLOB_BASE, VIDEOS_BLOB_SAS)
+ *
+ * The four tender routes (2026-08-18) replace scraper.js's prior dependency on
+ * the free public corsproxy.io for these calls — that proxy was intermittently
+ * failing (random 429/500/network errors) under the added load of FTS +
+ * Klickstream pagination. These are all read-only public government APIs with
+ * no secret key of their own, so they need no new Worker secrets — just a
+ * server-to-server passthrough so the browser's CORS restrictions never come
+ * into play at all. scraper.js still falls back to corsproxy.io if there's no
+ * active staff session (see braveSearch()/govApiUrl() there for the pattern).
  *
  * AUTH GATE (added 2026-08-03): every route below now requires a valid
  * member session. The caller must send `Authorization: Bearer <token>`
@@ -63,6 +76,10 @@ const UPSTREAMS = {
   '/groq':      'https://api.groq.com',
   '/claude':    'https://api.anthropic.com',
   '/embed':     'https://api.openai.com',
+  '/cf':          'https://www.contractsfinder.service.gov.uk',
+  '/fts':         'https://www.find-tender.service.gov.uk',
+  '/pcs':         'https://api.publiccontractsscotland.gov.uk',
+  '/sell2wales':  'https://api.sell2wales.gov.wales',
 };
 
 export default {
@@ -166,6 +183,10 @@ export default {
       headers['Authorization'] = 'Bearer ' + (env.EMBED_KEY || '');
       headers['Content-Type'] = 'application/json';
     }
+    if (upstream.includes('contractsfinder.service.gov.uk')) {
+      // POST with a JSON search-criteria body, no auth needed — a public API.
+      headers['Content-Type'] = 'application/json';
+    }
     if (upstream.includes('ofsistorage')) {
       headers['Accept'] = '*/*';
     }
@@ -201,8 +222,12 @@ export default {
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin':  '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    // PUT and DELETE added 2026-08-08 — the /blob/* routes (Media Library
+    // upload/delete in scc.html) need them for uploads and file removal.
+    // Missing here caused the browser's CORS preflight to reject every PUT
+    // request before it was ever sent, breaking Media Library uploads.
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-ms-blob-type',
   };
 }
 
