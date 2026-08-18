@@ -329,13 +329,37 @@ async function braveSearch(query, braveKey, count) {
   return res.json();
 }
 
+// Whether `text` is relevant to a (possibly multi-word) search term.
+// Deliberately NOT an exact-phrase substring check. Verified live
+// (2026-08-18) against a real CF response for "storage tank manufacture"
+// (hitCount 8763, size:100): 0 of 100 results contained the exact phrase,
+// and 0 contained all 3 words — CF's own relevance ranking is a loose,
+// word-overlap match, not phrase-based, so real notices like "Supply of
+// Glass Fused Steel Tanks" or "Framework agreement for the manufacture...
+// of storage" are genuinely relevant but were being discarded by a strict
+// `.includes(fullTermPhrase)` check. That check was silently returning zero
+// matches for every multi-word term (this one and likely others already in
+// TENDER_SEARCHES, not just newly-added ones) without ever surfacing as an
+// error — it just looked like "no results this run". Require a majority of
+// the term's significant words instead: forgiving of word order and
+// pluralisation/tense differences while still filtering out results that
+// only share one incidental word (e.g. "tank" alone matching an unrelated
+// aquarium refit).
+function termMatches(text, term) {
+  const t = text.toLowerCase();
+  const words = term.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  if (words.length <= 1) return t.includes(term.toLowerCase());
+  const matched = words.filter(w => t.includes(w)).length;
+  return matched >= Math.ceil(words.length / 2);
+}
+
 // Shared sector classifier for every keyword-less tender source (FTS, PCS,
 // Sell2Wales, Brave-covered portals) — Contracts Finder has real server-side
 // keyword search and doesn't need this.
 function categTender(text) {
-  const t = cleanText(text).toLowerCase();
+  const t = cleanText(text);
   for (const [sector, terms] of Object.entries(TENDER_SEARCHES)) {
-    if (terms.some(term => t.includes(term.toLowerCase()))) return sector;
+    if (terms.some(term => termMatches(t, term))) return sector;
   }
   return null;
 }
@@ -624,8 +648,8 @@ async function runScraper() {
       scraperLog('  ℹ No-RSS sources skipped — add Brave key in Settings to include ONR, GBE, RR SMR etc.','warn');
     }
 
-    if (newNews.length)   { const merged = [...exNews, ...newNews];     await saveBlob('news.json',        merged); if (window.contentStore) { window.contentStore['news']   = merged;   if (window.contentLoaded) window.contentLoaded['news']   = true; }   nNews=newNews.length; }
-    if (newNuccol.length) { const merged = [...exNuccol, ...newNuccol]; await saveBlob('nuccol_news.json', merged); if (window.contentStore) { window.contentStore['nuccol'] = merged;   if (window.contentLoaded) window.contentLoaded['nuccol'] = true; }   nNuccol=newNuccol.length; }
+    if (newNews.length)   { const merged = [...exNews, ...newNews];     await saveBlob('news.json',        merged); if (typeof contentStore !== 'undefined') { contentStore['news']   = merged;   if (typeof contentLoaded !== 'undefined') contentLoaded['news']   = true; }   nNews=newNews.length; }
+    if (newNuccol.length) { const merged = [...exNuccol, ...newNuccol]; await saveBlob('nuccol_news.json', merged); if (typeof contentStore !== 'undefined') { contentStore['nuccol'] = merged;   if (typeof contentLoaded !== 'undefined') contentLoaded['nuccol'] = true; }   nNuccol=newNuccol.length; }
     scraperLog('📰 News done — '+nNews+' new articles, '+nNuccol+' NucCol posts');
 
     // ── 3. TENDERS — Contracts Finder ──────────────────────────────────────────
@@ -691,7 +715,7 @@ async function runScraper() {
           let n = 0, matched = 0;
           for (const entry of raw) {
             const e = entry.item; if (!e) continue;
-            const isRelevant = (e.title+' '+(e.description||'')).toLowerCase().includes(term.toLowerCase());
+            const isRelevant = termMatches(e.title+' '+(e.description||''), term);
             if (isRelevant) matched++; else continue;
             const url = e.id ? 'https://www.contractsfinder.service.gov.uk/notice/'+e.id : '';
             if (!url||seenTenders.has(url)) continue;
@@ -753,7 +777,7 @@ async function runScraper() {
       const merged = [...prunedEx, ...newTenders];
       if (newTenders.length || removed) {
         await saveBlob('tenders.json', merged);
-        if (window.contentStore) { window.contentStore['tenders'] = merged; if (window.contentLoaded) window.contentLoaded['tenders'] = true; }
+        if (typeof contentStore !== 'undefined') { contentStore['tenders'] = merged; if (typeof contentLoaded !== 'undefined') contentLoaded['tenders'] = true; }
       }
       nTenders = newTenders.length;
       if (removed) scraperLog('  🗑 Pruned '+removed+' stale/closed tender(s) from existing list');
@@ -802,7 +826,7 @@ async function runScraper() {
         } catch(e) { scraperLog('  ✗ Events '+cat+': '+e.message,'warn'); }
       }
 
-      if (newEvents.length) { const merged = [...exEvents,...newEvents]; await saveBlob('events.json', merged); if (window.contentStore) { window.contentStore['events'] = merged; if (window.contentLoaded) window.contentLoaded['events'] = true; } nEvents=newEvents.length; }
+      if (newEvents.length) { const merged = [...exEvents,...newEvents]; await saveBlob('events.json', merged); if (typeof contentStore !== 'undefined') { contentStore['events'] = merged; if (typeof contentLoaded !== 'undefined') contentLoaded['events'] = true; } nEvents=newEvents.length; }
       scraperLog('📅 Events done — '+nEvents+' new');
     }
 

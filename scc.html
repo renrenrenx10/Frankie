@@ -3810,6 +3810,11 @@ async function loadContentTab(type) {
   const container = document.getElementById('list-' + type);
   if (container) container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:30px 0">Loading…</div>';
   const items = await loadBlob(type);
+  // loadBlob() swallows fetch/auth errors and returns null on failure — that
+  // looks identical to "the file is genuinely empty" to renderContentList,
+  // so a failed reload silently showed "No items yet" with no indication
+  // anything went wrong. Surface it instead of leaving contentStore stale/empty.
+  if (items === null) toast('Reload failed — could not load ' + type + ' from storage. Check your session/connection.', true);
   contentStore[type] = Array.isArray(items) ? items : [];
   contentLoaded[type] = true;
   renderContentList(type);
