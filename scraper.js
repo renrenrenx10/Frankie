@@ -4,64 +4,6 @@
 const PROXY = 'https://corsproxy.io/?';
 const proxied = url => PROXY + encodeURIComponent(url);
 
-// Verified once per scraper run (see ensureWorkerTenderRoutesChecked below) —
-// null = not checked yet, true/false = checked result. Prevents ~50 wasted
-// Worker calls that would each individually 404 if the routes simply haven't
-// been deployed to Cloudflare yet — falls back to corsproxy.io cleanly for
-// the whole run instead of failing every single tender call outright.
-let WORKER_TENDER_ROUTES_OK = null;
-
-async function ensureWorkerTenderRoutesChecked() {
-  if (WORKER_TENDER_ROUTES_OK !== null) return WORKER_TENDER_ROUTES_OK;
-  const token = (typeof sccSession !== 'undefined' && sccSession && sccSession.access_token) || '';
-  const base  = (typeof SCC_WORKER !== 'undefined' && SCC_WORKER) || 'https://ch.rene-dorset.workers.dev';
-  if (!token) { WORKER_TENDER_ROUTES_OK = false; return false; }
-  try {
-    const r = await fetch(base + '/fts/api/1.0/ocdsReleasePackages?stages=tender&limit=1', {
-      headers: { 'Accept':'application/json', 'Authorization':'Bearer '+token },
-      signal: AbortSignal.timeout(10000)
-    });
-    // The Worker's own routing layer returns 404 with "Unknown proxy path" in
-    // the body when a prefix isn't in its UPSTREAMS map at all — that's a real
-    // "not deployed" signal. Any other response (200, or even a genuine
-    // upstream error like 400/502) means the route exists and is wired up.
-    if (r.status === 404) {
-      const txt = await r.text().catch(()=>'');
-      if (txt.includes('Unknown proxy path')) {
-        scraperLog('  ⚠ Worker doesn\'t have the /cf, /fts, /pcs, /sell2wales routes deployed yet — falling back to corsproxy.io for all tender sources this run. Deploy the updated ch-proxy-worker.js to fix this properly.', 'warn');
-        WORKER_TENDER_ROUTES_OK = false;
-        return false;
-      }
-    }
-    WORKER_TENDER_ROUTES_OK = true;
-    scraperLog('  ✓ Worker tender routes are live — using them instead of corsproxy.io for CF/FTS/PCS/Sell2Wales');
-    return true;
-  } catch(e) {
-    WORKER_TENDER_ROUTES_OK = false;
-    return false;
-  }
-}
-
-// Prefer the Cloudflare Worker (ch-proxy-worker.js) for the gov.uk/gov.wales
-// tender APIs — it has dedicated /cf, /fts, /pcs, /sell2wales routes that
-// fetch server-to-server (no browser CORS involved at all, no dependency on
-// the free public corsproxy.io, which has been intermittently failing under
-// load — random 429s/500s/network errors with no pattern tied to which API
-// it's fronting). Requires an active staff session AND a confirmed-deployed
-// route (see ensureWorkerTenderRoutesChecked, called once before this is used)
-// — falls back to the old corsproxy.io path otherwise, so a not-yet-deployed
-// Worker degrades gracefully instead of 404ing on every single call.
-// workerPath should be just the bit after the route prefix, e.g. for FTS:
-// govApiUrl('/fts', '/api/1.0/ocdsReleasePackages?stages=tender', 'https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?stages=tender')
-function govApiUrl(routePrefix, pathAndQuery, directUrl) {
-  const token = (typeof sccSession !== 'undefined' && sccSession && sccSession.access_token) || '';
-  const base  = (typeof SCC_WORKER !== 'undefined' && SCC_WORKER) || 'https://ch.rene-dorset.workers.dev';
-  if (token && WORKER_TENDER_ROUTES_OK) {
-    return { url: base + routePrefix + pathAndQuery, headers: { 'Authorization': 'Bearer ' + token }, viaWorker: true };
-  }
-  return { url: proxied(directUrl), headers: {}, viaWorker: false };
-}
-
 // ── RSS FEED LIST ──────────────────────────────────────────────────────────────
 // rss.app feeds removed (return 402 — paywalled). Sources without direct RSS
 // are fetched via Brave Search (also routed through the proxy).
@@ -224,31 +166,8 @@ function parseRSS(xmlText, feed, seenUrls) {
   return results;
 }
 
-// Brave search — prefers the existing Cloudflare Worker route (SCC_WORKER +
-// '/brave/...'), which already proxies Brave Search server-side using a key
-// stored IN the Worker (not the browser) — the same route already tested and
-// working in the API monitor elsewhere in this app. That's a real, authenticated,
-// single-owner service, not the shared free corsproxy.io the tender APIs below
-// have been intermittently failing through (random 429s/500s/network errors —
-// a known limitation of that free public proxy under load, not a bug in the
-// request logic itself). Falls back to corsproxy.io + a locally-stored Brave
-// key only if there's no active staff session, so nothing breaks for anyone
-// not logged in when this runs.
+// Brave search — routed through corsproxy.io so it works from localhost
 async function braveSearch(query, braveKey, count) {
-  const token = (typeof sccSession !== 'undefined' && sccSession && sccSession.access_token) || '';
-  const workerBase = (typeof SCC_WORKER !== 'undefined' && SCC_WORKER) || 'https://ch.rene-dorset.workers.dev';
-  if (token) {
-    try {
-      const res = await fetch(workerBase + '/brave/res/v1/web/search?q=' + encodeURIComponent(query) + '&count=' + (count||10), {
-        headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token },
-        signal: AbortSignal.timeout(15000)
-      });
-      if (res.ok) return res.json();
-      // Worker route failed (expired session, worker hiccup, etc.) — fall
-      // through to the corsproxy path below rather than failing the whole call.
-    } catch(e) { /* fall through */ }
-  }
-  if (!braveKey) throw new Error('No staff session and no local Brave key configured');
   const targetUrl = 'https://api.search.brave.com/res/v1/web/search?q=' + encodeURIComponent(query) + '&count=' + (count||10);
   const res = await fetch(proxied(targetUrl), {
     headers: {
@@ -273,187 +192,19 @@ function categTender(text) {
   return null;
 }
 
-async function fetchFTSTenders(seenTenders, newTenders) {
-  scraperLog('📋 Tenders — searching Find a Tender (FTS) OCDS API…');
-  const since = new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,19);
-  // Small limit deliberately — full OCDS release objects (nested tender/parties/
-  // documents) are large, and corsproxy.io returns 413 Payload Too Large well
-  // before limit=100 releases' worth of JSON. Dedup means later runs still pick
-  // up anything missed by the smaller page size.
-  // Queried as three separate single-stage requests rather than one
-  // "stages=planning,tender,award" call — the comma-separated form is valid
-  // per FTS's own API docs, but in practice it was coming back with 0 releases
-  // when routed through corsproxy.io (the comma likely isn't surviving the
-  // round trip through the proxy's own query-string handling intact). Single
-  // stage values are the documented example and are known to work.
-  //
-  // updatedFrom only returns the newest N releases across ALL of UK public-
-  // sector procurement — nuclear/rail/defence/manufacturing notices are a
-  // small fraction of that firehose, so a single page of 25 essentially never
-  // happens to contain one. FTS's response includes a links.next cursor URL
-  // (confirmed via the API docs), so page a few requests deep per stage to
-  // actually scan a meaningful slice of the 30-day window rather than just
-  // the most recent handful of updates from any UK buyer.
-  const stages = [
-    {stage:'tender',   noticeType:'TENDER'},
-    {stage:'planning', noticeType:'PIN'},
-    {stage:'award',    noticeType:'AWARD'}
-  ];
-  const MAX_PAGES = 3; // 3 stages × 3 pages = 9 proxy requests — kept modest so this doesn't eat into the same corsproxy.io rate-limit budget as the CF/Brave calls elsewhere in a run
-  let totalNew = 0;
-  for (const {stage, noticeType} of stages) {
-    let nextUrl = 'https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?stages=' + stage + '&limit=25&updatedFrom=' + since;
-    let page = 0, stageNew = 0, stageChecked = 0;
-    while (nextUrl && page < MAX_PAGES) {
-      page++;
-      const u = new URL(nextUrl);
-      const gov = govApiUrl('/fts', u.pathname + u.search, nextUrl);
-      // FTS is a real gov.uk open-data API and may allow direct cross-origin
-      // GETs — try that first only on page 1 (no proxy, no size cap); once we
-      // know direct is blocked for this run there's no point retrying it on
-      // every subsequent page, so later pages go straight to the Worker (or
-      // corsproxy.io fallback if there's no staff session).
-      const fallback = { url: gov.viaWorker ? gov.url : proxied(nextUrl), headers: gov.headers, label: gov.viaWorker ? 'worker' : 'proxy' };
-      const attempts = page === 1 ? [ {url: nextUrl, headers:{}, label:'direct'}, fallback ] : [ fallback ];
-      let pageData = null, usedLabel = '';
-      for (const attempt of attempts) {
-        try {
-          const r = await fetch(attempt.url, { headers:{'Accept':'application/json', ...attempt.headers}, signal:AbortSignal.timeout(20000) });
-          if (!r.ok) { scraperLog('  ✗ FTS ['+stage+' p'+page+'] ('+attempt.label+'): HTTP '+r.status,'warn'); continue; }
-          const rawText = await r.text();
-          try { pageData = JSON.parse(rawText); usedLabel = attempt.label; break; }
-          catch(pe) { scraperLog('  ✗ FTS ['+stage+' p'+page+'] ('+attempt.label+'): non-JSON response — '+rawText.slice(0,120),'warn'); continue; }
-        } catch(e) { scraperLog('  ✗ FTS ['+stage+' p'+page+'] ('+attempt.label+'): '+e.message,'warn'); }
-      }
-      if (!pageData) { scraperLog('  ✗ FTS ['+stage+' p'+page+']: all attempts failed, stopping this stage','warn'); break; }
-      const releases = pageData.releases || [];
-      stageChecked += releases.length;
-      for (const rel of releases) {
-        const t = rel.tender; if (!t) continue;
-        const sector = categTender((t.title||'') + ' ' + (t.description||''));
-        if (!sector) continue;
-        const url = 'https://www.find-tender.service.gov.uk/Notice/' + rel.id;
-        if (!rel.id || seenTenders.has(url)) continue;
-        const buyer = (rel.parties||[]).find(p => (p.roles||[]).includes('buyer'));
-        const closingDate = (t.tenderPeriod && t.tenderPeriod.endDate) || '';
-        if (isStaleTender(closingDate, noticeType)) continue;
-        // On award releases, OCDS carries the winning supplier under
-        // rel.awards[].suppliers — surface it so award records double as
-        // competitor/buyer-behaviour intel, not just a closed-out tender.
-        let awardedTo = '';
-        if (noticeType === 'AWARD' && Array.isArray(rel.awards) && rel.awards.length) {
-          const suppliers = rel.awards.flatMap(a => a.suppliers||[]).map(s => s.name).filter(Boolean);
-          awardedTo = cleanText(suppliers.join(', ')).slice(0,255);
-        }
-        const value = (t.value && t.value.amount) ? 'GBP '+Number(t.value.amount).toLocaleString()
-                    : (noticeType === 'AWARD' && rel.awards && rel.awards[0] && rel.awards[0].value)
-                      ? 'GBP '+Number(rel.awards[0].value.amount).toLocaleString() : 'Not disclosed';
-        newTenders.push({ title:cleanText(t.title).slice(0,255), url,
-          organisation:cleanText(buyer && buyer.name).slice(0,255),
-          description:cleanText(t.description).slice(0,500), sector, noticeType, awardedTo,
-          value, publishedDate: rel.date||'', closingDate,
-          scraped_at:new Date().toISOString() });
-        seenTenders.add(url); stageNew++;
-      }
-      nextUrl = (pageData.links && pageData.links.next) || null;
-      await new Promise(res=>setTimeout(res,400));
-    }
-    scraperLog('  ✓ FTS ['+stage+']: +'+stageNew+' (of '+stageChecked+' releases checked across '+page+' page(s))');
-    totalNew += stageNew;
-  }
-  return totalNew;
-}
 
-// ── TENDER SOURCE 3: devolved portals with real Klickstream OCDS APIs ────────
-// Public Contracts Scotland and Sell2Wales are both built by the same vendor
-// (Klickstream) and expose an actual notice-list API — same OCDS release
-// shape as FTS (releases[].tender/parties/awards) — not just an HTML search
-// form. This replaces the Brave site: search for these two portals, which
-// was reliably returning 0 hits (Brave doesn't index their notice pages
-// well). dateFrom takes a single calendar month (mm-yyyy), so this pulls the
-// current month only per notice type — same trade-off as FTS's 30-day window.
-const KLICKSTREAM_PORTALS = [
-  {name:'Public Contracts Scotland', base:'https://api.publiccontractsscotland.gov.uk/v1/Notices', route:'/pcs',
-   noticeUrl: id => 'https://www.publiccontractsscotland.gov.uk/search/Search_Switch.aspx?ID=' + id},
-  {name:'Sell2Wales',                base:'https://api.sell2wales.gov.wales/v1/Notices', route:'/sell2wales',
-   noticeUrl: id => 'https://www.sell2wales.gov.wales/search/search_switch.aspx?ID=' + id},
-];
-const KLICKSTREAM_NOTICE_TYPES = [ {noticeType:2, label:'TENDER'}, {noticeType:3, label:'AWARD'}, {noticeType:1, label:'PIN'} ];
-
-async function fetchKlickstreamPortals(seenTenders, newTenders) {
-  const now = new Date();
-  const dateFrom = String(now.getMonth()+1).padStart(2,'0') + '-' + now.getFullYear();
-  for (const portal of KLICKSTREAM_PORTALS) {
-    let portalNew = 0, portalChecked = 0;
-    for (const {noticeType, label} of KLICKSTREAM_NOTICE_TYPES) {
-      // locale is required, not optional — every documented example for this
-      // API includes it (2057 = English). Omitting it was producing a genuine
-      // 500 from Sell2Wales's own backend, reproduced identically through both
-      // corsproxy.io and the Worker — confirming it wasn't a proxy problem.
-      const path = portal.base + '?dateFrom=' + dateFrom + '&noticeType=' + noticeType + '&outputType=0&locale=2057';
-      const u = new URL(path);
-      const gov = govApiUrl(portal.route, u.pathname + u.search, path);
-      const fallback = { url: gov.viaWorker ? gov.url : proxied(path), headers: gov.headers, label: gov.viaWorker ? 'worker' : 'proxy' };
-      const attempts = [ {url: path, headers:{}, label:'direct'}, fallback ];
-      let data = null;
-      for (const attempt of attempts) {
-        try {
-          const r = await fetch(attempt.url, { headers:{'Accept':'application/json', ...attempt.headers}, signal:AbortSignal.timeout(20000) });
-          if (!r.ok) { scraperLog('  ✗ '+portal.name+' ['+label+'] ('+attempt.label+'): HTTP '+r.status,'warn'); continue; }
-          const rawText = await r.text();
-          try { data = JSON.parse(rawText); break; }
-          catch(pe) { scraperLog('  ✗ '+portal.name+' ['+label+'] ('+attempt.label+'): non-JSON — '+rawText.slice(0,120),'warn'); continue; }
-        } catch(e) { scraperLog('  ✗ '+portal.name+' ['+label+'] ('+attempt.label+'): '+e.message,'warn'); }
-      }
-      if (!data) continue;
-      const releases = data.releases || [];
-      portalChecked += releases.length;
-      for (const rel of releases) {
-        const t = rel.tender; if (!t) continue;
-        const sector = categTender((t.title||'') + ' ' + (t.description||''));
-        if (!sector) continue;
-        // Best-effort notice link: these portals' human-facing pages use a
-        // numeric ID (the OCID's last segment), confirmed working for
-        // Sell2Wales; PCS is assumed identical since it's the same vendor's
-        // platform, but hasn't been separately verified — if it 404s, the
-        // record itself is still correct, just the deep link may need fixing.
-        const numericId = (rel.ocid||rel.id||'').split('-').pop();
-        const noticeUrl = numericId ? portal.noticeUrl(numericId) : '';
-        if (!noticeUrl || seenTenders.has(noticeUrl)) continue;
-        const buyer = (rel.parties||[]).find(p => (p.roles||[]).includes('buyer'));
-        const closingDate = (t.tenderPeriod && t.tenderPeriod.endDate) || '';
-        if (isStaleTender(closingDate, label)) continue;
-        let awardedTo = '';
-        if (label === 'AWARD' && Array.isArray(rel.awards) && rel.awards.length) {
-          const suppliers = rel.awards.flatMap(a => a.suppliers||[]).map(s => s.name).filter(Boolean);
-          awardedTo = cleanText(suppliers.join(', ')).slice(0,255);
-        }
-        newTenders.push({ title:cleanText(t.title).slice(0,255), url:noticeUrl,
-          organisation:cleanText(buyer && buyer.name).slice(0,255),
-          description:cleanText(t.description).slice(0,500), sector, noticeType:label, awardedTo,
-          value:(t.value && t.value.amount) ? 'GBP '+Number(t.value.amount).toLocaleString() : 'Not disclosed',
-          publishedDate: rel.date||'', closingDate,
-          scraped_at:new Date().toISOString() });
-        seenTenders.add(noticeUrl); portalNew++;
-      }
-      await new Promise(res=>setTimeout(res,400));
-    }
-    scraperLog('  ✓ '+portal.name+': +'+portalNew+' (of '+portalChecked+' notices checked)');
-  }
-}
-
-// ── TENDER SOURCE 4: portals with no public API/RSS ──────────────────────────────
-// eTendersNI (a different platform — European Dynamics/COSMIC, not Klickstream),
-// MOD Defence Contracts Online / Defence Sourcing Portal (session-token gated —
-// note the _ncp= parameter in its URLs, which a stateless fetch can't reproduce),
-// and the Delta eSourcing / In-tend e-sourcing platforms (used by most English
-// councils, NHS trusts and housing associations) don't expose a reliable keyword
-// API, so (like ONR/GBE/RR SMR above) these are covered via Brave Search through
-// the proxy. MOD DCO/DSP is included specifically because defence manufacturing
-// (machining, fabrication, castings/forgings, NDT, surface treatment) draws on
-// the same supplier capability set as nuclear — real bid-relevant volume outside
-// energy.
+// ── TENDER SOURCE 2: portals with no keyword API — covered via Brave Search ──
+// Devolved-nation portals (Scotland/Wales/NI), MOD Defence Contracts Online /
+// Defence Sourcing Portal, and the Delta eSourcing / In-tend e-sourcing platforms
+// (used by most English councils, NHS trusts and housing associations) don't
+// expose a reliable keyword API or a documented RSS query string, so these are
+// covered via Brave Search through the proxy. MOD DCO/DSP is included
+// specifically because defence manufacturing (machining, fabrication,
+// castings/forgings, NDT, surface treatment) draws on the same supplier
+// capability set as nuclear — real bid-relevant volume outside energy.
 const BRAVE_TENDER_SOURCES = [
+  {site:'publiccontractsscotland.gov.uk', source:'Public Contracts Scotland'},
+  {site:'sell2wales.gov.wales',           source:'Sell2Wales'},
   {site:'etendersni.gov.uk',              source:'eTenders NI'},
   {site:'contracts.mod.uk',               source:'MOD Defence Contracts Online'},
   {site:'delta-esourcing.com',            source:'Delta eSourcing'},
@@ -461,11 +212,10 @@ const BRAVE_TENDER_SOURCES = [
 ];
 
 async function fetchExternalTenderPortals(braveKey, seenTenders, newTenders) {
-  const braveAvailable = !!braveKey || !!(typeof sccSession !== 'undefined' && sccSession && sccSession.access_token);
-  if (!braveAvailable) { scraperLog('  ℹ External portals (eTendersNI/MOD DCO/Delta/In-tend) skipped — add Brave key in Settings, or sign in','warn'); return; }
+  if (!braveKey) { scraperLog('  ℹ External portals (PCS/Sell2Wales/eTendersNI/MOD DCO/Delta/In-tend) skipped — add Brave key in Settings','warn'); return; }
   // Deliberately skip 'Nuclear' terms here — Sellafield/Hinkley/Sizewell etc. are
   // nuclear-specific and above-threshold nuclear notices from anywhere in the UK
-  // already come through FTS/CF. What these portals actually add is local/
+  // already come through CF. What these portals actually add is local/
   // sub-threshold and non-energy manufacturing work, so lead with the
   // Manufacturing terms.
   const allTerms = [...new Set(Object.entries(TENDER_SEARCHES).filter(([sec]) => sec !== 'Nuclear').flatMap(([,terms]) => terms))].slice(0,10);
@@ -505,12 +255,6 @@ async function runScraper() {
   document.getElementById('scraper-stats').innerHTML = '';
 
   const braveKey = localStorage.getItem('frankieBraveKey');
-  // Brave is available either via a locally-stored key (old path, corsproxy)
-  // or via an active staff session (new path, your own Worker — no local key
-  // needed at all, see braveSearch() above). Gate sections on either, not just
-  // the local key, so this doesn't regress for anyone using the Worker route.
-  const hasStaffSession = !!(typeof sccSession !== 'undefined' && sccSession && sccSession.access_token);
-  const braveAvailable = !!braveKey || hasStaffSession;
   const groqKey  = localStorage.getItem('frankieGroqKey');
   let nNews=0, nNuccol=0, nEvents=0, nTenders=0;
 
@@ -534,7 +278,7 @@ async function runScraper() {
     }
 
     // ── 2. BRAVE-SOURCED NEWS (proxied) ───────────────────────────────────────
-    if (braveAvailable) {
+    if (braveKey) {
       scraperLog('🔍 Fetching no-RSS sources via Brave…', 'brave');
       for (const src of BRAVE_NEWS_SOURCES) {
         const isNuccol = src.blob === 'nuccol';
@@ -564,26 +308,19 @@ async function runScraper() {
     scraperLog('📰 News done — '+nNews+' new articles, '+nNuccol+' NucCol posts');
 
     // ── 3. TENDERS — Contracts Finder via proxy ────────────────────────────────
-    // Check once whether the Worker's tender routes are actually deployed —
-    // avoids ~50 individual 404s across CF/FTS/PCS/Sell2Wales if they aren't,
-    // and falls back to corsproxy.io cleanly for the whole run instead.
-    await ensureWorkerTenderRoutesChecked();
-
     scraperLog('📋 Tenders — searching Contracts Finder…');
     const exTenders  = await loadBlob('tenders') || [];
     const seenTenders = new Set(exTenders.map(x=>x.url));
     const newTenders=[];
-    const CF_DIRECT = 'https://www.contractsfinder.service.gov.uk/api/rest/2/search_notices/json';
-    const cf = govApiUrl('/cf', '/api/rest/2/search_notices/json', CF_DIRECT);
-    if (cf.viaWorker) scraperLog('  ℹ CF — using Worker route (no corsproxy dependency)');
+    const CF_URL = proxied('https://www.contractsfinder.service.gov.uk/api/rest/2/search_notices/json');
 
     // Circuit breaker: corsproxy.io's free tier rate-limits (429) after enough
     // requests in quick succession, and once it does, EVERY further proxied
-    // call in this run will fail too (including FTS's proxy fallback, Brave
-    // events, and the external tender portals) — not just the remaining CF
-    // terms. Rather than hammering a proxy that's already throttling us and
-    // logging a wall of confusing cascading failures, stop on the first 429
-    // (after one retry) and skip the other proxy-dependent sections cleanly.
+    // call in this run will fail too (including Brave events and the external
+    // tender portals) — not just the remaining CF terms. Rather than hammering
+    // a proxy that's already throttling us and logging a wall of confusing
+    // cascading failures, stop on the first 429 (after one retry) and skip
+    // the other proxy-dependent sections cleanly.
     let proxyRateLimited = false;
     outer:
     for (const [sector, terms] of Object.entries(TENDER_SEARCHES)) {
@@ -593,26 +330,24 @@ async function runScraper() {
           // statuses includes 'Awarded' alongside 'Open' so award notices come
           // through too — these are the competitor/buyer-intelligence records
           // (who won, for how much), not just live opportunities to bid.
-          let r = await fetch(cf.url, {
+          let r = await fetch(CF_URL, {
             method:'POST',
-            headers:{'Content-Type':'application/json','Accept':'application/json', ...cf.headers},
+            headers:{'Content-Type':'application/json','Accept':'application/json'},
             body:JSON.stringify({searchCriteria:{keyword:term,statuses:['Open','Awarded'],types:['Contract','Pipeline']},size:100}),
             signal:AbortSignal.timeout(20000)
           });
           if (r.status === 429) {
             scraperLog('  ⚠ CF "'+term+'": 429 rate-limited by proxy — waiting 4s and retrying once…','warn');
             await new Promise(res=>setTimeout(res,4000));
-            r = await fetch(cf.url, {
+            r = await fetch(CF_URL, {
               method:'POST',
-              headers:{'Content-Type':'application/json','Accept':'application/json', ...cf.headers},
+              headers:{'Content-Type':'application/json','Accept':'application/json'},
               body:JSON.stringify({searchCriteria:{keyword:term,statuses:['Open','Awarded'],types:['Contract','Pipeline']},size:100}),
               signal:AbortSignal.timeout(20000)
             });
           }
           if (r.status === 429) {
-            // Only meaningful for the corsproxy fallback path — the Worker
-            // route doesn't share that free proxy's rate limit at all.
-            scraperLog('  ✗ CF "'+term+'": still 429 after retry'+(cf.viaWorker?'':' — proxy is rate-limited')+', stopping remaining tender searches for this run. Try again in a few minutes.','error');
+            scraperLog('  ✗ CF "'+term+'": still 429 after retry — proxy is rate-limited, stopping remaining tender searches for this run. Try again in a few minutes.','error');
             proxyRateLimited = true;
             break outer;
           }
@@ -641,30 +376,9 @@ async function runScraper() {
       }
     }
 
-    // ── 3b. TENDERS — Find a Tender (FTS) OCDS API, high-value (>£139k) ────────
-    // FTS now prefers the Worker route too (see fetchFTSTenders), so a
-    // corsproxy 429 from CF above only blocks this when there's no staff
-    // session to fall back on.
-    if (proxyRateLimited && !hasStaffSession) {
-      scraperLog('  ℹ FTS skipped — proxy rate-limited this run and no staff session','warn');
-    } else {
-      await fetchFTSTenders(seenTenders, newTenders);
-    }
-
-    // ── 3c. TENDERS — Public Contracts Scotland + Sell2Wales (real APIs) ───────
-    if (proxyRateLimited && !hasStaffSession) {
-      scraperLog('  ℹ Scotland/Wales portals skipped — proxy rate-limited this run and no staff session','warn');
-    } else {
-      scraperLog('📋 Tenders — searching Public Contracts Scotland + Sell2Wales…');
-      await fetchKlickstreamPortals(seenTenders, newTenders);
-    }
-
-    // ── 3d. TENDERS — external portals (eTendersNI / MOD DCO / Delta / In-tend) ──
-    // These are Brave-driven, so they can use the reliable Worker path (see
-    // braveSearch()) regardless of whether corsproxy.io itself is rate-limited —
-    // only skip if there's genuinely no way to reach Brave at all.
-    if (proxyRateLimited && !hasStaffSession) {
-      scraperLog('  ℹ External tender portals skipped — proxy rate-limited this run and no staff session','warn');
+    // ── 3b. TENDERS — external portals (eTendersNI / MOD DCO / Delta / In-tend) ──
+    if (proxyRateLimited) {
+      scraperLog('  ℹ External tender portals skipped — proxy rate-limited this run','warn');
     } else {
       scraperLog('📋 Tenders — searching NI + defence + e-sourcing portals…');
       await fetchExternalTenderPortals(braveKey, seenTenders, newTenders);
@@ -686,13 +400,13 @@ async function runScraper() {
     }
     scraperLog('📋 Tenders done — '+nTenders+' new');
 
-    // ── 4. EVENTS — Brave via Worker (or proxy fallback) + Groq ────────────────
-    if (!braveAvailable) {
-      scraperLog('📅 Events skipped — add Brave key in Settings below, or sign in','warn');
-    } else if (proxyRateLimited && !hasStaffSession) {
-      scraperLog('  ℹ Events skipped — proxy rate-limited this run and no staff session','warn');
+    // ── 4. EVENTS — Brave via proxy + Groq ────────────────────────────────────
+    if (!braveKey) {
+      scraperLog('📅 Events skipped — add Brave key in Settings below','warn');
+    } else if (proxyRateLimited) {
+      scraperLog('  ℹ Events skipped — proxy rate-limited this run','warn');
     } else {
-      scraperLog('📅 Events — Brave search…','brave');
+      scraperLog('📅 Events — Brave search via proxy…','brave');
       const exEvents  = await loadBlob('events') || [];
       const seenEvents = new Set(exEvents.map(x=>x.url));
       const newEvents=[];
