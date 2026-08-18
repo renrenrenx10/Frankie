@@ -386,7 +386,11 @@ async function fetchKlickstreamPortals(seenTenders, newTenders) {
   for (const portal of KLICKSTREAM_PORTALS) {
     let portalNew = 0, portalChecked = 0;
     for (const {noticeType, label} of KLICKSTREAM_NOTICE_TYPES) {
-      const path = portal.base + '?dateFrom=' + dateFrom + '&noticeType=' + noticeType + '&outputType=0';
+      // locale is required, not optional — every documented example for this
+      // API includes it (2057 = English). Omitting it was producing a genuine
+      // 500 from Sell2Wales's own backend, reproduced identically through both
+      // corsproxy.io and the Worker — confirming it wasn't a proxy problem.
+      const path = portal.base + '?dateFrom=' + dateFrom + '&noticeType=' + noticeType + '&outputType=0&locale=2057';
       const u = new URL(path);
       const gov = govApiUrl(portal.route, u.pathname + u.search, path);
       const fallback = { url: gov.viaWorker ? gov.url : proxied(path), headers: gov.headers, label: gov.viaWorker ? 'worker' : 'proxy' };
