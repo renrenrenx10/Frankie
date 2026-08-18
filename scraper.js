@@ -4,20 +4,59 @@
 const PROXY = 'https://corsproxy.io/?';
 const proxied = url => PROXY + encodeURIComponent(url);
 
+// Verified once per scraper run (see ensureWorkerTenderRoutesChecked below) —
+// null = not checked yet, true/false = checked result. Prevents ~50 wasted
+// Worker calls that would each individually 404 if the routes simply haven't
+// been deployed to Cloudflare yet — falls back to corsproxy.io cleanly for
+// the whole run instead of failing every single tender call outright.
+let WORKER_TENDER_ROUTES_OK = null;
+
+async function ensureWorkerTenderRoutesChecked() {
+  if (WORKER_TENDER_ROUTES_OK !== null) return WORKER_TENDER_ROUTES_OK;
+  const token = (typeof sccSession !== 'undefined' && sccSession && sccSession.access_token) || '';
+  const base  = (typeof SCC_WORKER !== 'undefined' && SCC_WORKER) || 'https://ch.rene-dorset.workers.dev';
+  if (!token) { WORKER_TENDER_ROUTES_OK = false; return false; }
+  try {
+    const r = await fetch(base + '/fts/api/1.0/ocdsReleasePackages?stages=tender&limit=1', {
+      headers: { 'Accept':'application/json', 'Authorization':'Bearer '+token },
+      signal: AbortSignal.timeout(10000)
+    });
+    // The Worker's own routing layer returns 404 with "Unknown proxy path" in
+    // the body when a prefix isn't in its UPSTREAMS map at all — that's a real
+    // "not deployed" signal. Any other response (200, or even a genuine
+    // upstream error like 400/502) means the route exists and is wired up.
+    if (r.status === 404) {
+      const txt = await r.text().catch(()=>'');
+      if (txt.includes('Unknown proxy path')) {
+        scraperLog('  ⚠ Worker doesn\'t have the /cf, /fts, /pcs, /sell2wales routes deployed yet — falling back to corsproxy.io for all tender sources this run. Deploy the updated ch-proxy-worker.js to fix this properly.', 'warn');
+        WORKER_TENDER_ROUTES_OK = false;
+        return false;
+      }
+    }
+    WORKER_TENDER_ROUTES_OK = true;
+    scraperLog('  ✓ Worker tender routes are live — using them instead of corsproxy.io for CF/FTS/PCS/Sell2Wales');
+    return true;
+  } catch(e) {
+    WORKER_TENDER_ROUTES_OK = false;
+    return false;
+  }
+}
+
 // Prefer the Cloudflare Worker (ch-proxy-worker.js) for the gov.uk/gov.wales
-// tender APIs — it now has dedicated /cf, /fts, /pcs, /sell2wales routes that
+// tender APIs — it has dedicated /cf, /fts, /pcs, /sell2wales routes that
 // fetch server-to-server (no browser CORS involved at all, no dependency on
 // the free public corsproxy.io, which has been intermittently failing under
 // load — random 429s/500s/network errors with no pattern tied to which API
-// it's fronting). Requires an active staff session (same Bearer token used
-// elsewhere in scc.html); falls back to the old corsproxy.io path if there's
-// no session, so this degrades gracefully rather than breaking outright.
+// it's fronting). Requires an active staff session AND a confirmed-deployed
+// route (see ensureWorkerTenderRoutesChecked, called once before this is used)
+// — falls back to the old corsproxy.io path otherwise, so a not-yet-deployed
+// Worker degrades gracefully instead of 404ing on every single call.
 // workerPath should be just the bit after the route prefix, e.g. for FTS:
 // govApiUrl('/fts', '/api/1.0/ocdsReleasePackages?stages=tender', 'https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?stages=tender')
 function govApiUrl(routePrefix, pathAndQuery, directUrl) {
   const token = (typeof sccSession !== 'undefined' && sccSession && sccSession.access_token) || '';
   const base  = (typeof SCC_WORKER !== 'undefined' && SCC_WORKER) || 'https://ch.rene-dorset.workers.dev';
-  if (token) {
+  if (token && WORKER_TENDER_ROUTES_OK) {
     return { url: base + routePrefix + pathAndQuery, headers: { 'Authorization': 'Bearer ' + token }, viaWorker: true };
   }
   return { url: proxied(directUrl), headers: {}, viaWorker: false };
@@ -521,6 +560,11 @@ async function runScraper() {
     scraperLog('📰 News done — '+nNews+' new articles, '+nNuccol+' NucCol posts');
 
     // ── 3. TENDERS — Contracts Finder via proxy ────────────────────────────────
+    // Check once whether the Worker's tender routes are actually deployed —
+    // avoids ~50 individual 404s across CF/FTS/PCS/Sell2Wales if they aren't,
+    // and falls back to corsproxy.io cleanly for the whole run instead.
+    await ensureWorkerTenderRoutesChecked();
+
     scraperLog('📋 Tenders — searching Contracts Finder…');
     const exTenders  = await loadBlob('tenders') || [];
     const seenTenders = new Set(exTenders.map(x=>x.url));
