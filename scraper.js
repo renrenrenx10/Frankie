@@ -312,7 +312,33 @@ async function runScraper() {
     const exTenders  = await loadBlob('tenders') || [];
     const seenTenders = new Set(exTenders.map(x=>x.url));
     const newTenders=[];
-    const CF_URL = proxied('https://www.contractsfinder.service.gov.uk/api/rest/2/search_notices/json');
+    const CF_TARGET = 'https://www.contractsfinder.service.gov.uk/api/rest/2/search_notices/json';
+    // thingproxy.freeboard.io is a direct pass-through proxy (you prepend the
+    // target URL to its own path) rather than a query-string redirect like
+    // corsproxy.io — it forwards the HTTP method, headers and body largely
+    // intact. Confirmed via a real Network response that corsproxy.io was
+    // NOT reliably relaying the POST body/Content-Type for this specific
+    // call: CF was silently falling back to its unfiltered index (uniform
+    // score:1 on every result, completely unrelated titles) rather than
+    // actually applying our keyword. Try thingproxy first; corsproxy.io
+    // stays as an automatic fallback if thingproxy is ever down.
+    const CF_URL_PRIMARY  = 'https://thingproxy.freeboard.io/fetch/' + CF_TARGET;
+    const CF_URL_FALLBACK = proxied(CF_TARGET);
+    let cfUsingFallback = false;
+
+    async function cfFetch(body) {
+      const opts = { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body, signal:AbortSignal.timeout(20000) };
+      if (!cfUsingFallback) {
+        try {
+          const r = await fetch(CF_URL_PRIMARY, opts);
+          if (r.ok || r.status === 429) return r; // 429 handled by caller same as before
+          // Any other non-OK response from the primary proxy — fall back.
+        } catch(e) { /* thingproxy unreachable — fall back below */ }
+        cfUsingFallback = true;
+        scraperLog('  ℹ CF — thingproxy unavailable, falling back to corsproxy.io','warn');
+      }
+      return fetch(CF_URL_FALLBACK, opts);
+    }
 
     // Circuit breaker: corsproxy.io's free tier rate-limits (429) after enough
     // requests in quick succession, and once it does, EVERY further proxied
@@ -322,6 +348,7 @@ async function runScraper() {
     // cascading failures, stop on the first 429 (after one retry) and skip
     // the other proxy-dependent sections cleanly.
     let proxyRateLimited = false;
+    let cfSawVariedScores = false; // sanity check — see note below
     outer:
     for (const [sector, terms] of Object.entries(TENDER_SEARCHES)) {
       for (const term of terms) {
@@ -330,21 +357,12 @@ async function runScraper() {
           // statuses includes 'Awarded' alongside 'Open' so award notices come
           // through too — these are the competitor/buyer-intelligence records
           // (who won, for how much), not just live opportunities to bid.
-          let r = await fetch(CF_URL, {
-            method:'POST',
-            headers:{'Content-Type':'application/json','Accept':'application/json'},
-            body:JSON.stringify({searchCriteria:{keyword:term,statuses:['Open','Awarded'],types:['Contract','Pipeline']},size:100}),
-            signal:AbortSignal.timeout(20000)
-          });
+          const reqBody = JSON.stringify({searchCriteria:{keyword:term,statuses:['Open','Awarded'],types:['Contract','Pipeline']},size:100});
+          let r = await cfFetch(reqBody);
           if (r.status === 429) {
             scraperLog('  ⚠ CF "'+term+'": 429 rate-limited by proxy — waiting 4s and retrying once…','warn');
             await new Promise(res=>setTimeout(res,4000));
-            r = await fetch(CF_URL, {
-              method:'POST',
-              headers:{'Content-Type':'application/json','Accept':'application/json'},
-              body:JSON.stringify({searchCriteria:{keyword:term,statuses:['Open','Awarded'],types:['Contract','Pipeline']},size:100}),
-              signal:AbortSignal.timeout(20000)
-            });
+            r = await cfFetch(reqBody);
           }
           if (r.status === 429) {
             scraperLog('  ✗ CF "'+term+'": still 429 after retry — proxy is rate-limited, stopping remaining tender searches for this run. Try again in a few minutes.','error');
@@ -353,6 +371,17 @@ async function runScraper() {
           }
           if (!r.ok) { scraperLog('  ✗ CF "'+term+'": HTTP '+r.status,'warn'); continue; }
           const data = await r.json();
+          // Sanity check for the exact failure we just diagnosed: a real
+          // keyword search returns varying relevance scores. If every single
+          // result has an identical score, the proxy is likely dropping the
+          // search criteria again and CF is quietly returning its unfiltered
+          // index — flag it once so this doesn't go unnoticed a second time.
+          const scores = (data.noticeList||[]).map(x => x.score);
+          if (scores.length > 3 && new Set(scores).size === 1) {
+            scraperLog('  ⚠ CF "'+term+'": all '+scores.length+' results have identical relevance score — proxy may be dropping the search again','warn');
+          } else if (scores.length > 1) {
+            cfSawVariedScores = true;
+          }
           let n=0;
           for (const entry of (data.noticeList||[])) {
             const e=entry.item; if (!e) continue;
@@ -375,6 +404,9 @@ async function runScraper() {
         } catch(e) { scraperLog('  ✗ CF "'+term+'": '+e.message,'warn'); }
       }
     }
+    scraperLog(cfUsingFallback
+      ? '  ℹ CF ran via corsproxy.io fallback this run'
+      : (cfSawVariedScores ? '  ✓ CF ran via thingproxy — real keyword-filtered results confirmed' : '  ℹ CF ran via thingproxy'));
 
     // ── 3b. TENDERS — external portals (eTendersNI / MOD DCO / Delta / In-tend) ──
     if (proxyRateLimited) {
