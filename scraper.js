@@ -281,18 +281,89 @@ async function fetchFTSTenders(seenTenders, newTenders) {
   return totalNew;
 }
 
-// ── TENDER SOURCE 3: portals with no public API/RSS ──────────────────────────────
-// Devolved-nation portals (Scotland/Wales/NI), MOD Defence Contracts Online /
-// Defence Sourcing Portal, and the Delta eSourcing / In-tend e-sourcing platforms
-// (used by most English councils, NHS trusts and housing associations) don't
-// expose a reliable keyword API or a documented RSS query string, so (like ONR/
-// GBE/RR SMR above) these are covered via Brave Search through the proxy.
-// MOD DCO/DSP is included specifically because defence manufacturing (machining,
-// fabrication, castings/forgings, NDT, surface treatment) draws on the same
-// supplier capability set as nuclear — real bid-relevant volume outside energy.
+// ── TENDER SOURCE 3: devolved portals with real Klickstream OCDS APIs ────────
+// Public Contracts Scotland and Sell2Wales are both built by the same vendor
+// (Klickstream) and expose an actual notice-list API — same OCDS release
+// shape as FTS (releases[].tender/parties/awards) — not just an HTML search
+// form. This replaces the Brave site: search for these two portals, which
+// was reliably returning 0 hits (Brave doesn't index their notice pages
+// well). dateFrom takes a single calendar month (mm-yyyy), so this pulls the
+// current month only per notice type — same trade-off as FTS's 30-day window.
+const KLICKSTREAM_PORTALS = [
+  {name:'Public Contracts Scotland', base:'https://api.publiccontractsscotland.gov.uk/v1/Notices',
+   noticeUrl: id => 'https://www.publiccontractsscotland.gov.uk/search/Search_Switch.aspx?ID=' + id},
+  {name:'Sell2Wales',                base:'https://api.sell2wales.gov.wales/v1/Notices',
+   noticeUrl: id => 'https://www.sell2wales.gov.wales/search/search_switch.aspx?ID=' + id},
+];
+const KLICKSTREAM_NOTICE_TYPES = [ {noticeType:2, label:'TENDER'}, {noticeType:3, label:'AWARD'}, {noticeType:1, label:'PIN'} ];
+
+async function fetchKlickstreamPortals(seenTenders, newTenders) {
+  const now = new Date();
+  const dateFrom = String(now.getMonth()+1).padStart(2,'0') + '-' + now.getFullYear();
+  for (const portal of KLICKSTREAM_PORTALS) {
+    let portalNew = 0, portalChecked = 0;
+    for (const {noticeType, label} of KLICKSTREAM_NOTICE_TYPES) {
+      const path = portal.base + '?dateFrom=' + dateFrom + '&noticeType=' + noticeType + '&outputType=0';
+      const attempts = [ {url: path, label:'direct'}, {url: proxied(path), label:'proxy'} ];
+      let data = null;
+      for (const attempt of attempts) {
+        try {
+          const r = await fetch(attempt.url, { headers:{'Accept':'application/json'}, signal:AbortSignal.timeout(20000) });
+          if (!r.ok) { scraperLog('  ✗ '+portal.name+' ['+label+'] ('+attempt.label+'): HTTP '+r.status,'warn'); continue; }
+          const rawText = await r.text();
+          try { data = JSON.parse(rawText); break; }
+          catch(pe) { scraperLog('  ✗ '+portal.name+' ['+label+'] ('+attempt.label+'): non-JSON — '+rawText.slice(0,120),'warn'); continue; }
+        } catch(e) { scraperLog('  ✗ '+portal.name+' ['+label+'] ('+attempt.label+'): '+e.message,'warn'); }
+      }
+      if (!data) continue;
+      const releases = data.releases || [];
+      portalChecked += releases.length;
+      for (const rel of releases) {
+        const t = rel.tender; if (!t) continue;
+        const sector = categTender((t.title||'') + ' ' + (t.description||''));
+        if (!sector) continue;
+        // Best-effort notice link: these portals' human-facing pages use a
+        // numeric ID (the OCID's last segment), confirmed working for
+        // Sell2Wales; PCS is assumed identical since it's the same vendor's
+        // platform, but hasn't been separately verified — if it 404s, the
+        // record itself is still correct, just the deep link may need fixing.
+        const numericId = (rel.ocid||rel.id||'').split('-').pop();
+        const noticeUrl = numericId ? portal.noticeUrl(numericId) : '';
+        if (!noticeUrl || seenTenders.has(noticeUrl)) continue;
+        const buyer = (rel.parties||[]).find(p => (p.roles||[]).includes('buyer'));
+        const closingDate = (t.tenderPeriod && t.tenderPeriod.endDate) || '';
+        if (isStaleTender(closingDate, label)) continue;
+        let awardedTo = '';
+        if (label === 'AWARD' && Array.isArray(rel.awards) && rel.awards.length) {
+          const suppliers = rel.awards.flatMap(a => a.suppliers||[]).map(s => s.name).filter(Boolean);
+          awardedTo = cleanText(suppliers.join(', ')).slice(0,255);
+        }
+        newTenders.push({ title:cleanText(t.title).slice(0,255), url:noticeUrl,
+          organisation:cleanText(buyer && buyer.name).slice(0,255),
+          description:cleanText(t.description).slice(0,500), sector, noticeType:label, awardedTo,
+          value:(t.value && t.value.amount) ? 'GBP '+Number(t.value.amount).toLocaleString() : 'Not disclosed',
+          publishedDate: rel.date||'', closingDate,
+          scraped_at:new Date().toISOString() });
+        seenTenders.add(noticeUrl); portalNew++;
+      }
+      await new Promise(res=>setTimeout(res,400));
+    }
+    scraperLog('  ✓ '+portal.name+': +'+portalNew+' (of '+portalChecked+' notices checked)');
+  }
+}
+
+// ── TENDER SOURCE 4: portals with no public API/RSS ──────────────────────────────
+// eTendersNI (a different platform — European Dynamics/COSMIC, not Klickstream),
+// MOD Defence Contracts Online / Defence Sourcing Portal (session-token gated —
+// note the _ncp= parameter in its URLs, which a stateless fetch can't reproduce),
+// and the Delta eSourcing / In-tend e-sourcing platforms (used by most English
+// councils, NHS trusts and housing associations) don't expose a reliable keyword
+// API, so (like ONR/GBE/RR SMR above) these are covered via Brave Search through
+// the proxy. MOD DCO/DSP is included specifically because defence manufacturing
+// (machining, fabrication, castings/forgings, NDT, surface treatment) draws on
+// the same supplier capability set as nuclear — real bid-relevant volume outside
+// energy.
 const BRAVE_TENDER_SOURCES = [
-  {site:'publiccontractsscotland.gov.uk', source:'Public Contracts Scotland'},
-  {site:'sell2wales.gov.wales',           source:'Sell2Wales'},
   {site:'etendersni.gov.uk',              source:'eTenders NI'},
   {site:'contracts.mod.uk',               source:'MOD Defence Contracts Online'},
   {site:'delta-esourcing.com',            source:'Delta eSourcing'},
@@ -300,7 +371,7 @@ const BRAVE_TENDER_SOURCES = [
 ];
 
 async function fetchExternalTenderPortals(braveKey, seenTenders, newTenders) {
-  if (!braveKey) { scraperLog('  ℹ External portals (PCS/Sell2Wales/eTendersNI/MOD DCO/Delta/In-tend) skipped — add Brave key in Settings','warn'); return; }
+  if (!braveKey) { scraperLog('  ℹ External portals (eTendersNI/MOD DCO/Delta/In-tend) skipped — add Brave key in Settings','warn'); return; }
   // Deliberately skip 'Nuclear' terms here — Sellafield/Hinkley/Sizewell etc. are
   // nuclear-specific and above-threshold nuclear notices from anywhere in the UK
   // already come through FTS/CF. What these portals actually add is local/
@@ -474,11 +545,19 @@ async function runScraper() {
       await fetchFTSTenders(seenTenders, newTenders);
     }
 
-    // ── 3c. TENDERS — external portals (devolved / MOD DCO / Delta / In-tend) ──
+    // ── 3c. TENDERS — Public Contracts Scotland + Sell2Wales (real APIs) ───────
+    if (proxyRateLimited) {
+      scraperLog('  ℹ Scotland/Wales portals skipped — proxy rate-limited this run','warn');
+    } else {
+      scraperLog('📋 Tenders — searching Public Contracts Scotland + Sell2Wales…');
+      await fetchKlickstreamPortals(seenTenders, newTenders);
+    }
+
+    // ── 3d. TENDERS — external portals (eTendersNI / MOD DCO / Delta / In-tend) ──
     if (proxyRateLimited) {
       scraperLog('  ℹ External tender portals skipped — proxy rate-limited this run','warn');
     } else {
-      scraperLog('📋 Tenders — searching devolved + defence + e-sourcing portals…');
+      scraperLog('📋 Tenders — searching NI + defence + e-sourcing portals…');
       await fetchExternalTenderPortals(braveKey, seenTenders, newTenders);
     }
 
