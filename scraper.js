@@ -39,6 +39,12 @@ function govApiUrl(key, pathOrUrl) {
   }
   return { url: proxied(base + pathAndQuery), headers: {} };
 }
+function rssUrl(feedUrl) {
+  if (hasStaffSession() && typeof SCC_WORKER !== 'undefined') {
+    return { url: SCC_WORKER + '/rss?url=' + encodeURIComponent(feedUrl), headers: { Authorization: 'Bearer ' + sccSession.access_token } };
+  }
+  return { url: proxied(feedUrl), headers: {} };
+}
 
 // ── RSS FEED LIST ──────────────────────────────────────────────────────────────
 // rss.app feeds removed (return 402 — paywalled). Sources without direct RSS
@@ -614,7 +620,8 @@ async function runScraper() {
 
     for (const feed of RSS_FEEDS) {
       try {
-        const res = await fetch(proxied(feed.url), {signal:AbortSignal.timeout(12000)});
+        const { url: reqUrl, headers: reqHeaders } = rssUrl(feed.url);
+        const res = await fetch(reqUrl, {headers: reqHeaders, signal:AbortSignal.timeout(12000)});
         if (!res.ok) { scraperLog('  ✗ '+feed.source+': HTTP '+res.status,'warn'); continue; }
         const items = parseRSS(await res.text(), feed, seenNews);
         newNews.push(...items);
