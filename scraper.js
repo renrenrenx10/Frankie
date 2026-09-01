@@ -4,7 +4,7 @@
 // (SCC_WORKER, defined in scc.html) when a staff session is active — see the
 // GOV_SOURCES block below — and fall back to corsproxy.io only when signed out.
 
-const PROXY = 'https://corsproxy.io/?key=4f37cad4&url=';
+const PROXY = 'https://api.allorigins.win/raw?url=';
 const proxied = url => PROXY + encodeURIComponent(url);
 
 // ── GOV TENDER API ROUTING ───────────────────────────────────────────────────
