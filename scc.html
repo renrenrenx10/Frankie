@@ -533,6 +533,11 @@ button{cursor:pointer}
         <span class="sb-label">F4N Tracker</span>
         <span class="sb-count" id="sb-f4n-count">0</span>
       </button>
+      <button class="sb-item" data-screen="actions" onclick="nav('actions')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="6" height="6" rx="1"/><path d="M5 8l1 1 2-2"/><line x1="11" y1="6" x2="21" y2="6"/><rect x="3" y="15" width="6" height="6" rx="1"/><line x1="11" y1="17" x2="21" y2="17"/></svg>
+        <span class="sb-label">Actions &amp; Tasks</span>
+        <span class="sb-count" id="sb-actions-count">0</span>
+      </button>
       <button class="sb-item" data-screen="supplierdb" onclick="nav('supplierdb')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
         <span class="sb-label">Supplier Database</span>
@@ -1003,6 +1008,114 @@ button{cursor:pointer}
         </div>
       </div>
     </div><!-- /screen-f4ntracker -->
+
+    <!-- ──────────── ACTIONS & TASKS -->
+    <div class="screen" id="screen-actions">
+      <div>
+
+        <!-- Stats -->
+        <div class="stats-row" id="act-stats" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
+          <div class="stat-card"><div class="val" id="act-stat-total">0</div><div class="lbl">Total Actions</div></div>
+          <div class="stat-card"><div class="val" id="act-stat-notstarted" style="color:#075985">0</div><div class="lbl">Not Started</div></div>
+          <div class="stat-card"><div class="val" id="act-stat-inprogress" style="color:#92400e">0</div><div class="lbl">In Progress</div></div>
+          <div class="stat-card"><div class="val" id="act-stat-overdue" style="color:var(--red)">0</div><div class="lbl">Overdue</div></div>
+          <div class="stat-card"><div class="val" id="act-stat-done" style="color:#166534">0</div><div class="lbl">Done</div></div>
+        </div>
+
+        <!-- Filters -->
+        <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <input id="act-search" type="text" placeholder="Search title, description, company…" oninput="actFilter()"
+            style="flex:1;min-width:200px;background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;color:var(--navy);outline:none">
+          <select id="act-owner-filter" onchange="actFilter()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;outline:none;cursor:pointer">
+            <option value="all">All owners</option>
+          </select>
+          <select id="act-priority-filter" onchange="actFilter()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;outline:none;cursor:pointer">
+            <option value="all">All priorities</option>
+            <option value="Urgent">Urgent</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+          <select id="act-status-filter" onchange="actFilter()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;outline:none;cursor:pointer">
+            <option value="all">All statuses</option>
+            <option value="Not Started">Not Started</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Blocked">Blocked</option>
+            <option value="Done">Done</option>
+          </select>
+        </div>
+
+        <div id="act-loading" style="color:var(--muted);font-size:.88rem;padding:20px 0">Loading actions…</div>
+        <div id="act-empty" style="display:none;color:var(--muted);font-size:.88rem;padding:20px 0">No actions match your filters.</div>
+
+        <!-- Table -->
+        <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px" id="act-table-wrap">
+          <table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:1150px">
+            <thead>
+              <tr style="background:var(--wash);text-align:left">
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">#</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:220px">Title</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:150px">Company</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:110px">Category</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:90px">Owner</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:110px">Priority</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:130px">Status</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:120px">Due Date</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Link</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)"></th>
+              </tr>
+            </thead>
+            <tbody id="act-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Add/Edit action modal -->
+      <div id="act-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:700;align-items:center;justify-content:center">
+        <div style="background:var(--panel);border-radius:10px;padding:26px 28px 20px;width:480px;max-width:95vw;max-height:88vh;overflow-y:auto">
+          <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);margin-bottom:16px" id="act-modal-title">Add Action</div>
+          <input type="hidden" id="act-edit-id">
+          <div class="we-field" style="margin-bottom:10px"><label>Title *</label><input id="act-f-title" type="text" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+          <div class="we-field" style="margin-bottom:10px"><label>Description / Notes</label><textarea id="act-f-desc" rows="3" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea></div>
+          <div class="we-field" style="margin-bottom:10px"><label>Related Company</label>
+            <select id="act-f-company" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box">
+              <option value="">— None —</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:10px">
+            <div class="we-field" style="flex:1"><label>Category</label><input id="act-f-category" type="text" placeholder="e.g. Evidence, ISO 19443, Review" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+            <div class="we-field" style="flex:1"><label>Owner</label><input id="act-f-owner" type="text" placeholder="e.g. John" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:10px">
+            <div class="we-field" style="flex:1"><label>Priority</label>
+              <select id="act-f-priority" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box">
+                <option value="Low">Low</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="High">High</option>
+                <option value="Urgent">Urgent</option>
+              </select>
+            </div>
+            <div class="we-field" style="flex:1"><label>Status</label>
+              <select id="act-f-status" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box">
+                <option value="Not Started" selected>Not Started</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Blocked">Blocked</option>
+                <option value="Done">Done</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:14px">
+            <div class="we-field" style="flex:1"><label>Due Date</label><input id="act-f-due" type="date" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+            <div class="we-field" style="flex:1"><label>Link / URL</label><input id="act-f-url" type="text" placeholder="https:// — e.g. link to review" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box"></div>
+          </div>
+          <div id="act-modal-msg" style="font-size:.76rem;margin-bottom:10px;min-height:1rem;color:var(--red)"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn primary" onclick="actSaveModal()" style="flex:1">Save</button>
+            <button class="btn" onclick="document.getElementById('act-modal').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /screen-actions -->
 
     <!-- ──────────── SUPPLIER DATABASE -->
     <div class="screen" id="screen-supplierdb">
@@ -2253,6 +2366,7 @@ const TOPBAR = {
   dashboard:   {title:'F.R.A.N.K.I.E.', sub:'Future Readiness And Nuclear Knowledge Intelligence Engine', actions:''},
   companies:   {title:'Companies', sub:'All managed companies — evidence, assessments and certificates', actions:`<button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button><button class="tb-btn" onclick="mrShowAddModal()" style="margin-left:8px">+ Add Member Request</button>`},
   f4ntracker:  {title:'F4N Tracker', sub:'Booking pipeline for Fit For Nuclear assessments — linked to CRM companies', actions:`<button class="tb-btn primary" onclick="f4nShowAddModal()">+ Add Booking</button><button class="tb-btn" onclick="f4nLoad()" style="margin-left:8px">↻ Refresh</button>`},
+  actions:     {title:'Actions & Tasks', sub:'Track follow-ups, reviews and to-dos across the SCC team', actions:`<button class="tb-btn primary" onclick="actShowAddModal()">+ Add Action</button><button class="tb-btn" onclick="actLoad()" style="margin-left:8px">↻ Refresh</button>`},
   supplierdb:  {title:'Supplier Database', sub:'Live NuCCoL SharePoint supplier database (DataVault/Rolodex/SupplierMap) — linked to CRM companies', actions:`<button class="tb-btn" onclick="sdbLoad(true)" style="margin-left:8px">↻ Refresh</button>`},
   assessment:  {title:'Run Assessment', sub:'F4N or Business Excellence scoring', actions:''},
   reports:     {title:'Generate Reports', sub:'AI-powered BE, Action Plan and Sector Specific reports', actions:''},
@@ -2306,6 +2420,7 @@ function nav(screen, opts) {
   if (screen === 'nrcompanies') nrcLoad();
   if (screen === 'f4njourney') fjLoadSubmissions();
   if (screen === 'f4ntracker') f4nLoad();
+  if (screen === 'actions') actLoad();
   if (screen === 'supplierdb') sdbOpen();
   if (screen === 'settings') apiCtrlRestore();
   if (screen === 'pcv') pcvLoad();
@@ -8358,6 +8473,271 @@ async function f4nSeedImport() {
     toast('Import failed: ' + e.message + ' — has nr_f4n_tracker.sql been run in Supabase?');
     if (btn) { btn.disabled = false; btn.textContent = 'Import 52 rows'; }
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ACTIONS & TASKS — general SCC to-do / follow-up tracker.
+// Table: nr_actions (see nr_actions.sql). Optionally links to nr_companies
+// via company_id, free-text category/owner so it can double as a catch-all
+// inbox across screens (Evidence, ISO 19443, NuclearReady, reviews, etc).
+// ═══════════════════════════════════════════════════════════
+let actAll = [];
+let actFiltered = [];
+
+function actPriorityColor(p) {
+  const s = (p || '').toLowerCase();
+  if (s === 'urgent') return { bg: '#fee2e2', fg: '#b91c1c' };
+  if (s === 'high')   return { bg: '#fef3c7', fg: '#92400e' };
+  if (s === 'low')    return { bg: '#f1f5f9', fg: '#64748b' };
+  return { bg: '#e0f2fe', fg: '#075985' }; // Medium
+}
+
+function actStatusColor(s) {
+  const v = (s || '').toLowerCase();
+  if (v === 'done')        return { bg: '#dcfce7', fg: '#166534' };
+  if (v === 'blocked')     return { bg: '#fee2e2', fg: '#b91c1c' };
+  if (v === 'in progress') return { bg: '#fef3c7', fg: '#92400e' };
+  return { bg: '#e2e8f0', fg: '#475569' }; // Not Started
+}
+
+function actIsOverdue(r) {
+  if (!r.due_date || (r.status || '').toLowerCase() === 'done') return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return new Date(r.due_date) < today;
+}
+
+async function actLoad() {
+  const loading = document.getElementById('act-loading');
+  if (loading) loading.style.display = 'block';
+
+  await sharedCosLoad();
+
+  const { data, error } = await db.from('nr_actions').select('*').order('seq_no', { ascending: true });
+  if (loading) loading.style.display = 'none';
+
+  if (error) {
+    toast('Could not load actions: ' + error.message + ' — has nr_actions.sql been run in Supabase?');
+    actAll = [];
+  } else {
+    actAll = data || [];
+  }
+
+  actPopulateCompanySelect();
+  actPopulateOwnerFilter();
+  actUpdateStats();
+  actFilter();
+}
+
+function actPopulateCompanySelect() {
+  const sel = document.getElementById('act-f-company');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— None —</option>' + sharedCos.map(c => `<option value="${c.id}">${escH(c.name)}</option>`).join('');
+  if (current) sel.value = current;
+}
+
+function actPopulateOwnerFilter() {
+  const sel = document.getElementById('act-owner-filter');
+  if (!sel) return;
+  const current = sel.value;
+  const owners = [...new Set(actAll.map(r => r.owner).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="all">All owners</option>' + owners.map(o => `<option value="${escH(o)}">${escH(o)}</option>`).join('');
+  if (owners.includes(current)) sel.value = current;
+}
+
+function actUpdateStats() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('act-stat-total', actAll.length);
+  set('act-stat-notstarted', actAll.filter(r => (r.status || 'Not Started').toLowerCase() === 'not started').length);
+  set('act-stat-inprogress', actAll.filter(r => (r.status || '').toLowerCase() === 'in progress').length);
+  set('act-stat-overdue', actAll.filter(actIsOverdue).length);
+  set('act-stat-done', actAll.filter(r => (r.status || '').toLowerCase() === 'done').length);
+
+  const badge = document.getElementById('sb-actions-count');
+  if (badge) badge.textContent = actAll.filter(r => (r.status || '').toLowerCase() !== 'done').length || '0';
+}
+
+function actFilter() {
+  const q        = (document.getElementById('act-search')?.value || '').toLowerCase().trim();
+  const owner    = document.getElementById('act-owner-filter')?.value || 'all';
+  const priority = document.getElementById('act-priority-filter')?.value || 'all';
+  const status   = document.getElementById('act-status-filter')?.value || 'all';
+
+  actFiltered = actAll.filter(r => {
+    if (owner !== 'all' && r.owner !== owner) return false;
+    if (priority !== 'all' && r.priority !== priority) return false;
+    if (status !== 'all' && (r.status || 'Not Started') !== status) return false;
+    if (q) {
+      const hay = [r.title, r.description, r.company_name, r.category].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  actRender();
+}
+
+function actRender() {
+  const tbody = document.getElementById('act-tbody');
+  const empty = document.getElementById('act-empty');
+  const wrap  = document.getElementById('act-table-wrap');
+  if (!tbody) return;
+
+  if (!actFiltered.length) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    if (wrap) wrap.style.display = 'none';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (wrap) wrap.style.display = 'block';
+
+  tbody.innerHTML = actFiltered.map(r => {
+    const pc = actPriorityColor(r.priority);
+    const sc = actStatusColor(r.status);
+    const overdue = actIsOverdue(r);
+    const co = r.company_id ? sharedCos.find(c => c.id === r.company_id) : null;
+    const companyCell = co
+      ? `<span onclick="actOpenCompany('${co.id}')" title="Open in CRM" style="font-weight:600;color:var(--accent);cursor:pointer;text-decoration:underline">${escH(co.name)}</span>`
+      : (r.company_name ? `<span style="color:var(--navy)">${escH(r.company_name)}</span>` : `<span style="color:var(--muted)">—</span>`);
+
+    return `<tr style="border-bottom:1px solid var(--line)">
+      <td style="padding:7px 10px;color:var(--muted)">${r.seq_no ?? ''}</td>
+      <td style="padding:7px 10px">
+        <div style="font-weight:600;color:var(--navy);cursor:pointer" onclick="actShowEditModal('${r.id}')" title="Click to edit">${escH(r.title)}</div>
+        ${r.description ? `<div style="font-size:.72rem;color:var(--muted);margin-top:2px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(r.description)}</div>` : ''}
+      </td>
+      <td style="padding:7px 10px">${companyCell}</td>
+      <td style="padding:7px 10px">
+        <input value="${escH(r.category || '')}" onchange="actUpdateField('${r.id}','category',this.value)"
+          style="width:100%;border:1px solid transparent;background:transparent;font-size:.78rem;padding:2px 4px;border-radius:4px;box-sizing:border-box" onfocus="this.style.border='1px solid var(--line)'" onblur="this.style.border='1px solid transparent'">
+      </td>
+      <td style="padding:7px 10px">
+        <input value="${escH(r.owner || '')}" onchange="actUpdateField('${r.id}','owner',this.value)"
+          style="width:76px;border:1px solid transparent;background:transparent;font-size:.8rem;padding:2px 4px;border-radius:4px" onfocus="this.style.border='1px solid var(--line)'" onblur="this.style.border='1px solid transparent'">
+      </td>
+      <td style="padding:7px 10px">
+        <select onchange="actUpdateField('${r.id}','priority',this.value)"
+          style="width:100%;background:${pc.bg};color:${pc.fg};border:1px solid var(--line);border-radius:5px;padding:4px 6px;font-size:.76rem;font-weight:600;cursor:pointer;outline:none">
+          ${['Low','Medium','High','Urgent'].map(p => `<option value="${p}" ${((r.priority||'Medium')===p)?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:7px 10px">
+        <select onchange="actUpdateField('${r.id}','status',this.value)"
+          style="width:100%;background:${sc.bg};color:${sc.fg};border:1px solid var(--line);border-radius:5px;padding:4px 6px;font-size:.76rem;font-weight:600;cursor:pointer;outline:none">
+          ${['Not Started','In Progress','Blocked','Done'].map(s => `<option value="${s}" ${((r.status||'Not Started')===s)?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:7px 10px">
+        <input type="date" value="${r.due_date || ''}" onchange="actUpdateField('${r.id}','due_date',this.value)"
+          style="width:100%;border:1px solid ${overdue ? 'var(--red)' : 'var(--line)'};background:var(--wash);color:${overdue ? 'var(--red)' : 'var(--ink)'};font-weight:${overdue?'700':'400'};font-size:.76rem;padding:3px 5px;border-radius:4px;box-sizing:border-box">
+      </td>
+      <td style="padding:7px 10px;text-align:center">
+        ${r.url ? `<a href="${escH(r.url)}" target="_blank" rel="noopener" title="${escH(r.url)}" style="color:var(--accent);font-size:.85rem;text-decoration:none">🔗</a>` : '<span style="color:var(--muted)">—</span>'}
+      </td>
+      <td style="padding:7px 10px">
+        <button onclick="actDeleteRow('${r.id}','${escH(r.title).replace(/'/g, "\\'")}')" title="Delete action" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.85rem">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function actUpdateField(id, field, value) {
+  const { error } = await db.from('nr_actions').update({ [field]: value || null }).eq('id', id);
+  if (error) { toast('Error: ' + error.message); return; }
+  const row = actAll.find(r => r.id === id);
+  if (row) row[field] = value || null;
+  if (field === 'status' || field === 'due_date' || field === 'owner' || field === 'priority') {
+    actUpdateStats();
+    if (field === 'owner') actPopulateOwnerFilter();
+    actFilter();
+  }
+  toast('Saved');
+}
+
+function actOpenCompany(companyId) {
+  nav('companies');
+  setTimeout(() => {
+    coSearch('');
+    const el = document.getElementById('co-folder-' + companyId);
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); coToggle(companyId); }
+  }, 250);
+}
+
+async function actDeleteRow(id, title) {
+  if (!confirm(`Delete the action "${title}"?`)) return;
+  const { error } = await db.from('nr_actions').delete().eq('id', id);
+  if (error) { toast('Error: ' + error.message); return; }
+  actAll = actAll.filter(r => r.id !== id);
+  actUpdateStats();
+  actFilter();
+  toast('Action deleted');
+}
+
+function actShowAddModal() {
+  document.getElementById('act-edit-id').value = '';
+  document.getElementById('act-modal-title').textContent = 'Add Action';
+  ['act-f-title', 'act-f-desc', 'act-f-category', 'act-f-due', 'act-f-url'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('act-f-owner').value = (typeof currentUser === 'string' && currentUser) ? currentUser : '';
+  document.getElementById('act-f-company').value = '';
+  document.getElementById('act-f-priority').value = 'Medium';
+  document.getElementById('act-f-status').value = 'Not Started';
+  document.getElementById('act-modal-msg').textContent = '';
+  document.getElementById('act-modal').style.display = 'flex';
+}
+
+function actShowEditModal(id) {
+  const row = actAll.find(r => r.id === id);
+  if (!row) return;
+  document.getElementById('act-edit-id').value = row.id;
+  document.getElementById('act-modal-title').textContent = 'Edit Action';
+  document.getElementById('act-f-title').value = row.title || '';
+  document.getElementById('act-f-desc').value = row.description || '';
+  document.getElementById('act-f-company').value = row.company_id || '';
+  document.getElementById('act-f-category').value = row.category || '';
+  document.getElementById('act-f-owner').value = row.owner || '';
+  document.getElementById('act-f-priority').value = row.priority || 'Medium';
+  document.getElementById('act-f-status').value = row.status || 'Not Started';
+  document.getElementById('act-f-due').value = row.due_date || '';
+  document.getElementById('act-f-url').value = row.url || '';
+  document.getElementById('act-modal-msg').textContent = '';
+  document.getElementById('act-modal').style.display = 'flex';
+}
+
+async function actSaveModal() {
+  const id = document.getElementById('act-edit-id').value;
+  const title = document.getElementById('act-f-title').value.trim();
+  const msg = document.getElementById('act-modal-msg');
+  if (!title) { msg.textContent = 'Title is required.'; return; }
+
+  const companyId = document.getElementById('act-f-company').value || null;
+  const company = companyId ? sharedCos.find(c => c.id === companyId) : null;
+
+  const payload = {
+    title,
+    description: document.getElementById('act-f-desc').value.trim() || null,
+    company_id: companyId,
+    company_name: company ? company.name : null,
+    category: document.getElementById('act-f-category').value.trim() || null,
+    owner: document.getElementById('act-f-owner').value.trim() || null,
+    priority: document.getElementById('act-f-priority').value,
+    status: document.getElementById('act-f-status').value,
+    due_date: document.getElementById('act-f-due').value || null,
+    url: document.getElementById('act-f-url').value.trim() || null
+  };
+
+  if (id) {
+    const { error } = await db.from('nr_actions').update(payload).eq('id', id);
+    if (error) { msg.textContent = error.message; return; }
+  } else {
+    payload.seq_no = (Math.max(0, ...actAll.map(r => r.seq_no || 0)) + 1);
+    payload.created_by = (typeof currentUser === 'string' && currentUser) ? currentUser : null;
+    const { error } = await db.from('nr_actions').insert(payload);
+    if (error) { msg.textContent = error.message; return; }
+  }
+
+  document.getElementById('act-modal').style.display = 'none';
+  toast(id ? '✓ Action updated' : '✓ Action added');
+  actLoad();
 }
 
 // ═══════════════════════════════════════════════════════════
