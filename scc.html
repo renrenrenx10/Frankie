@@ -9,6 +9,8 @@
 <script src="js/token-monitor.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/pdfjs-dist@2.16.105/build/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@2.16.105/build/pdf.worker.min.js';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -605,6 +607,10 @@ button{cursor:pointer}
       <button class="sb-item" data-screen="pcv" onclick="nav('pcv')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
         <span class="sb-label">Programme Briefings</span>
+      </button>
+      <button class="sb-item" data-screen="safetymsg" onclick="nav('safetymsg')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+        <span class="sb-label">Safety Message Builder</span>
       </button>
       <button class="sb-item" data-screen="settings" onclick="nav('settings')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -1835,6 +1841,40 @@ button{cursor:pointer}
       </div>
     </div><!-- /screen-pcv -->
 
+    <!-- SAFETY MESSAGE BUILDER -->
+    <div class="screen" id="screen-safetymsg">
+      <div style="display:flex;flex-direction:column;gap:22px;max-width:900px">
+
+        <div style="background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:14px 16px;font-size:.82rem;color:var(--muted)">
+          Converts a Health, Safety &amp; Wellbeing PDF into slide images sized for the members-site Safety Messages viewer (2001&times;1125, matching the existing deck). Download each image below, drop it into <code>images/safety-messages/</code> in the website repo, paste the generated JSON into <code>safety-messages.json</code>, then commit and push as normal &mdash; this tool doesn't publish anything itself.
+        </div>
+
+        <div>
+          <div class="sec-heading" style="border-left:3px solid var(--accent);padding-left:10px">1. Upload the PDF</div>
+          <input type="file" id="sm-pdf-input" accept="application/pdf" onchange="smHandleFile(event)" style="margin-top:8px">
+          <div id="sm-status" style="font-size:.8rem;color:var(--muted);margin-top:8px"></div>
+        </div>
+
+        <div id="sm-results" style="display:none;flex-direction:column;gap:20px">
+          <div class="sec-heading" style="border-left:3px solid var(--accent);padding-left:10px">2. Review &amp; label each slide</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <label style="font-size:.78rem;font-weight:600">Start numbering at slide</label>
+            <input id="sm-start-num" type="number" min="1" value="17" style="width:80px;border:1px solid var(--line);border-radius:5px;padding:6px 8px;font-size:.85rem" onchange="smRenumber()">
+            <span style="font-size:.76rem;color:var(--muted)">&mdash; check the last slide number already in safety-messages.json and set this one higher</span>
+          </div>
+          <div id="sm-slides" style="display:flex;flex-direction:column;gap:14px"></div>
+        </div>
+
+        <div id="sm-json-block" style="display:none;flex-direction:column;gap:10px">
+          <div class="sec-heading" style="border-left:3px solid var(--accent);padding-left:10px">3. Paste into safety-messages.json</div>
+          <p style="font-size:.8rem;color:var(--muted)">Add a comma after the last existing slide line, then paste this block before the closing <code>]</code>.</p>
+          <textarea id="sm-json-out" rows="6" readonly style="width:100%;box-sizing:border-box;font-family:'SFMono-Regular',Consolas,monospace;font-size:.8rem;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--wash)"></textarea>
+          <button class="btn" style="align-self:flex-start" onclick="smCopyJson()">Copy JSON</button>
+        </div>
+
+      </div>
+    </div><!-- /screen-safetymsg -->
+
 
     <!-- F4N CERTIFICATE GENERATOR -->
     <div class="screen" id="screen-certgen">
@@ -2383,7 +2423,8 @@ const TOPBAR = {
   certgen:     {title:'F4N Certificate Generator', sub:'Issue F4N Granted Status certificates', actions:`<button class="tb-btn primary" onclick="certDownload()">&#11015; Download PDF</button>`},
   timesink:     {title:'TimeSink', sub:'Log time and expenses against your projects', actions:`<button class="tb-btn" onclick="document.getElementById('frm-timesink').src=document.getElementById('frm-timesink').src">↻ Refresh</button>`},
   controlcentre: {title:'Control Centre', sub:'Project delivery, budgets and the sales pipeline', actions:`<button class="tb-btn" onclick="document.getElementById('frm-controlcentre').src=document.getElementById('frm-controlcentre').src">↻ Refresh</button>`},
-  mailmerge: {title:'Mail Merge', sub:'Send templated emails to a segment of members — lands in Outlook Drafts for review before sending', actions:''}
+  mailmerge: {title:'Mail Merge', sub:'Send templated emails to a segment of members — lands in Outlook Drafts for review before sending', actions:''},
+  safetymsg: {title:'Safety Message Builder', sub:'Turn a Health, Safety & Wellbeing PDF into slide images for the members-site viewer', actions:''}
 };
 
 // ── Navigation history (real back-stack, not just a single "previous screen") ──
@@ -7073,6 +7114,95 @@ async function fjPublishCaseStudy() {
     document.getElementById('fj-cs-status').textContent = '⚠ Publish failed: ' + e.message;
     toast('Publish failed: ' + e.message);
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SAFETY MESSAGE BUILDER — PDF to member-site slide images (formatting only; you push manually)
+// ═════════════════════════════════════════════════════
+let smSlides = []; // { canvas, label }
+
+function smHandleFile(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('sm-status');
+  status.textContent = 'Rendering…';
+  smSlides = [];
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(reader.result) }).promise;
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const targetW = 2001, targetH = 1125;
+        const baseViewport = page.getViewport({ scale: 1 });
+        const scale = Math.max(targetW / baseViewport.width, targetH / baseViewport.height) * 2;
+        const viewport = page.getViewport({ scale });
+        const renderCanvas = document.createElement('canvas');
+        renderCanvas.width = viewport.width;
+        renderCanvas.height = viewport.height;
+        await page.render({ canvasContext: renderCanvas.getContext('2d'), viewport }).promise;
+
+        const outCanvas = document.createElement('canvas');
+        outCanvas.width = targetW;
+        outCanvas.height = targetH;
+        outCanvas.getContext('2d').drawImage(renderCanvas, 0, 0, renderCanvas.width, renderCanvas.height, 0, 0, targetW, targetH);
+
+        smSlides.push({ canvas: outCanvas, label: '' });
+      }
+      status.textContent = `Rendered ${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'}.`;
+      smRenumber();
+    } catch (e) {
+      status.textContent = 'Could not read PDF: ' + e.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function smRenumber() {
+  if (!smSlides.length) return;
+  const start = parseInt(document.getElementById('sm-start-num').value, 10) || 1;
+  const list = document.getElementById('sm-slides');
+  document.getElementById('sm-results').style.display = 'flex';
+  document.getElementById('sm-json-block').style.display = 'flex';
+  list.innerHTML = smSlides.map((s, i) => {
+    const num = start + i;
+    const fname = 'slide-' + String(num).padStart(2, '0') + '.png';
+    return `<div style="display:flex;gap:14px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--surface,#fff)">
+      <img src="${s.canvas.toDataURL('image/png')}" style="width:180px;border-radius:4px;border:1px solid var(--line)">
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:.78rem;color:var(--muted)">${fname}</div>
+        <input type="text" placeholder="Label (e.g. September: Look After Your Heart)" value="${(s.label||'').replace(/"/g,'&quot;')}"
+          oninput="smSlides[${i}].label=this.value; smUpdateJson()"
+          style="border:1px solid var(--line);border-radius:5px;padding:7px 9px;font-size:.85rem">
+        <button class="btn" style="align-self:flex-start" onclick="smDownload(${i}, '${fname}')">&#11015; Download ${fname}</button>
+      </div>
+    </div>`;
+  }).join('');
+  smUpdateJson();
+}
+
+function smDownload(i, fname) {
+  const a = document.createElement('a');
+  a.href = smSlides[i].canvas.toDataURL('image/png');
+  a.download = fname;
+  a.click();
+}
+
+function smUpdateJson() {
+  const start = parseInt(document.getElementById('sm-start-num').value, 10) || 1;
+  const lines = smSlides.map((s, i) => {
+    const num = start + i;
+    const fname = 'slide-' + String(num).padStart(2, '0') + '.png';
+    const label = (s.label || 'Untitled').replace(/"/g, '\\"');
+    return `    { "img": "images/safety-messages/${fname}", "label": "${label}" }`;
+  });
+  document.getElementById('sm-json-out').value = lines.join(',\n');
+}
+
+function smCopyJson() {
+  const el = document.getElementById('sm-json-out');
+  el.select();
+  navigator.clipboard.writeText(el.value).then(() => toast('JSON copied')).catch(() => document.execCommand('copy'));
 }
 
 // Takes a live case study back down: removes it from the public case-studies
