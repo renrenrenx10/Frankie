@@ -476,7 +476,17 @@ function parseRSS(xmlText, feed, seenUrls) {
 
 // Brave search — routed through corsproxy.io so it works from localhost
 async function braveSearch(query, braveKey, count) {
-  const targetUrl = 'https://api.search.brave.com/res/v1/web/search?q=' + encodeURIComponent(query) + '&count=' + (count||10);
+  const q = encodeURIComponent(query);
+  if (hasStaffSession() && typeof SCC_WORKER !== 'undefined') {
+    const res = await fetch(SCC_WORKER + '/brave/res/v1/web/search?q=' + q + '&count=' + (count||10), {
+      headers: { Authorization: 'Bearer ' + sccSession.access_token },
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!res.ok) throw new Error('Brave HTTP ' + res.status);
+    return res.json();
+  }
+  // Signed-out fallback — best-effort only, see note above.
+  const targetUrl = 'https://api.search.brave.com/res/v1/web/search?q=' + q + '&count=' + (count||10);
   const res = await fetch(proxied(targetUrl), {
     headers: {
       'X-Subscription-Token': braveKey,
@@ -717,7 +727,7 @@ const BRAVE_TENDER_SOURCES = [
 ];
 
 async function fetchExternalTenderPortals(braveKey, seenTenders, newTenders) {
-  if (!braveKey) { scraperLog('  ℹ External portals (eTendersNI/MOD DCO/Delta/In-tend) skipped — add Brave key in Settings','warn'); return; }
+  if (!hasStaffSession() && !braveKey) { scraperLog('  ℹ External portals (eTendersNI/MOD DCO/Delta/In-tend) skipped — sign in or add a Brave key in Settings','warn'); return; }
   // Deliberately skip 'Nuclear' terms here — Sellafield/Hinkley/Sizewell etc. are
   // nuclear-specific and above-threshold nuclear notices from anywhere in the UK
   // already come through CF. What these portals actually add is local/
@@ -785,8 +795,8 @@ async function runScraper() {
       } catch(e) { scraperLog('  ✗ '+feed.source+': '+e.message,'warn'); }
     }
 
-    // ── 2. BRAVE-SOURCED NEWS (proxied) ───────────────────────────────────────
-    if (braveKey) {
+    // ── 2. BRAVE-SOURCED NEWS (via Worker when signed in, else proxied) ───────
+    if (hasStaffSession() || braveKey) {
       scraperLog('🔍 Fetching no-RSS sources via Brave…', 'brave');
       for (const src of BRAVE_NEWS_SOURCES) {
         const isNuccol = src.blob === 'nuccol';
@@ -809,7 +819,7 @@ async function runScraper() {
         } catch(e) { scraperLog('  ✗ '+src.source+' [Brave]: '+e.message,'warn'); }
       }
     } else {
-      scraperLog('  ℹ No-RSS sources skipped — add Brave key in Settings to include ONR, GBE, RR SMR etc.','warn');
+      scraperLog('  ℹ No-RSS sources skipped — sign in or add a Brave key in Settings to include ONR, GBE, RR SMR etc.','warn');
     }
 
     if (hasStaffSession() && (newNews.some(i => !i.region) || newNuccol.some(i => !i.region))) {
@@ -954,9 +964,9 @@ async function runScraper() {
     }
     scraperLog('📋 Tenders done — '+nTenders+' new');
 
-    // ── 4. EVENTS — Brave via proxy + Groq ────────────────────────────────────
-    if (!braveKey) {
-      scraperLog('📅 Events skipped — add Brave key in Settings below','warn');
+    // ── 4. EVENTS — Brave via Worker/proxy + Groq ─────────────────────────────
+    if (!hasStaffSession() && !braveKey) {
+      scraperLog('📅 Events skipped — sign in or add a Brave key in Settings below','warn');
     } else if (proxyRateLimited) {
       scraperLog('  ℹ Events skipped — proxy rate-limited this run','warn');
     } else {
