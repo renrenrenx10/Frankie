@@ -3801,6 +3801,14 @@ const BLOB_FILES = {
   pcv:     'programme-country-view.json'
 };
 
+// Coarse UK / Europe / Rest of World geography tag (scraper.js: detectRegion()
+// + Groq fallback). Shared by the Content Editor badge and the newsletter
+// section headings below.
+const REGION_COLORS = { 'UK': '#199BD8', 'Europe': '#7B2D8B', 'Rest of World': '#555555' };
+function regionBadge(region) {
+  return region ? `<span class="ci-tag" style="background:${REGION_COLORS[region]||'#555'};border-color:transparent;color:#fff">${escH(region)}</span>` : '';
+}
+
 // In-memory store for all content types
 const contentStore = { news:[], events:[], tenders:[], nuccol:[], webinars:[] };
 const contentLoaded = { news:false, events:false, tenders:false, nuccol:false, webinars:false };
@@ -3882,7 +3890,7 @@ function renderItem(type, item, idx) {
     </div>
     <div class="ci-body">
       <div class="ci-title">${item.url ? `<a href="${escH(item.url)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">${escH(title)}</a>` : escH(title)}</div>
-      <div class="ci-meta">${meta}${tag ? `<span class="${tagCls}">${escH(tag)}</span>` : ''}</div>
+      <div class="ci-meta">${meta}${tag ? `<span class="${tagCls}">${escH(tag)}</span>` : ''}${regionBadge(item.region)}</div>
     </div>
     <div class="ci-actions">
       <button class="ci-btn" onclick="editContentItem('${type}',${idx})">Edit</button>
@@ -4030,10 +4038,10 @@ function deleteContentItem(type, idx) {
 
 function addContentItem(type) {
   const typeDefaults = {
-    news:     { title:'', url:'', date:'', source:'', category:'', selected:false, members:false },
+    news:     { title:'', url:'', date:'', source:'', category:'', region:'', selected:false, members:false },
     events:   { title:'', url:'', date:'', location:'', organiser:'', eventType:'', selected:false, members:false },
     tenders:  { title:'', url:'', date:'', source:'', sector:'', selected:false, members:false },
-    nuccol:   { title:'', url:'', date:'', source:'', category:'', selected:false, members:false },
+    nuccol:   { title:'', url:'', date:'', source:'', category:'', region:'', selected:false, members:false },
     webinars: { title:'', url:'', date:'', organiser:'', description:'', selected:false, members:false },
   };
   const item = { ...typeDefaults[type], id: Date.now() };
@@ -4128,6 +4136,22 @@ const NL_SECTION_LABELS = {
 function nlSectionBand(label) {
   return `<tr><td style="background:${NL_ACCENT};padding:9px 30px">
     <span style="color:#ffffff;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:.75px">${escH(label)}</span>
+  </td></tr>`;
+}
+
+// Sub-heading inside the News section grouping stories by region (UK /
+// Europe / Rest of World / Other) — smaller and secondary to the main
+// coloured section band above, so the two levels stay visually distinct.
+const NL_REGION_ORDER = ['UK', 'Europe', 'Rest of World'];
+function groupNewsByRegion(items) {
+  const groups = NL_REGION_ORDER.map(region => ({ region, items: items.filter(i => i.region === region) }));
+  const other = items.filter(i => !NL_REGION_ORDER.includes(i.region));
+  if (other.length) groups.push({ region: 'Other', items: other });
+  return groups.filter(g => g.items.length);
+}
+function nlRegionHeading(label) {
+  return `<tr><td style="padding:12px 30px 0 30px">
+    <span style="display:inline-block;font-family:Arial,sans-serif;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;color:${NL_ACCENT};border-bottom:2px solid ${NL_ACCENT};padding-bottom:3px">${escH(label)}</span>
   </td></tr>`;
 }
 
@@ -4237,7 +4261,12 @@ function buildNewsletterPreview() {
   for (const { type, items } of bySection) {
     if (!items.length) continue;
     sectionsHtml += nlSectionBand(NL_SECTION_LABELS[type] || type);
-    if (type === 'news')    sectionsHtml += nlNewsGrid(items);
+    if (type === 'news') {
+      for (const g of groupNewsByRegion(items)) {
+        sectionsHtml += nlRegionHeading(g.region);
+        sectionsHtml += nlNewsGrid(g.items);
+      }
+    }
     else if (type === 'events')  items.forEach(i => sectionsHtml += nlEventCard(i));
     else if (type === 'tenders') items.forEach(i => sectionsHtml += nlTenderCard(i));
     else                          items.forEach(i => sectionsHtml += nlGenericCard(i));

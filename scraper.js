@@ -83,6 +83,96 @@ const ENERGY_KW = [
   'rolls-royce','great british energy','radioactive','electrolys','desnz','onr'
 ];
 
+// ── REGION DETECTION ─────────────────────────────────────────────────────
+// Coarse three-bucket geography (added 2026-09-08) for the Content Editor
+// badge / newsletter grouping / members-site filter — deliberately NOT full
+// country tagging. Checked against the title+summary text itself (not the
+// feed's publisher), so a UK trade-press outlet covering a French EPR still
+// tags Europe. Short/ambiguous tokens (uk, us, eu, edf, onr, hse, nda, cgn,
+// uae) are matched on word boundaries so they don't fire inside ordinary
+// words; longer terms use plain substring matching.
+function hasTerm(t, term) {
+  if (term.length <= 3) return new RegExp('\\b' + term + '\\b', 'i').test(t);
+  return t.includes(term);
+}
+
+const REGION_TERMS = {
+  'UK': [
+    'uk','united kingdom','britain','british','england','scotland','wales',
+    'northern ireland','sellafield','hinkley point','hinkley','sizewell',
+    'rolls-royce smr','rolls-royce','onr','desnz','hse','nda',
+    'great british energy','gb energy','wylfa','moorside','urenco','magnox',
+    'torness','heysham','hunterston','dungeness','whitehall','westminster'
+  ],
+  'Europe': [
+    'france','french','edf','framatome','orano','flamanville','germany','german',
+    'finland','finnish','olkiluoto','fennovoima','poland','polish','sweden',
+    'swedish','vattenfall','netherlands','dutch','belgium','belgian','doel',
+    'tihange','czech','slovakia','hungary','paks','romania','cernavoda','spain',
+    'spanish','italy','italian','ukraine','ukrainian','zaporizhzhia','switzerland',
+    'swiss','norway','norwegian','eu','european union','brussels'
+  ],
+  'Rest of World': [
+    'united states','u.s.','usa','america','american','westinghouse','nuscale',
+    'terrapower','x-energy','china','chinese','cnnc','cgn','japan','japanese',
+    'tepco','fukushima','south korea','korean','kepco','khnp','india','indian',
+    'canada','canadian','bruce power','russia','russian','rosatom','middle east',
+    'uae','barakah','saudi','egypt','el dabaa','turkey','akkuyu','australia',
+    'australian'
+  ]
+};
+const REGION_ORDER = ['UK','Europe','Rest of World'];
+
+function detectRegion(text) {
+  const t = ' ' + String(text).toLowerCase() + ' ';
+  for (const region of REGION_ORDER) {
+    if (REGION_TERMS[region].some(term => hasTerm(t, term))) return region;
+  }
+  return null;
+}
+
+// detectRegion() above is free/instant but leaves plenty of items untagged
+// (no unambiguous place-name signal in the headline/summary). Anything it
+// misses gets swept into one batched Groq call per chunk here — only when a
+// Groq key is configured in Settings. No key = those items just keep
+// region:null and stay editable by hand in the Content Editor (the edit
+// modal renders whatever fields exist on the item, so no extra UI needed).
+async function classifyRegionsWithGroq(items, groqKey) {
+  const todo = items.filter(i => !i.region);
+  if (!todo.length || !groqKey) return;
+  const CHUNK = 25;
+  for (let c = 0; c < todo.length; c += CHUNK) {
+    const chunk = todo.slice(c, c + CHUNK);
+    const list = chunk.map((i, idx) => `${idx}: ${i.title} — ${(i.summary||'').slice(0,160)}`).join('\n');
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method:'POST',
+        headers:{'Authorization':'Bearer '+groqKey,'Content-Type':'application/json'},
+        body:JSON.stringify({
+          model:'llama-3.3-70b-versatile',
+          messages:[{role:'user', content:
+            'For each numbered news headline below, decide which region it primarily relates to: ' +
+            '"UK", "Europe" (non-UK), or "Rest of World". Reply with ONLY a JSON object mapping ' +
+            'each number to one of those three exact strings, nothing else.\n\n' + list}],
+          max_tokens: 800
+        }),
+        signal: AbortSignal.timeout(20000)
+      });
+      if (!res.ok) { scraperLog('  ✗ Region classify: HTTP '+res.status, 'warn'); continue; }
+      const data = await res.json();
+      const m = (data.choices?.[0]?.message?.content || '').match(/\{[\s\S]*\}/);
+      if (!m) continue;
+      const map = JSON.parse(m[0]);
+      let tagged = 0;
+      chunk.forEach((item, idx) => {
+        const region = map[idx] ?? map[String(idx)];
+        if (REGION_ORDER.includes(region)) { item.region = region; tagged++; }
+      });
+      scraperLog('  🌍 Region-tagged '+tagged+'/'+chunk.length+' via Groq');
+    } catch (e) { scraperLog('  ✗ Region classify: '+e.message, 'warn'); }
+  }
+}
+
 const TENDER_SEARCHES = {
   // NOTE: each term here = one POST request for Contracts Finder per scraper
   // run (now routed through the gated Worker when signed in — see cfFetch —
@@ -313,7 +403,7 @@ function parseRSS(xmlText, feed, seenUrls) {
     const cat = feed.filter ? autoCateg(title + ' ' + sum) : feed.cat;
     if (!cat) continue;
     results.push({ title:title.slice(0,255), url, source:feed.source,
-      summary:sum.slice(0,500), category:cat,
+      summary:sum.slice(0,500), category:cat, region:detectRegion(title + ' ' + sum),
       date:safeDate(pub), scraped_at:new Date().toISOString() });
     seenUrls.add(url);
   }
@@ -642,6 +732,7 @@ async function runScraper() {
             if (seen.has(r.url)) continue;
             const item = { title:cleanText(r.title).slice(0,255), url:r.url, source:src.source,
               summary:cleanText(r.description).slice(0,500), category:src.cat,
+              region:detectRegion(cleanText(r.title) + ' ' + cleanText(r.description)),
               date:safeDate(r.page_age), scraped_at:new Date().toISOString() };
             if (isNuccol) { newNuccol.push(item); seenNuccol.add(r.url); }
             else          { newNews.push(item);   seenNews.add(r.url); }
@@ -653,6 +744,12 @@ async function runScraper() {
       }
     } else {
       scraperLog('  ℹ No-RSS sources skipped — add Brave key in Settings to include ONR, GBE, RR SMR etc.','warn');
+    }
+
+    if (groqKey && (newNews.some(i => !i.region) || newNuccol.some(i => !i.region))) {
+      scraperLog('🌍 Region — classifying items with no keyword match via Groq…');
+      await classifyRegionsWithGroq(newNews, groqKey);
+      await classifyRegionsWithGroq(newNuccol, groqKey);
     }
 
     if (newNews.length)   { const merged = [...exNews, ...newNews];     await saveBlob('news.json',        merged); if (typeof contentStore !== 'undefined') { contentStore['news']   = merged;   if (typeof contentLoaded !== 'undefined') contentLoaded['news']   = true; }   nNews=newNews.length; }
