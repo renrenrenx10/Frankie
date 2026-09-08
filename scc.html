@@ -3631,7 +3631,7 @@ async function groqCall(prompt, statusEl, spinnerId) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...blobAuthHeaders() },
       body: JSON.stringify({
-        model: localStorage.getItem('frankieGroqModel') || 'llama-3.3-70b-versatile',
+        model: localStorage.getItem('frankieGroqModel') || 'openai/gpt-oss-120b',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.4,
         max_tokens: 800
@@ -3642,7 +3642,7 @@ async function groqCall(prompt, statusEl, spinnerId) {
     document.getElementById(spinnerId).style.display = 'none';
     // Log token usage
     if (data.usage) {
-      window.TM?.log({ api: 'groq', model: data.model || (localStorage.getItem('frankieGroqModel') || 'llama-3.3-70b-versatile'), prompt_tokens: data.usage.prompt_tokens || 0, completion_tokens: data.usage.completion_tokens || 0, source: 'scc', note: 'assessment' });
+      window.TM?.log({ api: 'groq', model: data.model || (localStorage.getItem('frankieGroqModel') || 'openai/gpt-oss-120b'), prompt_tokens: data.usage.prompt_tokens || 0, completion_tokens: data.usage.completion_tokens || 0, source: 'scc', note: 'assessment' });
     }
     return data.choices?.[0]?.message?.content || '';
   } catch(e) {

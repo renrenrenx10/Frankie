@@ -46,6 +46,32 @@ function rssUrl(feedUrl) {
   return { url: proxied(feedUrl), headers: {} };
 }
 
+// Groq access is gated by the staff Supabase session and proxied through
+// SCC_WORKER's /groq route — same pattern as scc.html's groqCall() for the
+// report generator. The Groq API key lives server-side in the Worker; it's
+// never held or sent from the browser, so there's no client-side key to
+// configure in Settings. Signed-out visitors simply get no AI enrichment —
+// scraperGroqCall() returns null and every caller here already treats that
+// as "skip, keep going" rather than as an error.
+async function scraperGroqCall(prompt, maxTokens) {
+  if (!hasStaffSession() || typeof SCC_WORKER === 'undefined') return null;
+  try {
+    const res = await fetch(SCC_WORKER + '/groq/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sccSession.access_token },
+      body: JSON.stringify({
+        model: (typeof localStorage !== 'undefined' && localStorage.getItem('frankieGroqModel')) || 'openai/gpt-oss-120b',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens || 800
+      }),
+      signal: AbortSignal.timeout(20000)
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || '';
+  } catch (e) { return null; }
+}
+
 // ── RSS FEED LIST ──────────────────────────────────────────────────────────────
 // rss.app feeds removed (return 402 — paywalled). Sources without direct RSS
 // are fetched via Brave Search (also routed through the proxy).
@@ -96,6 +122,29 @@ function hasTerm(t, term) {
   return t.includes(term);
 }
 
+// A handful of feeds are single-purpose enough that the source alone
+// settles it, regardless of what the headline/summary says — e.g. every
+// HSE press release is UK Health & Safety Executive business by
+// definition. Checked before any keyword matching.
+const SOURCE_REGION_OVERRIDES = {
+  'HSE': 'UK', 'Sizewell C': 'UK', 'ONR': 'UK',
+  'Great British Energy': 'UK', 'Rolls-Royce SMR': 'UK', 'NucCol LinkedIn': 'UK'
+};
+
+// US state names — energy/wind trade press headlines routinely name a
+// state with no "US"/"United States" wording at all ("Wyoming approves
+// 650MW..."), which is otherwise invisible to this gazetteer.
+const US_STATES = [
+  'alabama','alaska','arizona','arkansas','california','colorado','connecticut',
+  'delaware','florida','georgia','hawaii','idaho','illinois','indiana','iowa',
+  'kansas','kentucky','louisiana','maine','maryland','massachusetts','michigan',
+  'minnesota','mississippi','missouri','montana','nebraska','nevada',
+  'new hampshire','new jersey','new mexico','new york','north carolina',
+  'north dakota','ohio','oklahoma','oregon','pennsylvania','rhode island',
+  'south carolina','south dakota','tennessee','texas','utah','vermont',
+  'virginia','washington','west virginia','wisconsin','wyoming'
+];
+
 const REGION_TERMS = {
   'UK': [
     'uk','united kingdom','britain','british','england','scotland','wales',
@@ -105,9 +154,9 @@ const REGION_TERMS = {
     'torness','heysham','hunterston','dungeness','whitehall','westminster'
   ],
   'Europe': [
-    'france','french','edf','framatome','orano','flamanville','germany','german',
-    'finland','finnish','olkiluoto','fennovoima','poland','polish','sweden',
-    'swedish','vattenfall','netherlands','dutch','belgium','belgian','doel',
+    'europe','european','france','french','edf','framatome','orano','flamanville',
+    'germany','german','finland','finnish','olkiluoto','fennovoima','poland','polish',
+    'sweden','swedish','vattenfall','netherlands','dutch','belgium','belgian','doel',
     'tihange','czech','slovakia','hungary','paks','romania','cernavoda','spain',
     'spanish','italy','italian','ukraine','ukrainian','zaporizhzhia','switzerland',
     'swiss','norway','norwegian','eu','european union','brussels'
@@ -118,17 +167,40 @@ const REGION_TERMS = {
     'tepco','fukushima','south korea','korean','kepco','khnp','india','indian',
     'canada','canadian','bruce power','russia','russian','rosatom','middle east',
     'uae','barakah','saudi','egypt','el dabaa','turkey','akkuyu','australia',
-    'australian'
+    'australian','asia','asia-pacific','apac',
+    ...US_STATES
   ]
 };
 const REGION_ORDER = ['UK','Europe','Rest of World'];
 
-function detectRegion(text) {
-  const t = ' ' + String(text).toLowerCase() + ' ';
-  for (const region of REGION_ORDER) {
-    if (REGION_TERMS[region].some(term => hasTerm(t, term))) return region;
-  }
-  return null;
+function regionScores(t) {
+  const scores = {};
+  for (const region of REGION_ORDER) scores[region] = REGION_TERMS[region].filter(term => hasTerm(t, term)).length;
+  return scores;
+}
+
+// Title signal wins outright when it unambiguously names one region — a
+// dateline/place name in the headline beats a company-nationality mention
+// buried in the summary (RWE described as "the German utility" in the body
+// text of a story about a *California* lease exit is a US story, not a
+// European one). Only when the title itself is ambiguous or silent do we
+// fall back to scoring the full text, and a genuine tie there (a round-up
+// spanning two regions) is left null rather than guessed — the Groq
+// fallback or manual tagging in the Content Editor handles those.
+function detectRegion(title, summary, source) {
+  if (source && SOURCE_REGION_OVERRIDES[source]) return SOURCE_REGION_OVERRIDES[source];
+
+  const titleText = ' ' + String(title||'').toLowerCase() + ' ';
+  const titleScores = regionScores(titleText);
+  const titleHits = REGION_ORDER.filter(r => titleScores[r] > 0);
+  if (titleHits.length === 1) return titleHits[0];
+
+  const fullText = titleText + String(summary||'').toLowerCase() + ' ';
+  const fullScores = regionScores(fullText);
+  const maxScore = Math.max(...REGION_ORDER.map(r => fullScores[r]));
+  if (maxScore === 0) return null;
+  const winners = REGION_ORDER.filter(r => fullScores[r] === maxScore);
+  return winners.length === 1 ? winners[0] : null;
 }
 
 // detectRegion() above is free/instant but leaves plenty of items untagged
@@ -137,30 +209,22 @@ function detectRegion(text) {
 // Groq key is configured in Settings. No key = those items just keep
 // region:null and stay editable by hand in the Content Editor (the edit
 // modal renders whatever fields exist on the item, so no extra UI needed).
-async function classifyRegionsWithGroq(items, groqKey) {
+async function classifyRegionsWithGroq(items) {
   const todo = items.filter(i => !i.region);
-  if (!todo.length || !groqKey) return;
+  if (!todo.length) return;
   const CHUNK = 25;
   for (let c = 0; c < todo.length; c += CHUNK) {
     const chunk = todo.slice(c, c + CHUNK);
     const list = chunk.map((i, idx) => `${idx}: ${i.title} — ${(i.summary||'').slice(0,160)}`).join('\n');
     try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method:'POST',
-        headers:{'Authorization':'Bearer '+groqKey,'Content-Type':'application/json'},
-        body:JSON.stringify({
-          model:'llama-3.3-70b-versatile',
-          messages:[{role:'user', content:
-            'For each numbered news headline below, decide which region it primarily relates to: ' +
-            '"UK", "Europe" (non-UK), or "Rest of World". Reply with ONLY a JSON object mapping ' +
-            'each number to one of those three exact strings, nothing else.\n\n' + list}],
-          max_tokens: 800
-        }),
-        signal: AbortSignal.timeout(20000)
-      });
-      if (!res.ok) { scraperLog('  ✗ Region classify: HTTP '+res.status, 'warn'); continue; }
-      const data = await res.json();
-      const m = (data.choices?.[0]?.message?.content || '').match(/\{[\s\S]*\}/);
+      const content = await scraperGroqCall(
+        'For each numbered news headline below, decide which region it primarily relates to: ' +
+        '"UK", "Europe" (non-UK), or "Rest of World". Reply with ONLY a JSON object mapping ' +
+        'each number to one of those three exact strings, nothing else.\n\n' + list,
+        800
+      );
+      if (!content) { scraperLog('  ✗ Region classify: no response from Groq worker', 'warn'); continue; }
+      const m = content.match(/\{[\s\S]*\}/);
       if (!m) continue;
       const map = JSON.parse(m[0]);
       let tagged = 0;
@@ -403,7 +467,7 @@ function parseRSS(xmlText, feed, seenUrls) {
     const cat = feed.filter ? autoCateg(title + ' ' + sum) : feed.cat;
     if (!cat) continue;
     results.push({ title:title.slice(0,255), url, source:feed.source,
-      summary:sum.slice(0,500), category:cat, region:detectRegion(title + ' ' + sum),
+      summary:sum.slice(0,500), category:cat, region:detectRegion(title, sum, feed.source),
       date:safeDate(pub), scraped_at:new Date().toISOString() });
     seenUrls.add(url);
   }
@@ -696,7 +760,9 @@ async function runScraper() {
   document.getElementById('scraper-stats').innerHTML = '';
 
   const braveKey = localStorage.getItem('frankieBraveKey');
-  const groqKey  = localStorage.getItem('frankieGroqKey');
+  // Groq itself needs no client-side key — see scraperGroqCall(): it's
+  // gated on the signed-in staff session and proxied through SCC_WORKER,
+  // same as everywhere else Groq is used in scc.html.
   let nNews=0, nNuccol=0, nEvents=0, nTenders=0;
 
   try {
@@ -732,7 +798,7 @@ async function runScraper() {
             if (seen.has(r.url)) continue;
             const item = { title:cleanText(r.title).slice(0,255), url:r.url, source:src.source,
               summary:cleanText(r.description).slice(0,500), category:src.cat,
-              region:detectRegion(cleanText(r.title) + ' ' + cleanText(r.description)),
+              region:detectRegion(cleanText(r.title), cleanText(r.description), src.source),
               date:safeDate(r.page_age), scraped_at:new Date().toISOString() };
             if (isNuccol) { newNuccol.push(item); seenNuccol.add(r.url); }
             else          { newNews.push(item);   seenNews.add(r.url); }
@@ -746,10 +812,10 @@ async function runScraper() {
       scraperLog('  ℹ No-RSS sources skipped — add Brave key in Settings to include ONR, GBE, RR SMR etc.','warn');
     }
 
-    if (groqKey && (newNews.some(i => !i.region) || newNuccol.some(i => !i.region))) {
+    if (hasStaffSession() && (newNews.some(i => !i.region) || newNuccol.some(i => !i.region))) {
       scraperLog('🌍 Region — classifying items with no keyword match via Groq…');
-      await classifyRegionsWithGroq(newNews, groqKey);
-      await classifyRegionsWithGroq(newNuccol, groqKey);
+      await classifyRegionsWithGroq(newNews);
+      await classifyRegionsWithGroq(newNuccol);
     }
 
     if (newNews.length)   { const merged = [...exNews, ...newNews];     await saveBlob('news.json',        merged); if (typeof contentStore !== 'undefined') { contentStore['news']   = merged;   if (typeof contentLoaded !== 'undefined') contentLoaded['news']   = true; }   nNews=newNews.length; }
@@ -908,17 +974,11 @@ async function runScraper() {
             let ev = {title:cleanText(r.title).slice(0,255), url:r.url, description:cleanText(r.description).slice(0,500),
               category:cat, event_date:'', location:'', event_type:'In Person',
               organiser:'', scraped_at:new Date().toISOString()};
-            if (groqKey) {
+            if (hasStaffSession()) {
               try {
-                const gr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                  method:'POST',
-                  headers:{'Authorization':'Bearer '+groqKey,'Content-Type':'application/json'},
-                  body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'user',content:'Extract event details as JSON {title,description,event_date,location,event_type,organiser} from:\nTitle: '+r.title+'\nSnippet: '+(r.description||'')+'\nReturn ONLY valid JSON.'}],max_tokens:300}),
-                  signal:AbortSignal.timeout(15000)
-                });
-                if (gr.ok) {
-                  const gd=await gr.json();
-                  const m=(gd.choices?.[0]?.message?.content||'').match(/\{[\s\S]*\}/);
+                const content = await scraperGroqCall('Extract event details as JSON {title,description,event_date,location,event_type,organiser} from:\nTitle: '+r.title+'\nSnippet: '+(r.description||'')+'\nReturn ONLY valid JSON.', 300);
+                if (content) {
+                  const m=content.match(/\{[\s\S]*\}/);
                   if (m) { try { const p=JSON.parse(m[0]); Object.assign(ev,{title:cleanText(p.title||ev.title).slice(0,255),description:cleanText(p.description||ev.description).slice(0,500),event_date:p.event_date||'',location:cleanText(p.location||''),event_type:p.event_type||'In Person',organiser:cleanText(p.organiser||'')}); } catch(pe){} }
                 }
               } catch(ge) { /* Groq optional */ }
