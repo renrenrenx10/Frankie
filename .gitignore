@@ -38,6 +38,15 @@ desktop.ini
 # Scratch/temp folders used while drafting
 New folder/
 
+# Local-only reference data — needed on this machine, not pushed to GitHub
+cpv/
+Reactor_Master_Files/
+Frankie with rail/
+nr_actions.sql
+nr_companies_sharepoint.sql
+nr_f4n_tracker.sql
+nr_site_settings.sql
+
 # Knowledge base — powers index.html's chat search (multiple files run
 # 100MB-2GB+, over GitHub's push limit) and scc.html only touches one small
 # stats file gracefully (degrades to "?" if missing). Only scc.html/
