@@ -206,6 +206,8 @@ button{cursor:pointer}
 .co-ev-file{display:flex;align-items:center;gap:7px;padding:6px 9px;border:1px solid var(--line);border-radius:5px;font-size:.79rem;color:var(--ink);text-decoration:none;transition:.12s;cursor:pointer;background:none;width:100%;text-align:left;font-family:inherit}
 .co-ev-file:hover{border-color:var(--accent);color:var(--accent)}
 .co-ev-empty{color:var(--muted);font-size:.78rem;padding:6px 0;font-style:italic}
+.co-ev-analysis{background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:7px 9px;margin:-2px 0 4px}
+.co-ev-rollup{font-size:.78rem;color:var(--muted);padding:8px 0 2px;border-top:1px solid var(--line);margin-top:4px}
 .co-score-row{display:flex;gap:10px;margin-bottom:14px}
 .co-score-card{flex:1;text-align:center;background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:10px 8px}
 .co-score-val{font-family:'Barlow Condensed';font-size:1.7rem;font-weight:800;color:var(--accent)}
@@ -5386,18 +5388,27 @@ async function coLoadEvidence(co) {
     return;
   }
 
-  // Fetch each evidence section
-  const sectionData = await Promise.all(CO_EV_SLUGS.map(async (slug, i) => {
-    try {
-      const res = await fetch(`${SUPA_URL}/storage/v1/object/list/evidence-docs`, {
-        method: 'POST',
-        headers: { ...evAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prefix: `${userId}/${slug}/`, limit: 100, offset: 0 })
-      });
-      const files = res.ok ? (await res.json()).filter(f => f.name && !f.name.startsWith('_')) : [];
-      return { name: CO_EV_SECTIONS[i], slug, files };
-    } catch(_) { return { name: CO_EV_SECTIONS[i], slug, files: [] }; }
-  }));
+  // Fetch each evidence section, plus the shared AI-analysis rows for this
+  // company (Features B/F/C — see frankie_blueprint_v13.docx §10 and
+  // frankie/sql/nr_evidence_analysis.sql). One row per (section, q, file);
+  // matched to a listed file below by its full storage path.
+  const [sectionData, analysisRows] = await Promise.all([
+    Promise.all(CO_EV_SLUGS.map(async (slug, i) => {
+      try {
+        const res = await fetch(`${SUPA_URL}/storage/v1/object/list/evidence-docs`, {
+          method: 'POST',
+          headers: { ...evAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prefix: `${userId}/${slug}/`, limit: 100, offset: 0 })
+        });
+        const files = res.ok ? (await res.json()).filter(f => f.name && !f.name.startsWith('_')) : [];
+        return { name: CO_EV_SECTIONS[i], slug, files };
+      } catch(_) { return { name: CO_EV_SECTIONS[i], slug, files: [] }; }
+    })),
+    coFetchAnalysis(co.id),
+  ]);
+
+  const analysisByPath = {};
+  analysisRows.forEach(r => { analysisByPath[r.evidence_storage_path] = r; });
 
   const totalFiles = sectionData.reduce((n, s) => n + s.files.length, 0);
 
@@ -5407,15 +5418,30 @@ async function coLoadEvidence(co) {
     html += `<div class="co-ev-sec">
       <div class="co-ev-sec-name">${esc2(sec.name)}</div>
       <div class="co-ev-sec-count ${hasFiles ? 'has-files' : ''}">${sec.files.length}</div>
-      ${hasFiles ? `<div class="co-ev-file-list">${sec.files.slice(0,3).map(f =>
-        `<button class="co-ev-file" onclick="evOpenFile(event,'${userId}/${sec.slug}/${f.name}')">📄 ${esc2(f.name)}</button>`
-      ).join('')}${sec.files.length > 3 ? `<div class="co-ev-empty">+${sec.files.length-3} more</div>` : ''}</div>` : ''}
+      ${hasFiles ? `<div class="co-ev-file-list">${sec.files.slice(0,3).map(f => {
+        const path = `${userId}/${sec.slug}/${f.name}`;
+        const row  = analysisByPath[path];
+        return `<button class="co-ev-file" onclick="evOpenFile(event,'${path}')">📄 ${esc2(f.name)}</button>` +
+          (row ? sccAnalysisRowHtml(row) : '');
+      }).join('')}${sec.files.length > 3 ? `<div class="co-ev-empty">+${sec.files.length-3} more</div>` : ''}</div>` : ''}
     </div>`;
   });
   html += '</div>';
 
   if (totalFiles === 0) {
     html += `<div class="co-empty-folder" style="padding:12px 0 4px">No documents uploaded yet — waiting for the company to submit evidence.</div>`;
+  }
+
+  // Feature C: a one-line prep-status rollup of the same analysisRows the
+  // grid above already fetched — not a separate feature, just the same
+  // shared rows read differently. Lets SCC see at a glance whether this
+  // company's evidence is ready for OSV without opening every file.
+  if (analysisRows.length) {
+    const flagged   = analysisRows.filter(r => (r.scc_override_score ?? r.ai_suggested_score) < 7).length;
+    const overridden = analysisRows.filter(r => r.scc_override_score !== null && r.scc_override_score !== undefined).length;
+    html += `<div class="co-ev-rollup">🤖 AI-reviewed: <b>${analysisRows.length}/60</b>
+      &nbsp;·&nbsp; Flagged (score &lt; 7): <b style="color:${flagged ? 'var(--red)' : 'inherit'}">${flagged}</b>
+      &nbsp;·&nbsp; SCC-overridden: <b>${overridden}</b></div>`;
   }
 
   // ISO 19443
@@ -5437,6 +5463,69 @@ async function coLoadEvidence(co) {
   } catch(_) {}
 
   panel.innerHTML = html;
+}
+
+// ── AI evidence analysis (Features B/F/C shared engine) ──────────────────────
+// Same nr_evidence_analysis table the member-side Evidence Vault drawer's
+// "AI review" button writes to (frankie/js/evidence-vault-drawer.js). SCC
+// reads the same row here and can override the AI's suggested score.
+// See frankie/sql/nr_evidence_analysis.sql for the schema.
+
+async function coFetchAnalysis(companyId) {
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/nr_evidence_analysis?company_id=eq.${companyId}&assessment_type=eq.be&select=*`, {
+      headers: evAuthHeaders(),
+    });
+    return res.ok ? await res.json() : [];
+  } catch (_) { return []; }
+}
+
+function sccScoreBand(score) {
+  if (score >= 7) return 'var(--ok)';
+  if (score >= 2) return '#e09a3a';
+  return 'var(--red)';
+}
+
+function sccAnalysisRowHtml(row) {
+  const shown = (row.scc_override_score !== null && row.scc_override_score !== undefined)
+    ? row.scc_override_score : row.ai_suggested_score;
+  const overrideVal = (row.scc_override_score !== null && row.scc_override_score !== undefined) ? row.scc_override_score : '';
+  return `
+    <div class="co-ev-analysis" id="co-ev-analysis-${row.id}">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-weight:800;font-size:.78rem;color:${sccScoreBand(shown)}">AI: ${shown ?? '—'}</span>
+        <span style="font-size:.74rem;color:var(--muted)">${row.scc_override_score !== null && row.scc_override_score !== undefined ? '(SCC-overridden)' : ''}</span>
+      </div>
+      <div style="font-size:.76rem;color:var(--ink);margin:3px 0 6px">${esc2(row.ai_rationale || '')}</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <select id="co-ev-override-score-${row.id}" style="font-size:.74rem;padding:2px 4px">
+          <option value="">Override score…</option>
+          <option value="0" ${overrideVal===0?'selected':''}>0</option>
+          <option value="2" ${overrideVal===2?'selected':''}>2</option>
+          <option value="7" ${overrideVal===7?'selected':''}>7</option>
+          <option value="10" ${overrideVal===10?'selected':''}>10</option>
+        </select>
+        <input id="co-ev-override-notes-${row.id}" type="text" placeholder="SCC notes" value="${esc2(row.scc_notes || '')}" style="font-size:.74rem;flex:1;padding:2px 4px">
+        <button class="btn" style="font-size:.72rem;padding:2px 8px" onclick="sccSaveOverride('${row.id}')">Save</button>
+      </div>
+    </div>`;
+}
+
+async function sccSaveOverride(rowId) {
+  const scoreEl = document.getElementById(`co-ev-override-score-${rowId}`);
+  const notesEl = document.getElementById(`co-ev-override-notes-${rowId}`);
+  const score = scoreEl.value === '' ? null : Number(scoreEl.value);
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/nr_evidence_analysis?id=eq.${rowId}`, {
+      method: 'PATCH',
+      headers: { ...evAuthHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ scc_override_score: score, scc_notes: notesEl.value || null }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    toast('Override saved');
+  } catch (e) {
+    toast('Save failed — check nr_evidence_analysis.sql has been run in Supabase');
+  }
 }
 
 function coLoadAssessment(co) {
