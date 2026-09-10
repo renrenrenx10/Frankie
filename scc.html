@@ -6089,6 +6089,19 @@ function evAuthHeaders() {
 
 function evSlugify(str) { return str.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
 
+// Called from company Evidence tab file buttons (coLoadEvidence, ~line 5420)
+// and the supplier-intel file list (~line 6197). Both call sites assumed
+// this already existed - it didn't, anywhere in this file - so "open" on a
+// company evidence file silently did nothing (the button's onclick threw a
+// ReferenceError). Same signed-URL-then-window.open pattern already working
+// for staff-uploaded internal docs (see coOpenInternalDoc).
+async function evOpenFile(event, path) {
+  if (event) event.preventDefault();
+  const { data, error } = await db.storage.from(EV_BUCKET).createSignedUrl(path, 60);
+  if (error || !data?.signedUrl) { toast('Could not open file'); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
 async function evRefresh() {
   evLoadCompanies();
 }
