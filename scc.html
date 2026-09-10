@@ -556,6 +556,10 @@ button{cursor:pointer}
 
     <nav class="sb-nav">
       <div class="sb-section">Workspace</div>
+      <button class="sb-item" data-screen="usage" onclick="nav('usage')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span class="sb-label">Usage Analytics</span>
+      </button>
       <button class="sb-item" data-screen="companies" onclick="nav('companies')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
         <span class="sb-label">Companies</span>
@@ -1153,6 +1157,60 @@ button{cursor:pointer}
         </div>
       </div>
     </div><!-- /screen-actions -->
+
+    <!-- ──────────── USAGE ANALYTICS -->
+    <div class="screen" id="screen-usage">
+      <div>
+        <div class="stats-row" id="usage-stats" style="grid-template-columns:repeat(5,1fr);margin-bottom:8px">
+          <div class="stat-card"><div class="val" id="usage-stat-dau">0</div><div class="lbl">Active Today</div></div>
+          <div class="stat-card"><div class="val" id="usage-stat-wau">0</div><div class="lbl">Active (7 days)</div></div>
+          <div class="stat-card"><div class="val" id="usage-stat-mau">0</div><div class="lbl">Active (30 days)</div></div>
+          <div class="stat-card"><div class="val" id="usage-stat-downloads" style="color:#075985">0</div><div class="lbl">Downloads (30d)</div></div>
+          <div class="stat-card"><div class="val" id="usage-stat-events" style="color:var(--muted)">0</div><div class="lbl">Total Events (30d)</div></div>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:16px">"Active" = at least one visit, section view or download logged that day/period. Figures cover the last 30 days only.</div>
+
+        <div id="usage-loading" style="color:var(--muted);font-size:.88rem;padding:20px 0">Loading usage data…</div>
+        <div id="usage-error" style="display:none;color:var(--red);font-size:.85rem;padding:10px 0"></div>
+
+        <div id="usage-body" style="display:none">
+          <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+            <div style="flex:1;min-width:280px;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+              <div style="background:var(--wash);padding:8px 12px;font-weight:700;font-size:.8rem;border-bottom:1px solid var(--line)">Most Viewed Sections</div>
+              <table style="width:100%;border-collapse:collapse;font-size:.8rem"><tbody id="usage-sections-tbody"></tbody></table>
+            </div>
+            <div style="flex:1;min-width:280px;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+              <div style="background:var(--wash);padding:8px 12px;font-weight:700;font-size:.8rem;border-bottom:1px solid var(--line)">Most Downloaded Toolkit Files</div>
+              <table style="width:100%;border-collapse:collapse;font-size:.8rem"><tbody id="usage-files-tbody"></tbody></table>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <input id="usage-search" type="text" placeholder="Search company or detail…" oninput="usageFilter()"
+              style="flex:1;min-width:200px;background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;color:var(--navy);outline:none">
+            <select id="usage-type-filter" onchange="usageFilter()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;outline:none;cursor:pointer">
+              <option value="all">All event types</option>
+              <option value="visit">Visit</option>
+              <option value="login">Login</option>
+              <option value="view">Section view</option>
+              <option value="download">Download</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px">
+            <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+              <thead><tr style="background:var(--wash);text-align:left">
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Company</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Type</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Detail</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">When</th>
+              </tr></thead>
+              <tbody id="usage-activity-tbody"></tbody>
+            </table>
+          </div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:8px">Showing up to the 200 most recent matching events from the last 30 days.</div>
+        </div>
+      </div>
+    </div><!-- /screen-usage -->
 
     <!-- ──────────── SUPPLIER DATABASE -->
     <div class="screen" id="screen-supplierdb">
@@ -2439,6 +2497,7 @@ function showApp() {
 // ═══════════════════════════════════════════════════════════
 const TOPBAR = {
   dashboard:   {title:'F.R.A.N.K.I.E.', sub:'Future Readiness And Nuclear Knowledge Intelligence Engine', actions:''},
+  usage:       {title:'Usage Analytics', sub:'Members-area activity — logins, section views and toolkit downloads', actions:`<button class="tb-btn primary" onclick="usageLoad()">↻ Refresh</button>`},
   companies:   {title:'Companies', sub:'All managed companies — evidence, assessments and certificates', actions:`<button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button><button class="tb-btn" onclick="mrShowAddModal()" style="margin-left:8px">+ Add Member Request</button>`},
   f4ntracker:  {title:'F4N Tracker', sub:'Booking pipeline for Fit For Nuclear assessments — linked to CRM companies', actions:`<button class="tb-btn primary" onclick="f4nShowAddModal()">+ Add Booking</button><button class="tb-btn" onclick="f4nLoad()" style="margin-left:8px">↻ Refresh</button>`},
   actions:     {title:'Actions & Tasks', sub:'Track follow-ups, reviews and to-dos across the SCC team', actions:`<button class="tb-btn primary" onclick="actShowAddModal()">+ Add Action</button><button class="tb-btn" onclick="actLoad()" style="margin-left:8px">↻ Refresh</button>`},
@@ -2486,6 +2545,7 @@ function nav(screen, opts) {
     ? `<button class="tb-btn" onclick="navBack()" style="margin-right:8px">← Back</button>`
     : '';
   document.getElementById('tb-actions').innerHTML = backBtn + (tb.actions || '');
+  if (screen === 'usage') usageLoad();
   if (screen === 'companies') coLoad();
   if (screen === 'assessment') populateAssessCompanySelect();
   if (screen === 'reports') populateReportSelects();
@@ -2530,6 +2590,106 @@ function setSidebarCollapsed(collapsed) {
 
 function toggleSidebar() {
   setSidebarCollapsed(!sidebarCollapsed);
+}
+
+// ════════════════════════════════════════════════════
+// USAGE ANALYTICS — reads member_events, written by members.html
+// (logEvent) on every visit, section view and toolkit download.
+// Added 2026-09-10 to answer "is the members area actually being used".
+// ════════════════════════════════════════════════════
+let usageRows = [];
+const USAGE_SECTION_LABELS = {
+  home:'Home', community:'Community', knowledge:'Knowledge Hub', webinars:'Webinars',
+  handbook:'BE Handbook', nhandbook:'Nuclear Handbook', toolbox:'Toolbox',
+  pcv:'Programme Country View', safety:'Safety Culture', supplierportals:'Supplier Portals',
+  news:'News', tenders:'Tenders', events:'Events', calendar:'Calendar',
+  addmember:'Add Member', account:'Account', nuclearready:'NuclearReady Profile',
+  f4njourney:'F4N Journey'
+};
+const USAGE_TYPE_COLOR = { visit:'#dbeafe', login:'#dcfce7', view:'#fef9c3', download:'#fee2e2' };
+function usageSectionLabel(id){ return USAGE_SECTION_LABELS[id] || id; }
+function usageEsc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function usageLoad() {
+  const loadingEl = document.getElementById('usage-loading');
+  const bodyEl = document.getElementById('usage-body');
+  const errEl = document.getElementById('usage-error');
+  loadingEl.style.display = ''; bodyEl.style.display = 'none'; errEl.style.display = 'none';
+  const since = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+  const { data, error } = await db.from('member_events')
+    .select('user_id,company_name,event_type,detail,created_at')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(3000);
+  loadingEl.style.display = 'none';
+  if (error) {
+    errEl.textContent = 'Could not load usage data: ' + error.message + ' — has the member_events table been created in Supabase yet? (See the SQL comment in members.html.)';
+    errEl.style.display = '';
+    return;
+  }
+  bodyEl.style.display = '';
+  usageRows = data || [];
+  usageRender();
+}
+
+function usageRender() {
+  const now = Date.now();
+  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+  const d1 = startOfToday.getTime(), d7 = now - 7*24*60*60*1000, d30 = now - 30*24*60*60*1000;
+  const dau = new Set(), wau = new Set(), mau = new Set();
+  let downloads = 0;
+  const sectionCounts = {}, fileCounts = {};
+
+  usageRows.forEach(r => {
+    const t = new Date(r.created_at).getTime();
+    if (t >= d1) dau.add(r.user_id);
+    if (t >= d7) wau.add(r.user_id);
+    if (t >= d30) mau.add(r.user_id);
+    if (r.event_type === 'download') {
+      downloads++;
+      const key = r.detail || 'Unknown file';
+      fileCounts[key] = (fileCounts[key] || 0) + 1;
+    }
+    if (r.event_type === 'view') {
+      const key = r.detail || 'Unknown';
+      sectionCounts[key] = (sectionCounts[key] || 0) + 1;
+    }
+  });
+
+  document.getElementById('usage-stat-dau').textContent = dau.size;
+  document.getElementById('usage-stat-wau').textContent = wau.size;
+  document.getElementById('usage-stat-mau').textContent = mau.size;
+  document.getElementById('usage-stat-downloads').textContent = downloads;
+  document.getElementById('usage-stat-events').textContent = usageRows.length;
+
+  const topSections = Object.entries(sectionCounts).sort((a,b) => b[1]-a[1]).slice(0,10);
+  document.getElementById('usage-sections-tbody').innerHTML = topSections.length
+    ? topSections.map(([k,v]) => `<tr><td style="padding:7px 10px;border-bottom:1px solid var(--line)">${usageEsc(usageSectionLabel(k))}</td><td style="padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;font-weight:600">${v}</td></tr>`).join('')
+    : `<tr><td style="padding:12px 10px;color:var(--muted)">No section views in the last 30 days.</td></tr>`;
+
+  const topFiles = Object.entries(fileCounts).sort((a,b) => b[1]-a[1]).slice(0,10);
+  document.getElementById('usage-files-tbody').innerHTML = topFiles.length
+    ? topFiles.map(([k,v]) => `<tr><td style="padding:7px 10px;border-bottom:1px solid var(--line)">${usageEsc(k)}</td><td style="padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;font-weight:600">${v}</td></tr>`).join('')
+    : `<tr><td style="padding:12px 10px;color:var(--muted)">No toolkit downloads in the last 30 days.</td></tr>`;
+
+  usageFilter();
+}
+
+function usageFilter() {
+  const q = (document.getElementById('usage-search')?.value || '').toLowerCase().trim();
+  const typeF = document.getElementById('usage-type-filter')?.value || 'all';
+  const rows = usageRows.filter(r => {
+    if (typeF !== 'all' && r.event_type !== typeF) return false;
+    if (q && !((r.company_name||'').toLowerCase().includes(q) || (r.detail||'').toLowerCase().includes(q))) return false;
+    return true;
+  }).slice(0, 200);
+  const tbody = document.getElementById('usage-activity-tbody');
+  tbody.innerHTML = rows.length ? rows.map(r => `<tr>
+    <td style="padding:7px 10px;border-bottom:1px solid var(--line)">${usageEsc(r.company_name || '—')}</td>
+    <td style="padding:7px 10px;border-bottom:1px solid var(--line)"><span style="background:${USAGE_TYPE_COLOR[r.event_type]||'#e2e8f0'};padding:2px 8px;border-radius:10px;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em">${usageEsc(r.event_type)}</span></td>
+    <td style="padding:7px 10px;border-bottom:1px solid var(--line)">${usageEsc(r.event_type === 'view' ? usageSectionLabel(r.detail) : (r.detail || '—'))}</td>
+    <td style="padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;color:var(--muted)">${new Date(r.created_at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+  </tr>`).join('') : `<tr><td colspan="4" style="padding:12px 10px;color:var(--muted)">No matching activity.</td></tr>`;
 }
 
 // Give every sidebar item a native tooltip (its label) so icon-only mode
