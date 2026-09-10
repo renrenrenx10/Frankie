@@ -9,6 +9,22 @@
 
 # Backups made while editing — keep these local, not in history
 *.bak
+scc.html.*
+ControlCentre.html.*
+controlcentre.html.*
+Timesink.html.*
+datavault.html.*
+rolodex.html.*
+scraper.js.bak-*
+scc1.html
+_repair_backups/
+_ARCHIVED_*/
+
+# Windows shortcuts
+*.lnk
+
+# Claude Code local config (per-machine, not part of the deployed app)
+.claude/
 
 # OS junk
 .DS_Store
