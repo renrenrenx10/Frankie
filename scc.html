@@ -2119,11 +2119,15 @@ button{cursor:pointer}
           <div style="display:flex;flex-direction:column;gap:8px">
             <div class="ctrl-row">
               <div><div class="ctrl-label">☢️ NuclearReady Profile</div><div class="ctrl-sub">Shows/hides the NuclearReady Profile tab for every member on nuccol.co.uk/members.html</div></div>
-              <label class="scc-toggle"><input type="checkbox" id="site-nuclearready" onchange="siteFeatureSave('nuclearready_enabled','site-nuclearready')"><span class="scc-toggle-track"></span></label>
+              <label class="scc-toggle"><input type="checkbox" id="site-nuclearready" onchange="siteFeatureSave('nuclearready_enabled','site-nuclearready','NuclearReady Profile')"><span class="scc-toggle-track"></span></label>
             </div>
             <div class="ctrl-row">
               <div><div class="ctrl-label">🤖 Frankie Link (Members Sidebar)</div><div class="ctrl-sub">Shows/hides the Frankie chat link in every member's sidebar on nuccol.co.uk/members.html. OFF by default while testing — turn on when ready to go live.</div></div>
-              <label class="scc-toggle"><input type="checkbox" id="site-frankie" onchange="siteFeatureSave('frankie_link_enabled','site-frankie')"><span class="scc-toggle-track"></span></label>
+              <label class="scc-toggle"><input type="checkbox" id="site-frankie" onchange="siteFeatureSave('frankie_link_enabled','site-frankie','Frankie Link')"><span class="scc-toggle-track"></span></label>
+            </div>
+            <div class="ctrl-row">
+              <div><div class="ctrl-label">⚛️ Nuclear Engineering Mode (Frankie Chat)</div><div class="ctrl-sub">Lets Frankie's chat pull from the 61k-chunk reactor design-document library (real DCD/FSAR/PCSR/GDA text) when a question actually looks nuclear-engineering-flavoured — instead of just the F4N-compliance knowledge base. OFF by default — this content was deliberately kept out of default chat for the member soft launch; turn on only once you're ready for it to affect every member's chat.</div></div>
+              <label class="scc-toggle"><input type="checkbox" id="site-nuclearmode" onchange="siteFeatureSave('nuclear_mode_enabled','site-nuclearmode','Nuclear Engineering Mode')"><span class="scc-toggle-track"></span></label>
             </div>
           </div>
           <p style="margin:8px 0 0;font-size:.78rem;color:var(--muted)">This is site-wide — takes effect for all members immediately, not just this browser.</p>
@@ -6233,6 +6237,7 @@ function apiCtrlRestore() {
 async function siteFeatureRestore() {
   await siteFeatureRestoreOne('site-nuclearready', 'nuclearready_enabled', true);  // default ON — already-live feature
   await siteFeatureRestoreOne('site-frankie',      'frankie_link_enabled', false); // default OFF — staged rollout, not yet live
+  await siteFeatureRestoreOne('site-nuclearmode',  'nuclear_mode_enabled', false); // default OFF — experimental, affects every member's chat
 }
 
 async function siteFeatureRestoreOne(elId, key, defaultWhenMissing) {
@@ -6248,14 +6253,19 @@ async function siteFeatureRestoreOne(elId, key, defaultWhenMissing) {
   }
 }
 
-async function siteFeatureSave(key, elId) {
+async function siteFeatureSave(key, elId, label) {
   const el = document.getElementById(elId);
   if (!el) return;
   const value = el.checked;
+  // Fixed 2026-09-10: this toast used to always say "NuclearReady Profile...",
+  // regardless of which flag was actually changed (a copy-paste leftover from
+  // when that was the only site feature toggle) - genuinely misleading once
+  // Frankie Link and now Nuclear Engineering Mode share this same function.
+  const name = label || key;
   try {
     const { error } = await db.from('nr_site_settings').upsert({ key, value }, { onConflict: 'key' });
     if (error) throw error;
-    toast(value ? 'NuclearReady Profile shown to members' : 'NuclearReady Profile hidden from members');
+    toast(value ? `${name} turned on` : `${name} turned off`);
   } catch (e) {
     el.checked = !value; // revert UI on failure
     toast('Save failed — has nr_site_settings.sql been run in Supabase?');
