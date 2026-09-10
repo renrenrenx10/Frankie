@@ -208,6 +208,35 @@ button{cursor:pointer}
 .co-ev-empty{color:var(--muted);font-size:.78rem;padding:6px 0;font-style:italic}
 .co-ev-analysis{background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:7px 9px;margin:-2px 0 4px}
 .co-ev-rollup{font-size:.78rem;color:var(--muted);padding:8px 0 2px;border-top:1px solid var(--line);margin-top:4px}
+
+/* Pre-OSV Pack (Feature C) */
+.preosv-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px;overflow-x:auto}
+.preosv-tab{position:relative;flex-shrink:0;padding:8px 12px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:.76rem;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.preosv-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.preosv-tab-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);margin-left:5px;vertical-align:middle}
+.preosv-panel{display:none}
+.preosv-panel.active{display:block}
+.preosv-panel-head{font-family:'Barlow Condensed';font-size:.76rem;font-weight:700;color:var(--muted);margin-bottom:8px}
+.preosv-cards{display:flex;flex-direction:column;gap:8px}
+.preosv-card{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--line);border-radius:6px;padding:10px 12px}
+.preosv-card--red{border-left-color:var(--red)}
+.preosv-card--warn{border-left-color:var(--warn)}
+.preosv-card--ok{border-left-color:var(--ok)}
+.preosv-card-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.preosv-qnum{font-family:'Barlow Condensed';font-weight:800;color:var(--muted);font-size:.74rem}
+.preosv-topic{flex:1;font-weight:700;font-size:.84rem;min-width:0}
+.preosv-fname{display:block;font-weight:500;font-size:.72rem;color:var(--accent2);text-decoration:none;margin-top:1px}
+.preosv-fname:hover{text-decoration:underline}
+.preosv-score{text-align:center;flex-shrink:0}
+.preosv-score-lbl{font-size:.58rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.preosv-score-val{font-family:'Barlow Condensed';font-weight:800;font-size:1rem;padding:1px 8px;border-radius:5px}
+.preosv-score-val--ok{background:var(--ok-bg,#e8f7f1);color:var(--ok)}
+.preosv-score-val--warn{background:#fdf3e2;color:var(--warn)}
+.preosv-score-val--red{background:var(--red-bg);color:var(--red)}
+.preosv-score-val--pending{background:var(--wash);color:var(--muted);font-size:.68rem;padding:2px 6px}
+.preosv-output{font-size:.79rem;color:var(--ink);line-height:1.45;padding-left:26px}
+.preosv-note{font-size:.72rem;color:var(--muted);margin-top:14px;border-top:1px solid var(--line);padding-top:10px;line-height:1.5}
+
 .co-score-row{display:flex;gap:10px;margin-bottom:14px}
 .co-score-card{flex:1;text-align:center;background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:10px 8px}
 .co-score-val{font-family:'Barlow Condensed';font-size:1.7rem;font-weight:800;color:var(--accent)}
@@ -5194,6 +5223,7 @@ function coRender(list) {
         <div class="co-tabs">
           <button class="co-tab" onclick="coTab('${co.id}','evidence')">Evidence</button>
           <button class="co-tab" onclick="coTab('${co.id}','assessment')">Assessment</button>
+          <button class="co-tab" onclick="coTab('${co.id}','preosv')">Pre-OSV Pack</button>
           <button class="co-tab" onclick="coTab('${co.id}','internal')">Internal Docs</button>
           <button class="co-tab active" onclick="coTab('${co.id}','details')">Details</button>
           <button class="co-tab" onclick="coTab('${co.id}','nuclearready')">NuclearReady</button>
@@ -5203,6 +5233,7 @@ function coRender(list) {
           <div style="color:var(--muted);font-size:.8rem">Loading evidence…</div>
         </div>
         <div class="co-tab-panel" id="co-tab-assessment-${co.id}"></div>
+        <div class="co-tab-panel" id="co-tab-preosv-${co.id}"></div>
         <div class="co-tab-panel" id="co-tab-internal-${co.id}"></div>
         <div class="co-tab-panel active" id="co-tab-details-${co.id}"></div>
         <div class="co-tab-panel" id="co-tab-nuclearready-${co.id}"></div>
@@ -5365,6 +5396,8 @@ async function coLoadFolderContent(co) {
   await coLoadEvidence(co);
   // Assessment tab
   coLoadAssessment(co);
+  // Pre-OSV Pack tab (Feature C — see frankie_blueprint_v13.docx §10)
+  coLoadPreOsv(co);
   // Internal Docs tab (staff-only files — SOWs, invoices, contracts etc.)
   coLoadInternalDocs(co);
   // Details tab
@@ -5526,6 +5559,125 @@ async function sccSaveOverride(rowId) {
   } catch (e) {
     toast('Save failed — check nr_evidence_analysis.sql has been run in Supabase');
   }
+}
+
+// ── Pre-OSV Pack (Feature C) ──────────────────────────────────────────────
+// Reads the same nr_evidence_analysis rows the Evidence tab already fetches
+// (coFetchAnalysis), grouped into the 6 BE sections and sorted worst-AI-score-
+// first within each, so SCC sees what needs probing without opening every
+// file. NOTE: there is no per-question SELF-declared score to compare
+// against anywhere in Supabase today — assessment-drawer.js keeps answers in
+// memory only (never persisted), so crmCo.scores (coLoadAssessment, above)
+// is an aggregate % total, not a per-question breakdown. This view shows the
+// AI read on its own merit (is this evidence weak, regardless of what the
+// company claimed) rather than faking a self-vs-AI comparison with data that
+// doesn't exist yet.
+
+let BE_EVIDENCE_MAP = null; // cached across companies - static content, not per-company
+
+async function loadBeEvidenceMap() {
+  if (BE_EVIDENCE_MAP) return BE_EVIDENCE_MAP;
+  try {
+    const r = await fetch(`${SCC_WORKER}/kb/be_evidence_map.json`, { headers: evAuthHeaders() });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    BE_EVIDENCE_MAP = await r.json();
+  } catch (e) {
+    BE_EVIDENCE_MAP = {};
+  }
+  return BE_EVIDENCE_MAP;
+}
+
+function preOsvScoreBand(score) {
+  if (score === null || score === undefined) return { cls: 'pending', label: 'No evidence' };
+  if (score >= 7) return { cls: 'ok', label: String(score) };
+  if (score >= 2) return { cls: 'warn', label: String(score) };
+  return { cls: 'red', label: String(score) };
+}
+
+async function coLoadPreOsv(co) {
+  const panel = document.getElementById('co-tab-preosv-' + co.id);
+  if (!panel) return;
+  panel.innerHTML = `<div style="color:var(--muted);font-size:.8rem">Loading Pre-OSV Pack…</div>`;
+
+  const [analysisRows, evidenceMap] = await Promise.all([
+    coFetchAnalysis(co.id),
+    loadBeEvidenceMap(),
+  ]);
+
+  if (!analysisRows.length) {
+    panel.innerHTML = `<div class="co-empty-folder">No evidence has been AI-reviewed yet — nothing to show until the company runs "AI review" on an uploaded document, or you review one from the Evidence tab.</div>`;
+    return;
+  }
+
+  // Group by section, keep only the latest row per question (a question can
+  // have more than one analysed file across re-uploads; last-in wins, same
+  // simplification the member-side drawer makes).
+  const bySection = {};
+  analysisRows.forEach(r => {
+    if (!bySection[r.section]) bySection[r.section] = {};
+    bySection[r.section][r.q] = r;
+  });
+
+  const tabsHtml = CO_EV_SECTIONS.map((name, i) => {
+    const rows = Object.values(bySection[name] || {});
+    const flagged = rows.filter(r => (r.scc_override_score ?? r.ai_suggested_score) < 7).length;
+    return `<button class="preosv-tab${i===0?' active':''}" data-osv-tab="${co.id}:${i}" onclick="preOsvSwitch('${co.id}',${i})">
+      ${esc2(name)}${flagged ? `<span class="preosv-tab-dot"></span>` : ''}
+    </button>`;
+  }).join('');
+
+  const panelsHtml = CO_EV_SECTIONS.map((name, i) => {
+    const slug = CO_EV_SLUGS[i];
+    const secQuestions = evidenceMap[name] || [];
+    const rows = Object.values(bySection[name] || {});
+    if (!rows.length) {
+      return `<div class="preosv-panel${i===0?' active':''}" data-osv-panel="${co.id}:${i}">
+        <div class="co-empty-folder" style="padding:20px 0">No evidence reviewed yet for ${esc2(name)}.</div>
+      </div>`;
+    }
+
+    rows.sort((a, b) => (a.scc_override_score ?? a.ai_suggested_score ?? -1) - (b.scc_override_score ?? b.ai_suggested_score ?? -1));
+
+    const cards = rows.map(r => {
+      const q = secQuestions.find(x => x.q === r.q);
+      const topic = q ? q.topic : ('Question ' + r.q);
+      const shown = (r.scc_override_score ?? r.ai_suggested_score);
+      const band = preOsvScoreBand(shown);
+      const fname = (r.evidence_storage_path || '').split('/').pop().replace(/^Q\d+__/, '');
+      return `<div class="preosv-card preosv-card--${band.cls}">
+        <div class="preosv-card-top">
+          <span class="preosv-qnum">Q${r.q}</span>
+          <span class="preosv-topic">${esc2(topic)}
+            <a class="preosv-fname" href="#" onclick="evOpenFile(event,'${r.evidence_storage_path}')">${esc2(fname)}</a>
+          </span>
+          <div class="preosv-score">
+            <div class="preosv-score-lbl">${r.scc_override_score !== null && r.scc_override_score !== undefined ? 'SCC score' : 'AI score'}</div>
+            <div class="preosv-score-val preosv-score-val--${band.cls}">${band.label}</div>
+          </div>
+        </div>
+        <div class="preosv-output">${esc2(r.ai_rationale || '')}</div>
+      </div>`;
+    }).join('');
+
+    return `<div class="preosv-panel${i===0?' active':''}" data-osv-panel="${co.id}:${i}">
+      <div class="preosv-panel-head">${rows.length}/${secQuestions.length || 10} reviewed</div>
+      <div class="preosv-cards">${cards}</div>
+    </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="preosv-tabs">${tabsHtml}</div>
+    ${panelsHtml}
+    <div class="preosv-note">AI score shown until SCC saves an override on the Evidence tab, then that takes over. Self-declared scores aren't shown — assessment answers aren't persisted per-question anywhere yet, only as an aggregate % (see the Assessment tab).</div>`;
+}
+
+function preOsvSwitch(coId, idx) {
+  document.querySelectorAll(`[data-osv-tab^="${coId}:"]`).forEach(el => el.classList.remove('active'));
+  document.querySelectorAll(`[data-osv-panel^="${coId}:"]`).forEach(el => el.classList.remove('active'));
+  const tab = document.querySelector(`[data-osv-tab="${coId}:${idx}"]`);
+  const pnl = document.querySelector(`[data-osv-panel="${coId}:${idx}"]`);
+  if (tab) tab.classList.add('active');
+  if (pnl) pnl.classList.add('active');
 }
 
 function coLoadAssessment(co) {
@@ -5981,7 +6133,7 @@ async function pmRemoveMember(memberRowId, coId) {
   if (co) coLoadMembers(co);
 }
 
-const CO_TABS = ['evidence','assessment','internal','details','nuclearready','members'];
+const CO_TABS = ['evidence','assessment','preosv','internal','details','nuclearready','members'];
 const coTabLoaded = {}; // `${coId}:${tab}` -> true once lazily loaded
 
 function coTab(coId, tab) {
