@@ -570,6 +570,10 @@ button{cursor:pointer}
         <span class="sb-label">F4N Tracker</span>
         <span class="sb-count" id="sb-f4n-count">0</span>
       </button>
+      <button class="sb-item" data-screen="training" onclick="nav('training')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg>
+        <span class="sb-label">Training Register</span>
+      </button>
       <button class="sb-item" data-screen="actions" onclick="nav('actions')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="6" height="6" rx="1"/><path d="M5 8l1 1 2-2"/><line x1="11" y1="6" x2="21" y2="6"/><rect x="3" y="15" width="6" height="6" rx="1"/><line x1="11" y1="17" x2="21" y2="17"/></svg>
         <span class="sb-label">Actions &amp; Tasks</span>
@@ -1049,6 +1053,59 @@ button{cursor:pointer}
         </div>
       </div>
     </div><!-- /screen-f4ntracker -->
+
+    <!-- ──────────── TRAINING REGISTER -->
+    <div class="screen" id="screen-training">
+      <div>
+
+        <!-- Stats -->
+        <div class="stats-row" id="training-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+          <div class="stat-card"><div class="val" id="training-stat-total">0</div><div class="lbl">Completions on Record</div></div>
+          <div class="stat-card"><div class="val" id="training-stat-companies" style="color:var(--accent)">0</div><div class="lbl">Companies With Training</div></div>
+          <div class="stat-card"><div class="val" id="training-stat-passed" style="color:#166534">0</div><div class="lbl">Latest Attempts Passed</div></div>
+          <div class="stat-card"><div class="val" id="training-stat-failed" style="color:var(--red)">0</div><div class="lbl">Latest Attempts Failed</div></div>
+        </div>
+
+        <!-- Seed / missing-table banner -->
+        <div id="training-seed-banner" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.82rem;color:#92400e">
+          Couldn't load nr_quiz_completions — has nr_quiz_completions.sql been run in Supabase yet? Once companies start completing quizzes in the members portal, their results will show up here.
+        </div>
+
+        <!-- Filters -->
+        <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <input id="training-search" type="text" placeholder="Search company…" oninput="trainingFilter()"
+            style="flex:1;min-width:200px;background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;color:var(--navy);outline:none">
+          <select id="training-topic-filter" onchange="trainingFilter()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;outline:none;cursor:pointer">
+            <option value="all">All quizzes</option>
+          </select>
+          <select id="training-result-filter" onchange="trainingFilter()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;outline:none;cursor:pointer">
+            <option value="all">Pass + fail</option>
+            <option value="pass">Passed only</option>
+            <option value="fail">Failed only</option>
+          </select>
+        </div>
+
+        <div id="training-loading" style="color:var(--muted);font-size:.88rem;padding:20px 0">Loading training register…</div>
+        <div id="training-empty" style="display:none;color:var(--muted);font-size:.88rem;padding:20px 0">No quiz completions match your filters.</div>
+
+        <!-- Table: latest attempt per company × quiz -->
+        <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px" id="training-table-wrap">
+          <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+            <thead>
+              <tr style="background:var(--wash);text-align:left">
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:200px">Company</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:160px">Quiz</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Score</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Pass Mark</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Result</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);min-width:120px">Completed</th>
+              </tr>
+            </thead>
+            <tbody id="training-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /screen-training -->
 
     <!-- ──────────── ACTIONS & TASKS -->
     <div class="screen" id="screen-actions">
@@ -2500,6 +2557,7 @@ const TOPBAR = {
   usage:       {title:'Usage Analytics', sub:'Members-area activity — logins, section views and toolkit downloads', actions:`<button class="tb-btn primary" onclick="usageLoad()">↻ Refresh</button>`},
   companies:   {title:'Companies', sub:'All managed companies — evidence, assessments and certificates', actions:`<button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button><button class="tb-btn" onclick="mrShowAddModal()" style="margin-left:8px">+ Add Member Request</button>`},
   f4ntracker:  {title:'F4N Tracker', sub:'Booking pipeline for Fit For Nuclear assessments — linked to CRM companies', actions:`<button class="tb-btn primary" onclick="f4nShowAddModal()">+ Add Booking</button><button class="tb-btn" onclick="f4nLoad()" style="margin-left:8px">↻ Refresh</button>`},
+  training:    {title:'Training Register', sub:'Compliance training quiz completions across all companies', actions:`<button class="tb-btn primary" onclick="trainingExportCsv()">&#11015; Export CSV</button><button class="tb-btn" onclick="trainingLoad()" style="margin-left:8px">↻ Refresh</button>`},
   actions:     {title:'Actions & Tasks', sub:'Track follow-ups, reviews and to-dos across the SCC team', actions:`<button class="tb-btn primary" onclick="actShowAddModal()">+ Add Action</button><button class="tb-btn" onclick="actLoad()" style="margin-left:8px">↻ Refresh</button>`},
   supplierdb:  {title:'Supplier Database', sub:'Live NuCCoL SharePoint supplier database (DataVault/Rolodex/SupplierMap) — linked to CRM companies', actions:`<button class="tb-btn" onclick="sdbLoad(true)" style="margin-left:8px">↻ Refresh</button>`},
   assessment:  {title:'Run Assessment', sub:'F4N or Business Excellence scoring', actions:''},
@@ -2556,6 +2614,7 @@ function nav(screen, opts) {
   if (screen === 'nrcompanies') nrcLoad();
   if (screen === 'f4njourney') fjLoadSubmissions();
   if (screen === 'f4ntracker') f4nLoad();
+  if (screen === 'training') trainingLoad();
   if (screen === 'actions') actLoad();
   if (screen === 'supplierdb') sdbOpen();
   if (screen === 'settings') apiCtrlRestore();
@@ -5388,6 +5447,7 @@ function coRender(list) {
           <button class="co-tab active" onclick="coTab('${co.id}','details')">Details</button>
           <button class="co-tab" onclick="coTab('${co.id}','nuclearready')">NuclearReady</button>
           <button class="co-tab" onclick="coTab('${co.id}','members')">Portal Users</button>
+          <button class="co-tab" onclick="coTab('${co.id}','training')">Training</button>
         </div>
         <div class="co-tab-panel" id="co-tab-evidence-${co.id}">
           <div style="color:var(--muted);font-size:.8rem">Loading evidence…</div>
@@ -5398,6 +5458,7 @@ function coRender(list) {
         <div class="co-tab-panel active" id="co-tab-details-${co.id}"></div>
         <div class="co-tab-panel" id="co-tab-nuclearready-${co.id}"></div>
         <div class="co-tab-panel" id="co-tab-members-${co.id}"></div>
+        <div class="co-tab-panel" id="co-tab-training-${co.id}"></div>
       </div>
     </div>`;
   }).join('');
@@ -6293,7 +6354,84 @@ async function pmRemoveMember(memberRowId, coId) {
   if (co) coLoadMembers(co);
 }
 
-const CO_TABS = ['evidence','assessment','preosv','internal','details','nuclearready','members'];
+// ── Compliance Training Quizzes (member-side Frankie chatbot feature) ────────
+// Read-only register of quiz completions the members-area quiz drawer logs
+// to nr_quiz_completions (frankie/js/compliance-quiz-drawer.js writes it;
+// see frankie/sql/nr_quiz_completions.sql — its own comment calls out
+// "SCC can view/export a training register", which is this tab plus the
+// Training Register screen below). One row per attempt, not upserted, so a
+// company's retakes stay in the history. Table may not exist in every
+// environment yet, so this follows coFetchAnalysis's try/catch-return-[]
+// resilience pattern rather than surfacing a hard error.
+const QUIZ_TOPIC_TITLES = {
+  cyber_essentials: 'Cyber Essentials',
+  gdpr: 'GDPR',
+  export_control: 'Export Control',
+  modern_slavery: 'Modern Slavery',
+};
+function quizTopicTitle(topic) { return QUIZ_TOPIC_TITLES[topic] || (topic || 'Unknown quiz'); }
+
+async function coFetchQuizCompletions(companyId) {
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/nr_quiz_completions?company_id=eq.${companyId}&select=*&order=completed_at.desc`, {
+      headers: evAuthHeaders(),
+    });
+    return res.ok ? await res.json() : [];
+  } catch (_) { return []; }
+}
+
+async function coLoadTraining(co) {
+  const panel = document.getElementById('co-tab-training-' + co.id);
+  if (!panel) return;
+  panel.innerHTML = `<div style="color:var(--muted);font-size:.8rem">Loading training history…</div>`;
+
+  const rows = await coFetchQuizCompletions(co.id);
+  if (!rows.length) {
+    panel.innerHTML = `<div class="co-empty-folder">No compliance training quizzes completed yet — nothing to show until the company takes a quiz in the members portal.</div>`;
+    return;
+  }
+
+  // Rows already come back ordered by completed_at desc, so each topic's
+  // first entry is its latest attempt; the rest are history.
+  const byTopic = {};
+  rows.forEach(r => { (byTopic[r.quiz_topic] = byTopic[r.quiz_topic] || []).push(r); });
+  const topics = Object.keys(byTopic).sort((a, b) => quizTopicTitle(a).localeCompare(quizTopicTitle(b)));
+
+  panel.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">${topics.map(topic => {
+    const attempts = byTopic[topic];
+    const latest = attempts[0];
+    const older = attempts.slice(1);
+    const pass = !!latest.passed;
+    return `
+      <div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--wash)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:.85rem">${esc2(quizTopicTitle(topic))}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:.8rem;font-weight:600;color:var(--ink)">${esc2(String(latest.score))}/${esc2(String(latest.total))}</span>
+            <span style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:5px;background:${pass ? '#dcfce7' : '#fee2e2'};color:${pass ? '#166534' : '#dc2626'}">${pass ? 'Pass' : 'Fail'}</span>
+          </div>
+        </div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:2px">
+          Pass mark ${esc2(String(latest.pass_mark_pct))}% · ${latest.completed_at ? new Date(latest.completed_at).toLocaleDateString('en-GB') : '—'}
+        </div>
+        ${older.length ? `
+          <div style="margin-top:6px">
+            <span onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'"
+              style="cursor:pointer;font-size:.7rem;color:var(--accent)">${older.length} earlier attempt${older.length === 1 ? '' : 's'} ▾</span>
+            <div style="display:none;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                ${older.map(a => `<div style="font-size:.72rem;color:var(--muted);display:flex;justify-content:space-between;gap:10px">
+                  <span>${a.completed_at ? new Date(a.completed_at).toLocaleDateString('en-GB') : '—'}</span>
+                  <span>${esc2(String(a.score))}/${esc2(String(a.total))} · ${a.passed ? 'Pass' : 'Fail'}</span>
+                </div>`).join('')}
+              </div>
+            </div>
+          </div>` : ''}
+      </div>`;
+  }).join('')}</div>`;
+}
+
+const CO_TABS = ['evidence','assessment','preosv','internal','details','nuclearready','members','training'];
 const coTabLoaded = {}; // `${coId}:${tab}` -> true once lazily loaded
 
 function coTab(coId, tab) {
@@ -6311,7 +6449,7 @@ function coTab(coId, tab) {
   // of silently leaving it blank.
   const key = coId + ':' + tab;
   if (coTabLoaded[key]) return;
-  if (tab !== 'nuclearready' && tab !== 'members') return;
+  if (tab !== 'nuclearready' && tab !== 'members' && tab !== 'training') return;
 
   const panelEl = document.getElementById('co-tab-' + tab + '-' + coId);
   const co = coAllCompanies.find(c => String(c.id) === String(coId));
@@ -6324,6 +6462,9 @@ function coTab(coId, tab) {
     if (tab === 'nuclearready') coLoadNuclearReady(co);
     if (tab === 'members')      Promise.resolve(coLoadMembers(co)).catch(e => {
       if (panelEl) panelEl.innerHTML = `<div style="color:var(--warn);font-size:.8rem">Error loading portal users: ${esc2(e.message || String(e))}</div>`;
+    });
+    if (tab === 'training')     Promise.resolve(coLoadTraining(co)).catch(e => {
+      if (panelEl) panelEl.innerHTML = `<div style="color:var(--warn);font-size:.8rem">Error loading training history: ${esc2(e.message || String(e))}</div>`;
     });
     coTabLoaded[key] = true;
   } catch (e) {
@@ -9056,6 +9197,146 @@ async function f4nSeedImport() {
     toast('Import failed: ' + e.message + ' — has nr_f4n_tracker.sql been run in Supabase?');
     if (btn) { btn.disabled = false; btn.textContent = 'Import 52 rows'; }
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TRAINING REGISTER — cross-company view of nr_quiz_completions (see the
+// coLoadTraining section above, ~line 6296, for the per-company Training
+// tab this screen is the register version of). Closest existing analog is
+// F4N Tracker just above: same filter/table idiom, reused here. Table may
+// not exist yet in every environment — fetch failures degrade to an empty
+// register rather than breaking the rest of the app.
+// ═══════════════════════════════════════════════════════════
+let trainingAll = [];      // latest attempt per company × quiz_topic
+let trainingFiltered = [];
+
+async function trainingFetchAllCompletions() {
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/nr_quiz_completions?select=*&order=completed_at.desc`, {
+      headers: evAuthHeaders(),
+    });
+    return res.ok ? await res.json() : null; // null = fetch failed / table missing
+  } catch (_) { return null; }
+}
+
+async function trainingLoad() {
+  const loading = document.getElementById('training-loading');
+  const banner  = document.getElementById('training-seed-banner');
+  if (loading) loading.style.display = 'block';
+  if (banner) banner.style.display = 'none';
+
+  const cos = await sharedCosLoad();
+  const nameById = {};
+  cos.forEach(c => { nameById[c.id] = c.name; });
+
+  const rows = await trainingFetchAllCompletions();
+  if (loading) loading.style.display = 'none';
+
+  if (rows === null) {
+    trainingAll = [];
+    if (banner) banner.style.display = 'block';
+  } else {
+    // Keep only the latest attempt per company × quiz_topic — rows already
+    // come back ordered by completed_at desc, so the first one seen wins.
+    const seen = new Set();
+    trainingAll = rows.filter(r => {
+      const key = r.company_id + '::' + r.quiz_topic;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).map(r => ({ ...r, company_name: nameById[r.company_id] || '(unknown company)' }));
+  }
+
+  trainingPopulateTopicFilter();
+  trainingUpdateStats();
+  trainingFilter();
+}
+
+function trainingPopulateTopicFilter() {
+  const sel = document.getElementById('training-topic-filter');
+  if (!sel) return;
+  const current = sel.value;
+  const topics = [...new Set(trainingAll.map(r => r.quiz_topic))].sort((a, b) => quizTopicTitle(a).localeCompare(quizTopicTitle(b)));
+  sel.innerHTML = '<option value="all">All quizzes</option>' + topics.map(t => `<option value="${escH(t)}">${escH(quizTopicTitle(t))}</option>`).join('');
+  if (topics.includes(current)) sel.value = current;
+}
+
+function trainingUpdateStats() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('training-stat-total', trainingAll.length);
+  set('training-stat-companies', new Set(trainingAll.map(r => r.company_id)).size);
+  set('training-stat-passed', trainingAll.filter(r => r.passed).length);
+  set('training-stat-failed', trainingAll.filter(r => !r.passed).length);
+}
+
+function trainingFilter() {
+  const q      = (document.getElementById('training-search')?.value || '').toLowerCase().trim();
+  const topic  = document.getElementById('training-topic-filter')?.value || 'all';
+  const result = document.getElementById('training-result-filter')?.value || 'all';
+
+  trainingFiltered = trainingAll.filter(r => {
+    if (topic !== 'all' && r.quiz_topic !== topic) return false;
+    if (result === 'pass' && !r.passed) return false;
+    if (result === 'fail' && r.passed) return false;
+    if (q && !(r.company_name || '').toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a, b) => (a.company_name || '').localeCompare(b.company_name || '') || quizTopicTitle(a.quiz_topic).localeCompare(quizTopicTitle(b.quiz_topic)));
+
+  trainingRender();
+}
+
+function trainingRender() {
+  const tbody = document.getElementById('training-tbody');
+  const empty = document.getElementById('training-empty');
+  const wrap  = document.getElementById('training-table-wrap');
+  if (!tbody) return;
+
+  if (!trainingFiltered.length) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    if (wrap) wrap.style.display = 'none';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (wrap) wrap.style.display = 'block';
+
+  tbody.innerHTML = trainingFiltered.map(r => `
+    <tr style="border-bottom:1px solid var(--line)">
+      <td style="padding:7px 10px;font-weight:600">${esc2(r.company_name)}</td>
+      <td style="padding:7px 10px">${esc2(quizTopicTitle(r.quiz_topic))}</td>
+      <td style="padding:7px 10px">${esc2(String(r.score))}/${esc2(String(r.total))}</td>
+      <td style="padding:7px 10px">${esc2(String(r.pass_mark_pct))}%</td>
+      <td style="padding:7px 10px">
+        <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:5px;background:${r.passed ? '#dcfce7' : '#fee2e2'};color:${r.passed ? '#166534' : '#dc2626'}">${r.passed ? 'Pass' : 'Fail'}</span>
+      </td>
+      <td style="padding:7px 10px">${r.completed_at ? new Date(r.completed_at).toLocaleDateString('en-GB') : '—'}</td>
+    </tr>`).join('');
+}
+
+function trainingExportCsv() {
+  if (!trainingFiltered.length) { toast('Nothing to export — no rows match the current filters.'); return; }
+  const header = ['Company', 'Quiz', 'Score', 'Total', 'Pass Mark %', 'Result', 'Completed Date'];
+  const csvCell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [header.map(csvCell).join(',')].concat(trainingFiltered.map(r => [
+    r.company_name,
+    quizTopicTitle(r.quiz_topic),
+    r.score,
+    r.total,
+    r.pass_mark_pct,
+    r.passed ? 'Pass' : 'Fail',
+    r.completed_at ? new Date(r.completed_at).toLocaleDateString('en-GB') : '',
+  ].map(csvCell).join(',')));
+
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `training_register_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('✓ CSV downloaded');
 }
 
 // ═══════════════════════════════════════════════════════════
