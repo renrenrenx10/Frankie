@@ -837,6 +837,25 @@ button{cursor:pointer}
           </div>
         </div>
       </div>
+
+      <!-- Legacy Link Gap Checker modal ("🔎 Check Legacy Links" topbar button) —
+           companies with nr_companies.member_user_id set but no matching
+           company_members row. See llCheckLegacyLinks(). -->
+      <div id="ll-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:center;justify-content:center">
+        <div style="background:var(--panel);border-radius:10px;padding:26px 28px 20px;width:560px;max-width:95vw;max-height:88vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+            <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink)">Legacy Link Check</div>
+            <button onclick="document.getElementById('ll-modal').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:1.1rem;color:var(--muted)">✕</button>
+          </div>
+          <div style="font-size:.78rem;color:var(--muted);margin-bottom:14px">Companies whose "Link member account" user was never added as a Portal User (company_members).</div>
+          <div id="ll-list"></div>
+          <div id="ll-msg" style="font-size:.76rem;margin:6px 0 10px;min-height:1rem"></div>
+          <div id="ll-actions" style="display:none;gap:8px">
+            <button class="btn primary" onclick="llFixAll()" style="flex:1">Fix All</button>
+            <button class="btn" onclick="document.getElementById('ll-modal').style.display='none'">Close</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ADD COMPANY MODAL (used by Companies + NuclearReady Companies "+ Add Company") -->
@@ -2555,7 +2574,7 @@ function showApp() {
 const TOPBAR = {
   dashboard:   {title:'F.R.A.N.K.I.E.', sub:'Future Readiness And Nuclear Knowledge Intelligence Engine', actions:''},
   usage:       {title:'Usage Analytics', sub:'Members-area activity — logins, section views and toolkit downloads', actions:`<button class="tb-btn primary" onclick="usageLoad()">↻ Refresh</button>`},
-  companies:   {title:'Companies', sub:'All managed companies — evidence, assessments and certificates', actions:`<button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button><button class="tb-btn" onclick="mrShowAddModal()" style="margin-left:8px">+ Add Member Request</button>`},
+  companies:   {title:'Companies', sub:'All managed companies — evidence, assessments and certificates', actions:`<button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button><button class="tb-btn" onclick="mrShowAddModal()" style="margin-left:8px">+ Add Member Request</button><button class="tb-btn" onclick="llCheckLegacyLinks()" style="margin-left:8px">🔎 Check Legacy Links</button>`},
   f4ntracker:  {title:'F4N Tracker', sub:'Booking pipeline for Fit For Nuclear assessments — linked to CRM companies', actions:`<button class="tb-btn primary" onclick="f4nShowAddModal()">+ Add Booking</button><button class="tb-btn" onclick="f4nLoad()" style="margin-left:8px">↻ Refresh</button>`},
   training:    {title:'Training Register', sub:'Compliance training quiz completions across all companies', actions:`<button class="tb-btn primary" onclick="trainingExportCsv()">&#11015; Export CSV</button><button class="tb-btn" onclick="trainingLoad()" style="margin-left:8px">↻ Refresh</button>`},
   actions:     {title:'Actions & Tasks', sub:'Track follow-ups, reviews and to-dos across the SCC team', actions:`<button class="tb-btn primary" onclick="actShowAddModal()">+ Add Action</button><button class="tb-btn" onclick="actLoad()" style="margin-left:8px">↻ Refresh</button>`},
@@ -6254,6 +6273,20 @@ async function coLoadMembers(co) {
 
   const members = (rows || []).map(r => ({ ...r, profile: byId[r.user_id] || null }));
 
+  // Legacy link check: nr_companies.member_user_id (the older single-user link
+  // set via "Link member account") may not yet have a matching company_members
+  // row — the newer join table this tab actually reads. Surface that gap here
+  // with a one-click backfill rather than leaving the tab silently wrong.
+  const hasLegacyGap = !!co.member_user_id && !(rows || []).some(r => String(r.user_id) === String(co.member_user_id));
+  const legacyProfile = hasLegacyGap ? byId[co.member_user_id] : null;
+  const legacyNotice = hasLegacyGap ? `
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid #f5c66c;border-radius:7px;background:#fef3c7;margin-bottom:12px">
+      <div style="flex:1;min-width:0;font-size:.78rem;color:#92400e">
+        <b>Legacy member link not yet a portal user.</b> "Link member account" set ${esc2(legacyProfile?.name || legacyProfile?.email || co.member_user_id)}${legacyProfile?.email && legacyProfile?.name ? ' (' + esc2(legacyProfile.email) + ')' : ''} on the company record, but they were never added here.
+      </div>
+      <button class="co-act-btn" onclick="pmBackfillLegacyLink('${co.id}')" style="flex-shrink:0;white-space:nowrap">+ Add as portal user</button>
+    </div>` : '';
+
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div style="font-family:'Barlow Condensed';font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">
@@ -6261,6 +6294,7 @@ async function coLoadMembers(co) {
       </div>
       <button class="co-act-btn" onclick="pmShowAddModal('${co.id}')">+ Add User</button>
     </div>
+    ${legacyNotice}
     ${members.length ? `<div style="display:flex;flex-direction:column;gap:8px">${members.map(m => `
       <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--wash)">
         <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#1d64a7,#2bb9e7);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed';font-weight:800;font-size:.72rem;flex-shrink:0">${pmInitials(m.profile?.name)}</div>
@@ -6345,6 +6379,18 @@ async function pmAddSave() {
   if (co) coLoadMembers(co);
 }
 
+// Backfills the newer company_members join table from the older
+// nr_companies.member_user_id column for one company (see coLoadMembers'
+// legacy-gap notice, and llCheckLegacyLinks for the cross-company version).
+async function pmBackfillLegacyLink(coId) {
+  const co = coAllCompanies.find(c => String(c.id) === String(coId));
+  if (!co || !co.member_user_id) return;
+  const { error } = await db.from('company_members').insert({ company_id: coId, user_id: co.member_user_id, role: 'Member' });
+  if (error) { toast('Error: ' + error.message); return; }
+  toast('✓ Legacy link added as portal user');
+  coLoadMembers(co);
+}
+
 async function pmRemoveMember(memberRowId, coId) {
   if (!confirm('Remove this user from the company?')) return;
   const { error } = await db.from('company_members').delete().eq('id', memberRowId);
@@ -6352,6 +6398,92 @@ async function pmRemoveMember(memberRowId, coId) {
   toast('Removed');
   const co = coAllCompanies.find(c => String(c.id) === String(coId));
   if (co) coLoadMembers(co);
+}
+
+// ── Legacy Link Gap Checker (Companies screen "🔎 Check Legacy Links") ──────
+// Cross-company version of the coLoadMembers legacy-gap notice: scans every
+// company with nr_companies.member_user_id set, fetches company_members in
+// one query, and lists the ones that never got backfilled into the newer
+// table, with one-click and bulk fixes.
+let llGaps = []; // [{company, profile}] from the last llCheckLegacyLinks() scan
+
+async function llCheckLegacyLinks() {
+  const modal    = document.getElementById('ll-modal');
+  const listEl   = document.getElementById('ll-list');
+  const msgEl    = document.getElementById('ll-msg');
+  const actionsEl = document.getElementById('ll-actions');
+  modal.style.display = 'flex';
+  listEl.innerHTML = '';
+  actionsEl.style.display = 'none';
+  msgEl.style.color = 'var(--muted)'; msgEl.textContent = 'Scanning…';
+
+  if (!coAllCompanies || !coAllCompanies.length) await coLoad();
+  const candidates = coAllCompanies.filter(c => c.member_user_id);
+
+  const { data: memberRows, error } = await db.from('company_members').select('company_id,user_id');
+  if (error) {
+    msgEl.style.color = 'var(--red)';
+    msgEl.textContent = 'Could not check company_members: ' + error.message;
+    return;
+  }
+  const linkedSet = new Set((memberRows || []).map(r => `${r.company_id}:${r.user_id}`));
+  const gaps = candidates.filter(c => !linkedSet.has(`${c.id}:${c.member_user_id}`));
+
+  const profiles = await pmFetchAllProfiles();
+  const byId = {}; profiles.forEach(p => { byId[p.id] = p; });
+  llGaps = gaps.map(c => ({ company: c, profile: byId[c.member_user_id] || null }));
+
+  llRenderGaps();
+}
+
+function llRenderGaps() {
+  const listEl    = document.getElementById('ll-list');
+  const msgEl     = document.getElementById('ll-msg');
+  const actionsEl = document.getElementById('ll-actions');
+
+  if (!llGaps.length) {
+    msgEl.style.color = 'var(--ok)';
+    msgEl.textContent = "No legacy links missing — everything's in sync.";
+    listEl.innerHTML = '';
+    actionsEl.style.display = 'none';
+    return;
+  }
+
+  msgEl.textContent = '';
+  actionsEl.style.display = 'flex';
+  listEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto">${llGaps.map(g => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #f5c66c;border-radius:7px;background:#fef3c7">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.84rem;font-weight:600">${esc2(g.company.name)}</div>
+        <div style="font-size:.72rem;color:#92400e">${esc2(g.profile?.name || g.profile?.email || g.company.member_user_id)}${g.profile?.email && g.profile?.name ? ' · ' + esc2(g.profile.email) : ''}</div>
+      </div>
+      <button class="co-act-btn" onclick="llFixOne('${g.company.id}')">Fix</button>
+    </div>`).join('')}</div>`;
+}
+
+async function llFixOne(coId) {
+  const g = llGaps.find(x => String(x.company.id) === String(coId));
+  if (!g) return;
+  const { error } = await db.from('company_members').insert({ company_id: coId, user_id: g.company.member_user_id, role: 'Member' });
+  if (error) { toast('Error: ' + error.message); return; }
+  llGaps = llGaps.filter(x => String(x.company.id) !== String(coId));
+  toast('✓ Fixed ' + g.company.name);
+  llRenderGaps();
+}
+
+async function llFixAll() {
+  const msgEl = document.getElementById('ll-msg');
+  const targets = llGaps.slice();
+  msgEl.style.color = 'var(--muted)'; msgEl.textContent = `Fixing ${targets.length} compan${targets.length === 1 ? 'y' : 'ies'}…`;
+
+  let failed = 0;
+  for (const g of targets) {
+    const { error } = await db.from('company_members').insert({ company_id: g.company.id, user_id: g.company.member_user_id, role: 'Member' });
+    if (error) { failed++; continue; }
+    llGaps = llGaps.filter(x => String(x.company.id) !== String(g.company.id));
+  }
+  toast(failed ? `Fixed ${targets.length - failed}, ${failed} failed` : `✓ Fixed all ${targets.length}`);
+  llRenderGaps();
 }
 
 // ── Compliance Training Quizzes (member-side Frankie chatbot feature) ────────
