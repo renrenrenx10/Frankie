@@ -5753,6 +5753,18 @@ async function coFetchAnalysis(companyId) {
   } catch (_) { return []; }
 }
 
+// Self-declared answers, same company + BE scope as coFetchAnalysis() above.
+// Keyed (section, q) to match nr_evidence_analysis's convention exactly, so
+// the two can be joined directly in coLoadPreOsv() below.
+async function coFetchSelfAnswers(companyId) {
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/nr_self_assessment_answers?company_id=eq.${companyId}&assessment_type=eq.be&select=section,q,score`, {
+      headers: evAuthHeaders(),
+    });
+    return res.ok ? await res.json() : [];
+  } catch (_) { return []; }
+}
+
 function sccScoreBand(score) {
   if (score >= 7) return 'var(--ok)';
   if (score >= 2) return '#e09a3a';
@@ -5805,13 +5817,14 @@ async function sccSaveOverride(rowId) {
 // Reads the same nr_evidence_analysis rows the Evidence tab already fetches
 // (coFetchAnalysis), grouped into the 6 BE sections and sorted worst-AI-score-
 // first within each, so SCC sees what needs probing without opening every
-// file. NOTE: there is no per-question SELF-declared score to compare
-// against anywhere in Supabase today — assessment-drawer.js keeps answers in
-// memory only (never persisted), so crmCo.scores (coLoadAssessment, above)
-// is an aggregate % total, not a per-question breakdown. This view shows the
-// AI read on its own merit (is this evidence weak, regardless of what the
-// company claimed) rather than faking a self-vs-AI comparison with data that
-// doesn't exist yet.
+// file.
+// Self-declared-vs-AI comparison (2026-09-15): assessment-drawer.js has
+// persisted per-question self-declared answers to nr_self_assessment_answers
+// since 2026-09-11, specifically so this tab could show them (see its own
+// header comment: "so SCC's Pre-OSV Pack can compare a self-declared score
+// against the AI's read of the evidence for the same question") — this file
+// just never picked that up until now. coFetchSelfAnswers() below reads the
+// same table by (company_id, assessment_type='be', section, q).
 
 let BE_EVIDENCE_MAP = null; // cached across companies - static content, not per-company
 
@@ -5839,9 +5852,10 @@ async function coLoadPreOsv(co) {
   if (!panel) return;
   panel.innerHTML = `<div style="color:var(--muted);font-size:.8rem">Loading Pre-OSV Pack…</div>`;
 
-  const [analysisRows, evidenceMap] = await Promise.all([
+  const [analysisRows, evidenceMap, selfRows] = await Promise.all([
     coFetchAnalysis(co.id),
     loadBeEvidenceMap(),
+    coFetchSelfAnswers(co.id),
   ]);
 
   if (!analysisRows.length) {
@@ -5856,6 +5870,13 @@ async function coLoadPreOsv(co) {
   analysisRows.forEach(r => {
     if (!bySection[r.section]) bySection[r.section] = {};
     bySection[r.section][r.q] = r;
+  });
+
+  // Self-declared scores, keyed the same way, for the per-question comparison.
+  const selfBySection = {};
+  selfRows.forEach(r => {
+    if (!selfBySection[r.section]) selfBySection[r.section] = {};
+    selfBySection[r.section][r.q] = r.score;
   });
 
   const tabsHtml = CO_EV_SECTIONS.map((name, i) => {
@@ -5878,18 +5899,33 @@ async function coLoadPreOsv(co) {
 
     rows.sort((a, b) => (a.scc_override_score ?? a.ai_suggested_score ?? -1) - (b.scc_override_score ?? b.ai_suggested_score ?? -1));
 
+    const selfForSection = selfBySection[name] || {};
     const cards = rows.map(r => {
       const q = secQuestions.find(x => x.q === r.q);
       const topic = q ? q.topic : ('Question ' + r.q);
       const shown = (r.scc_override_score ?? r.ai_suggested_score);
       const band = preOsvScoreBand(shown);
       const fname = (r.evidence_storage_path || '').split('/').pop().replace(/^Q\d+__/, '');
+      const selfScore = selfForSection[r.q];
+      const hasSelf = selfScore !== undefined && selfScore !== null;
+      const selfBand = hasSelf ? preOsvScoreBand(selfScore) : null;
+      const gapFlag = hasSelf && Math.abs(selfScore - shown) >= 5;
+      const selfHtml = hasSelf ? `
+          <div class="preosv-score">
+            <div class="preosv-score-lbl">Self-declared${gapFlag ? ' ⚠' : ''}</div>
+            <div class="preosv-score-val preosv-score-val--${selfBand.cls}">${selfBand.label}</div>
+          </div>` : `
+          <div class="preosv-score">
+            <div class="preosv-score-lbl">Self-declared</div>
+            <div class="preosv-score-val" style="color:var(--muted)">—</div>
+          </div>`;
       return `<div class="preosv-card preosv-card--${band.cls}">
         <div class="preosv-card-top">
           <span class="preosv-qnum">Q${r.q}</span>
           <span class="preosv-topic">${esc2(topic)}
             <a class="preosv-fname" href="#" onclick="evOpenFile(event,'${r.evidence_storage_path}')">${esc2(fname)}</a>
           </span>
+          ${selfHtml}
           <div class="preosv-score">
             <div class="preosv-score-lbl">${r.scc_override_score !== null && r.scc_override_score !== undefined ? 'SCC score' : 'AI score'}</div>
             <div class="preosv-score-val preosv-score-val--${band.cls}">${band.label}</div>
@@ -5908,7 +5944,7 @@ async function coLoadPreOsv(co) {
   panel.innerHTML = `
     <div class="preosv-tabs">${tabsHtml}</div>
     ${panelsHtml}
-    <div class="preosv-note">AI score shown until SCC saves an override on the Evidence tab, then that takes over. Self-declared scores aren't shown — assessment answers aren't persisted per-question anywhere yet, only as an aggregate % (see the Assessment tab).</div>`;
+    <div class="preosv-note">AI score shown until SCC saves an override on the Evidence tab, then that takes over. Self-declared score is the company's own answer to the same question in their self-assessment — a ⚠ flags a gap of 5+ points between the two, worth a closer look before OSV. "—" means the company hasn't answered that question yet.</div>`;
 }
 
 function preOsvSwitch(coId, idx) {
