@@ -594,6 +594,30 @@ button{cursor:pointer}
   .obn-left{position:static;width:100%;max-height:none;margin-bottom:18px}
 }
 
+
+/* ══════ F4N CALENDAR (screen-f4ncalendar) ══════ */
+.f4ncal-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.f4ncal-monthlabel{font-family:'Barlow Condensed';font-size:1.1rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);min-width:170px;text-align:center}
+.f4ncal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.f4ncal-dow{background:var(--wash);padding:6px 8px;font-family:'Barlow Condensed';font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:center}
+.f4ncal-cell{background:var(--panel);min-height:96px;padding:6px 6px 4px}
+.f4ncal-cell.f4ncal-otherm{background:#fafcfe}
+.f4ncal-cell.f4ncal-otherm .f4ncal-daynum{color:#b7c4d1}
+.f4ncal-cell.f4ncal-today{box-shadow:inset 0 0 0 2px var(--accent)}
+.f4ncal-daynum{font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:4px}
+.f4ncal-chip{display:flex;align-items:center;gap:4px;font-size:.66rem;padding:2px 5px;border-radius:4px;margin-bottom:2px}
+.f4ncal-chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer}
+.f4ncal-chip-add{flex-shrink:0;opacity:.6;cursor:pointer}
+.f4ncal-chip-add:hover{opacity:1}
+.f4ncal-chip.f4ncal-overdue{background:var(--red-bg);color:var(--red)}
+.f4ncal-chip.f4ncal-soon{background:#fff7e6;color:var(--warn)}
+.f4ncal-chip.f4ncal-normal{background:#eaf6fc;color:var(--accent2)}
+.f4ncal-agenda{margin-top:22px}
+@media (max-width:900px){
+  .f4ncal-cell{min-height:70px}
+  .f4ncal-chip{font-size:.6rem}
+}
+
 </style>
 </head>
 <body>
@@ -648,6 +672,10 @@ button{cursor:pointer}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="18"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="16" y1="14" x2="16" y2="18"/></svg>
         <span class="sb-label">F4N Tracker</span>
         <span class="sb-count" id="sb-f4n-count">0</span>
+      </button>
+      <button class="sb-item" data-screen="f4ncalendar" onclick="nav('f4ncalendar')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+        <span class="sb-label">F4N Calendar</span>
       </button>
       <button class="sb-item" data-screen="training" onclick="nav('training')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg>
@@ -993,6 +1021,34 @@ Custom actions can be removed from the plan if they are no longer relevant – t
         </div>
       </div>
     </div><!-- /screen-onboarding -->
+
+
+    <!-- ──────────── F4N CALENDAR -->
+    <div class="screen" id="screen-f4ncalendar">
+      <div>
+        <div class="f4ncal-toolbar">
+          <button class="tb-btn" onclick="f4nCalPrev()" title="Previous month">&larr;</button>
+          <div class="f4ncal-monthlabel" id="f4ncal-monthlabel"></div>
+          <button class="tb-btn" onclick="f4nCalNext()" title="Next month">&rarr;</button>
+          <button class="tb-btn" onclick="f4nCalToday()">Today</button>
+          <select id="f4ncal-owner-filter" onchange="f4nCalRender()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:8px 11px;font-size:.82rem;outline:none;cursor:pointer">
+            <option value="all">All SCC owners</option>
+          </select>
+          <div style="flex:1"></div>
+          <button class="tb-btn primary" onclick="f4nDownloadIcsAll()">&#11015; Download All (.ics)</button>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:14px">
+          Every F4N expiry date on record. <span style="color:var(--warn);font-weight:600">Amber</span> = due within 2 months &middot; <span style="color:var(--red);font-weight:600">Red</span> = overdue.
+          Click a company chip to jump to its record, or the &#11015; icon to add just that one date to your own calendar. "Download All" gives you one file to import into Outlook, Google Calendar, or your shared Teams calendar — re-downloading and re-importing later updates the same events rather than duplicating them.
+        </div>
+        <div class="f4ncal-grid" id="f4ncal-grid"></div>
+
+        <div class="f4ncal-agenda">
+          <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);margin-bottom:10px">Upcoming Expiries &mdash; Full List</div>
+          <div id="f4ncal-agenda-list"></div>
+        </div>
+      </div>
+    </div><!-- /screen-f4ncalendar -->
 
     <!-- ──────────── DASHBOARD -->
     <div class="screen active" id="screen-dashboard">
@@ -2867,6 +2923,7 @@ const TOPBAR = {
   dashboard:   {title:'F.R.A.N.K.I.E.', sub:'Future Readiness And Nuclear Knowledge Intelligence Engine', actions:''},
   usage:       {title:'Usage Analytics', sub:'Members-area activity — logins, section views and toolkit downloads', actions:`<button class="tb-btn primary" onclick="usageLoad()">↻ Refresh</button>`},
   companies:   {title:'Companies', sub:'All managed companies — evidence, assessments and certificates', actions:`<button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button><button class="tb-btn" onclick="mrShowAddModal()" style="margin-left:8px">+ Add Member Request</button><button class="tb-btn" onclick="llCheckLegacyLinks()" style="margin-left:8px">🔎 Check Legacy Links</button>`},
+  f4ncalendar: {title:'F4N Calendar', sub:'Expiry dates for F4N companies — month view, agenda list and one-click calendar export', actions:`<button class="tb-btn primary" onclick="f4nDownloadIcsAll()">&#11015; Download All (.ics)</button>`},
   f4ntracker:  {title:'F4N Tracker', sub:'Booking pipeline for Fit For Nuclear assessments — linked to CRM companies', actions:`<button class="tb-btn primary" onclick="f4nShowAddModal()">+ Add Booking</button><button class="tb-btn" onclick="f4nLoad()" style="margin-left:8px">↻ Refresh</button>`},
   onboarding:  {title:'SCC Onboarding & Training', sub:'Digital F4N Supply Chain Consultant training manual — modules, BE/NSS question bank and scoring guidance', actions:''},
   training:    {title:'Training Register', sub:'Compliance training quiz completions across all companies', actions:`<button class="tb-btn primary" onclick="trainingExportCsv()">&#11015; Export CSV</button><button class="tb-btn" onclick="trainingLoad()" style="margin-left:8px">↻ Refresh</button>`},
@@ -2926,6 +2983,7 @@ function nav(screen, opts) {
   if (screen === 'nrcompanies') nrcLoad();
   if (screen === 'f4njourney') fjLoadSubmissions();
   if (screen === 'f4ntracker') f4nLoad();
+  if (screen === 'f4ncalendar') f4nCalOpen();
   if (screen === 'training') trainingLoad();
   if (screen === 'actions') actLoad();
   if (screen === 'supplierdb') sdbOpen();
@@ -10780,6 +10838,193 @@ function obnJumpTo(id){
     el.style.outline='2px solid var(--accent)';
     setTimeout(()=>el.style.outline='',1800);
   }, 60);
+}
+
+
+// ══════ F4N CALENDAR (screen-f4ncalendar) ══════
+let f4nCalState = { year: new Date().getFullYear(), month: new Date().getMonth() };
+
+async function f4nCalOpen() {
+  if (!f4nAll.length) await f4nLoad();
+  f4nCalPopulateOwnerFilter();
+  f4nCalRender();
+}
+
+function f4nCalPopulateOwnerFilter() {
+  const sel = document.getElementById('f4ncal-owner-filter');
+  if (!sel) return;
+  const current = sel.value;
+  const owners = [...new Set(f4nAll.map(r => r.scc_owner).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="all">All SCC owners</option>' + owners.map(o => `<option value="${escH(o)}">${escH(o)}</option>`).join('');
+  if (owners.includes(current)) sel.value = current;
+}
+
+function f4nCalPrev() { f4nCalState.month--; if (f4nCalState.month < 0) { f4nCalState.month = 11; f4nCalState.year--; } f4nCalRender(); }
+function f4nCalNext() { f4nCalState.month++; if (f4nCalState.month > 11) { f4nCalState.month = 0; f4nCalState.year++; } f4nCalRender(); }
+function f4nCalToday() { const t = new Date(); f4nCalState.year = t.getFullYear(); f4nCalState.month = t.getMonth(); f4nCalRender(); }
+
+function f4nDateKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+function f4nCalBuildDays(year, month) {
+  const firstOfMonth = new Date(year, month, 1);
+  const startWeekday = (firstOfMonth.getDay() + 6) % 7; // Monday = 0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) {
+    cells.push({ date: new Date(year, month, 1 - (startWeekday - i)), otherMonth: true });
+  }
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ date: new Date(year, month, d), otherMonth: false });
+  while (cells.length < 42) {
+    const last = cells[cells.length - 1].date;
+    const next = new Date(last); next.setDate(next.getDate() + 1);
+    cells.push({ date: next, otherMonth: true });
+  }
+  return cells;
+}
+
+function f4nCalRender() {
+  const owner = document.getElementById('f4ncal-owner-filter')?.value || 'all';
+  const rows = f4nAll
+    .map(r => ({ r, exp: f4nEffectiveExpiry(r) }))
+    .filter(x => x.exp)
+    .filter(x => owner === 'all' || x.r.scc_owner === owner);
+
+  const byDate = {};
+  rows.forEach(x => {
+    const key = f4nDateKey(new Date(x.exp));
+    (byDate[key] = byDate[key] || []).push(x);
+  });
+
+  const { year, month } = f4nCalState;
+  const labelEl = document.getElementById('f4ncal-monthlabel');
+  if (labelEl) labelEl.textContent = new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+  const cells = f4nCalBuildDays(year, month);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayKey = f4nDateKey(today);
+  const in2mo = new Date(today); in2mo.setMonth(in2mo.getMonth() + 2);
+  const dow = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  let html = dow.map(d => `<div class="f4ncal-dow">${d}</div>`).join('');
+  cells.forEach(c => {
+    const key = f4nDateKey(c.date);
+    const items = byDate[key] || [];
+    const isToday = key === todayKey;
+    const cellClass = 'f4ncal-cell' + (c.otherMonth ? ' f4ncal-otherm' : '') + (isToday ? ' f4ncal-today' : '');
+    const chipsHtml = items.map(x => {
+      const d = new Date(x.exp);
+      const overdue = d < today;
+      const soon = !overdue && d <= in2mo;
+      const cls = overdue ? 'f4ncal-overdue' : (soon ? 'f4ncal-soon' : 'f4ncal-normal');
+      const nameClick = x.r.company_id ? `f4nOpenCompany('${x.r.company_id}')` : `void(0)`;
+      return `<div class="f4ncal-chip ${cls}"><span class="f4ncal-chip-name" onclick="${nameClick}" title="${escH(x.r.company_name)}">${escH(x.r.company_name)}</span><span class="f4ncal-chip-add" title="Add to my calendar (.ics)" onclick="f4nDownloadIcsOne('${x.r.id}')">&#11015;</span></div>`;
+    }).join('');
+    html += `<div class="${cellClass}"><div class="f4ncal-daynum">${c.date.getDate()}</div>${chipsHtml}</div>`;
+  });
+  const gridEl = document.getElementById('f4ncal-grid');
+  if (gridEl) gridEl.innerHTML = html;
+
+  const agenda = rows.slice().sort((a, b) => new Date(a.exp) - new Date(b.exp));
+  const listEl = document.getElementById('f4ncal-agenda-list');
+  if (!listEl) return;
+  if (!agenda.length) {
+    listEl.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:12px 0">No expiry dates recorded yet — add them in the F4N Tracker table.</div>';
+    return;
+  }
+  listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.82rem">
+    <thead>
+      <tr style="text-align:left;background:var(--wash)">
+        <th style="padding:7px 9px;border-bottom:1px solid var(--line)">Company</th>
+        <th style="padding:7px 9px;border-bottom:1px solid var(--line)">SCC Owner</th>
+        <th style="padding:7px 9px;border-bottom:1px solid var(--line)">F4N Status</th>
+        <th style="padding:7px 9px;border-bottom:1px solid var(--line)">Expiry Date</th>
+        <th style="padding:7px 9px;border-bottom:1px solid var(--line)"></th>
+        <th style="padding:7px 9px;border-bottom:1px solid var(--line)"></th>
+      </tr>
+    </thead>
+    <tbody>${agenda.map(x => {
+      const d = new Date(x.exp);
+      const overdue = d < today;
+      const soon = !overdue && d <= in2mo;
+      const color = overdue ? 'var(--red)' : (soon ? 'var(--warn)' : 'var(--ink)');
+      const tag = overdue ? '⚠ Overdue' : (soon ? '⏳ Due soon' : '');
+      const nameHtml = x.r.company_id
+        ? `<span onclick="f4nOpenCompany('${x.r.company_id}')" style="cursor:pointer;color:var(--accent);text-decoration:underline;font-weight:600">${escH(x.r.company_name)}</span>`
+        : `<span style="font-weight:600">${escH(x.r.company_name)}</span>`;
+      return `<tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:6px 9px">${nameHtml}</td>
+        <td style="padding:6px 9px;color:var(--muted)">${escH(x.r.scc_owner || '—')}</td>
+        <td style="padding:6px 9px;color:var(--muted)">${escH(x.r.f4n_status || '—')}</td>
+        <td style="padding:6px 9px;font-weight:700;color:${color}">${f4nFmtDate(x.exp)}</td>
+        <td style="padding:6px 9px;color:${color};font-size:.72rem;font-weight:600">${tag}</td>
+        <td style="padding:6px 9px"><button class="tb-btn" style="padding:4px 9px;font-size:.7rem" onclick="f4nDownloadIcsOne('${x.r.id}')">&#11015; .ics</button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+// ── ICS generation (client-side only — no server/Graph calls) ──────────────
+function f4nIcsEscape(s) {
+  return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+}
+function f4nIcsStamp(d) { return new Date(d).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'; }
+function f4nIcsDateOnly(d) {
+  const dt = new Date(d);
+  return dt.getFullYear() + String(dt.getMonth() + 1).padStart(2, '0') + String(dt.getDate()).padStart(2, '0');
+}
+function f4nIcsDateOnlyPlusDays(d, days) {
+  const dt = new Date(d); dt.setDate(dt.getDate() + days);
+  return dt.getFullYear() + String(dt.getMonth() + 1).padStart(2, '0') + String(dt.getDate()).padStart(2, '0');
+}
+function f4nBuildVevent(row, exp) {
+  const uid = 'f4n-expiry-' + row.id + '@nuccol.co.uk';
+  const dtStart = f4nIcsDateOnly(exp);
+  const dtEnd = f4nIcsDateOnlyPlusDays(exp, 1);
+  const summary = 'F4N Expiry — ' + row.company_name;
+  const desc = 'F4N status: ' + (row.f4n_status || '—') + '\nSCC owner: ' + (row.scc_owner || '—');
+  return [
+    'BEGIN:VEVENT',
+    'UID:' + uid,
+    'DTSTAMP:' + f4nIcsStamp(new Date()),
+    'DTSTART;VALUE=DATE:' + dtStart,
+    'DTEND;VALUE=DATE:' + dtEnd,
+    'SUMMARY:' + f4nIcsEscape(summary),
+    'DESCRIPTION:' + f4nIcsEscape(desc),
+    'BEGIN:VALARM',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:F4N expiry reminder',
+    'TRIGGER:-P60D',
+    'END:VALARM',
+    'END:VEVENT'
+  ].join('\r\n');
+}
+function f4nIcsWrap(vevents) {
+  return [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NucCol//F4N Calendar//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    vevents.join('\r\n'),
+    'END:VCALENDAR'
+  ].join('\r\n');
+}
+function f4nDownloadIcsBlob(filename, content) {
+  const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+function f4nDownloadIcsAll() {
+  const rows = f4nAll.map(r => ({ r, exp: f4nEffectiveExpiry(r) })).filter(x => x.exp);
+  if (!rows.length) { toast('No expiry dates to export yet.'); return; }
+  const vevents = rows.map(x => f4nBuildVevent(x.r, x.exp));
+  f4nDownloadIcsBlob('F4N-Expiry-Calendar.ics', f4nIcsWrap(vevents));
+  toast(`Downloaded ${rows.length} expiry date${rows.length !== 1 ? 's' : ''} — open the file to import into Outlook, Teams or Google Calendar.`);
+}
+function f4nDownloadIcsOne(id) {
+  const row = f4nAll.find(r => r.id === id);
+  if (!row) { toast('Could not find that booking.'); return; }
+  const exp = f4nEffectiveExpiry(row);
+  if (!exp) { toast('No expiry date recorded for this company.'); return; }
+  f4nDownloadIcsBlob('F4N-Expiry-' + row.company_name.replace(/[^a-z0-9]+/gi, '-') + '.ics', f4nIcsWrap([f4nBuildVevent(row, exp)]));
 }
 
 </script>
