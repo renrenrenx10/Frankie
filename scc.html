@@ -5773,6 +5773,26 @@ function coSearch(val) {
   coRender(filtered);
 }
 
+// Fix a misspelled / renamed company name. Updates the single canonical
+// nr_companies.name field used across the CRM, NuclearReady Explorer and
+// F4N tracker matching. Does not retroactively rename historic text already
+// stored elsewhere (e.g. old F4N tracker rows keep their original text).
+async function coRenameCompany(coId) {
+  const co = coAllCompanies.find(c => String(c.id) === String(coId));
+  if (!co) { toast('Company not found'); return; }
+  const input = prompt('Company name:', co.name || '');
+  if (input === null) return; // cancelled
+  const trimmed = input.trim();
+  if (!trimmed) { toast('Name cannot be empty'); return; }
+  if (trimmed === co.name) return;
+  const { error } = await db.from('nr_companies').update({ name: trimmed }).eq('id', coId);
+  if (error) { toast('Error: ' + error.message); return; }
+  co.name = trimmed;
+  const nameEl = document.querySelector('#co-folder-' + coId + ' .co-folder-name span');
+  if (nameEl) nameEl.textContent = trimmed;
+  toast('✓ Company name updated to "' + trimmed + '"');
+}
+
 function coRender(list) {
   const el = document.getElementById('co-list');
   if (!el) return;
@@ -5795,7 +5815,10 @@ function coRender(list) {
       <div class="co-folder-head" onclick="coToggle('${co.id}')">
         <span class="co-folder-icon">📁</span>
         <div style="flex:1;min-width:0">
-          <div class="co-folder-name">${esc2(co.name)}</div>
+          <div class="co-folder-name" style="display:flex;align-items:center;gap:6px">
+            <span>${esc2(co.name)}</span>
+            <button class="co-act-btn" title="Fix / rename company name" onclick="event.stopPropagation(); coRenameCompany('${co.id}')" style="font-size:.7rem;padding:1px 6px;font-weight:400;text-transform:none;letter-spacing:0">✏️ Rename</button>
+          </div>
           <div class="co-folder-meta">${datesMeta} &nbsp;·&nbsp; <span style="${linkedCls};font-size:.7rem">${linked}</span> &nbsp;·&nbsp; <span style="${sdbLinkedCls};font-size:.7rem">${sdbLinked}</span> &nbsp;·&nbsp; <span id="co-interactions-${co.id}"></span></div>
         </div>
         <div class="co-folder-right">
