@@ -4409,7 +4409,7 @@ Write 2-3 focused paragraphs. Professional, clear and specific. No bullet points
 const BLOB_BASE        = `${SCC_WORKER}/blob/content`;
 const VIDEOS_BASE      = `${SCC_WORKER}/blob/videos`; // list/upload/delete — gated
 const VIDEOS_READ_BASE = 'https://nuccolmedia.blob.core.windows.net/videos'; // direct, read-only
-const VIDEOS_READ_SAS  = 'sp=rl&st=2026-08-03T18:39:30Z&se=2030-01-01T03:54:30Z&spr=https&sv=2026-02-06&sr=c&sig=t4fDPiKgbhIgxNZPXtPFIaes8VFBDcF2ho7FzDay4Mg%3D';
+const VIDEOS_READ_SAS  = 'sp=r&st=2026-09-24T11:08:22Z&se=2028-01-03T20:23:22Z&spr=https&sv=2026-02-06&sr=c&sig=gRa4tlsXXIJUNYk3aydlSSdXzn73cBO5obcIbLFVPSE%3D';
 
 function blobAuthHeaders() {
   const token = sccSession?.access_token || '';
