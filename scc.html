@@ -8518,18 +8518,18 @@ function nrnRender() {
       </div>` : `
       <div style="margin-top:10px;font-size:.75rem;color:var(--muted)">
         ${n.status==='approved'?'✓ Approved':'✕ Rejected'}${n.reviewed_by?' by '+n.reviewed_by:''}${n.reviewed_at?' · '+new Date(n.reviewed_at).toLocaleDateString('en-GB'):''}
-        ${n.reviewer_notes?`<div style="margin-top:3px;color:var(--ink)">${n.reviewer_notes}</div>`:''}
+        ${n.reviewer_notes?`<div style="margin-top:3px;color:var(--ink)">${escH(n.reviewer_notes)}</div>`:''}
       </div>`;
 
     return `<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px 20px" id="nrn-card-${n.id}">
       <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px">
         <div style="flex:1;min-width:0">
-          <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--ink)">${n.title}</div>
-          <div style="font-size:.72rem;color:var(--muted);margin-top:2px">${n.company_name||'—'} · ${n.type||'General'} · ${date}</div>
+          <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--ink)">${escH(n.title)}</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:2px">${escH(n.company_name||'—')} · ${escH(n.type||'General')} · ${date}</div>
         </div>
         <div style="padding:3px 9px;border-radius:10px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:${statusBg(n.status)};color:${statusC(n.status)};border:1px solid ${statusBd(n.status)};flex-shrink:0">${n.status}</div>
       </div>
-      <div style="font-size:.85rem;color:#334960;line-height:1.55;white-space:pre-wrap">${n.body||''}</div>
+      <div style="font-size:.85rem;color:#334960;line-height:1.55;white-space:pre-wrap">${escH(n.body)}</div>
       ${actions}
     </div>`;
   }).join('');
