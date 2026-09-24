@@ -6453,7 +6453,19 @@ function coTagChips(co) {
   const group = (label, items) => (items && items.length)
     ? `<div style="margin-bottom:8px"><div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6a7a90;margin-bottom:4px">${label}</div>${items.map(t => `<span style="display:inline-block;background:var(--wash);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:.72rem;margin:0 4px 4px 0">${esc2(t)}</span>`).join('')}</div>`
     : '';
-  return group('Capabilities', co.capabilities) + group('Accreditations', co.accreditations) + group('Markets', co.markets);
+  // [2026-09-24] capabilities can be a flat array (Supplier DB sync) OR a grouped
+  // object / JSON string from an approved member update — flatten either shape.
+  let caps = co.capabilities;
+  if (typeof caps === 'string') { try { caps = JSON.parse(caps); } catch (e) { caps = caps ? [caps] : []; } }
+  const asList = v => Array.isArray(v) ? v.filter(Boolean) : [];
+  let capList, svcList = [], mktList = asList(co.markets);
+  if (Array.isArray(caps)) capList = caps.filter(Boolean);
+  else if (caps && typeof caps === 'object') {
+    capList = ['categories','commodities','machining','welding','testing','design'].flatMap(k => asList(caps[k]));
+    svcList = asList(caps.services);
+    if (!mktList.length) mktList = asList(caps.markets);
+  } else capList = [];
+  return group('Capabilities', capList) + group('Services', svcList) + group('Accreditations', asList(co.accreditations)) + group('Markets', mktList);
 }
 
 function coLoadDetails(co) {
@@ -7833,6 +7845,9 @@ async function nrApprove(id) {
    'contact_name','contact_phone','contact_email','linkedin'].forEach(f => {
     if (u[f] != null && String(u[f]).trim() !== '') companyUpdate[f] = u[f];
   });
+  if (typeof companyUpdate.capabilities === 'string') {
+    try { companyUpdate.capabilities = JSON.parse(companyUpdate.capabilities); } catch (e) { /* leave as-is */ }
+  }
   if (Object.keys(companyUpdate).length) {
     const { data: upd, error: coErr } = await db.from('nr_companies')
       .update(companyUpdate).eq('id', u.company_id).select('id');
