@@ -6491,7 +6491,7 @@ function coLoadDetails(co) {
 
 // ── NuclearReady tab — the same controls that used to live only on the
 // separate "NuclearReady Companies" admin grid, now on the one company view ──
-const NUCLEARREADY_EXPLORER_BASE = 'https://renrenrenx10.github.io/nuccol-tools/NuclearReady_Explorer_v3.html'; // public Explorer — links use #company/<slug>
+const NUCLEARREADY_EXPLORER_BASE = 'https://renrenrenx10.github.io/nuccol-tools/NuclearReady_Explorer_v8.html'; // public Explorer — links use #company/<slug>
 
 function coSlugify(name) {
   return String(name || '').toLowerCase().trim()
@@ -7715,6 +7715,16 @@ async function nrLoadUpdates() {
   if (error) { list.innerHTML = `<div style="color:var(--red);font-size:.85rem">Error loading updates: ${error.message}</div>`; return; }
 
   nrAllUpdates = data || [];
+  // [2026-09-24] Look up who submitted each update (members pick their company
+  // from a dropdown, so the reviewer needs to check the person belongs to it).
+  try {
+    const ids = [...new Set(nrAllUpdates.map(u => u.user_id).filter(Boolean))];
+    if (ids.length) {
+      const { data: profs } = await db.from('profiles').select('id,full_name,company').in('id', ids);
+      const byId = {}; (profs || []).forEach(p => { byId[p.id] = p; });
+      nrAllUpdates.forEach(u => { u._submitter = byId[u.user_id] || null; });
+    }
+  } catch (e) { console.warn('NR submitter lookup failed:', e); }
   nrUpdateCounts();
   nrRender();
 
@@ -7766,6 +7776,8 @@ function nrRender() {
 
     const fields = [
       ['Description',    u.description],
+      ['Website',        u.website],
+      ['Logo',           u.logo_url],
       ['Capabilities',   u.capabilities],
       ['Services',       u.services],
       ['Region',         u.region],
@@ -7779,7 +7791,7 @@ function nrRender() {
     const fieldRows = fields.map(([k,v]) => `
       <div style="display:grid;grid-template-columns:140px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)">
         <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding-top:2px">${k}</div>
-        <div style="font-size:.85rem;color:var(--ink);line-height:1.5;white-space:pre-wrap">${v}</div>
+        <div style="font-size:.85rem;color:var(--ink);line-height:1.5;white-space:pre-wrap;word-break:break-word">${k === 'Logo' && /^https?:\/\//i.test(v) ? `<img src="${escH(v)}" alt="" style="max-height:60px;max-width:200px;display:block;margin-bottom:4px;background:#fff;border:1px solid var(--line);padding:4px">` : ''}${escH(v)}</div>
       </div>`).join('');
 
     const actionBtns = u.status === 'pending' ? `
@@ -7787,18 +7799,18 @@ function nrRender() {
         <button class="btn primary" onclick="nrApprove('${u.id}')">✓ Approve</button>
         <button class="btn danger"  onclick="nrReject('${u.id}')">✕ Reject</button>
         <div style="flex:1"></div>
-        <span style="font-size:.75rem;color:var(--muted);align-self:center">Approved changes will need to be manually applied to NuclearReady_Explorer_v3.html</span>
+        <span style="font-size:.75rem;color:var(--muted);align-self:center">Approving publishes these fields straight to the live NuclearReady Explorer. Check the submitter belongs to this company.</span>
       </div>` : `
       <div style="margin-top:12px;font-size:.75rem;color:var(--muted)">
         ${u.status === 'approved' ? `✓ Approved` : `✕ Rejected`}${u.reviewed_by ? ` by ${u.reviewed_by}` : ''}${u.reviewed_at ? ` on ${new Date(u.reviewed_at).toLocaleDateString('en-GB')}` : ''}
-        ${u.reviewer_notes ? `<div style="margin-top:4px;color:var(--ink)">${u.reviewer_notes}</div>` : ''}
+        ${u.reviewer_notes ? `<div style="margin-top:4px;color:var(--ink)">${escH(u.reviewer_notes)}</div>` : ''}
       </div>`;
 
     return `<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:20px 22px" id="nr-card-${u.id}">
       <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:14px">
         <div style="flex:1;min-width:0">
-          <div style="font-family:'Barlow Condensed';font-size:1.1rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink)">${u.company_name || '—'}</div>
-          <div style="font-size:.75rem;color:var(--muted);margin-top:2px">Submitted ${date} · User ID: ${u.user_id?.slice(0,8)}…</div>
+          <div style="font-family:'Barlow Condensed';font-size:1.1rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink)">${escH(u.company_name || '—')}</div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:2px">Submitted ${date} · By: ${u._submitter ? escH((u._submitter.full_name || 'Unnamed') + (u._submitter.company ? ' (' + u._submitter.company + ')' : '')) : 'User ' + escH(u.user_id?.slice(0,8) || '?') + '…'}${!u.company_id ? ' · <span style="color:var(--red);font-weight:700">No company linked</span>' : ''}</div>
         </div>
         <div style="padding:3px 10px;border-radius:12px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:${statusBg};color:${statusColour};border:1px solid ${statusBorder};flex-shrink:0">${u.status}</div>
       </div>
@@ -7809,39 +7821,36 @@ function nrRender() {
 }
 
 async function nrApprove(id) {
+  // [2026-09-24 pre-launch] Publish to nr_companies FIRST and confirm a row was
+  // actually updated (RLS can silently update 0 rows); only then mark approved.
   const { data: { user } } = await db.auth.getUser();
   const now = new Date().toISOString();
   const reviewer = user?.email || 'SCC';
+  const u = nrAllUpdates.find(x => x.id === id);
+  if (!u) { toast('Error: submission not found — refresh and try again'); return; }
+  if (!u.company_id) { toast('Cannot approve: this submission is not linked to a company'); return; }
 
-  // Mark the submission as approved
+  const companyUpdate = {};
+  ['description','website','logo_url','region','employees','capabilities',
+   'contact_name','contact_phone','contact_email','linkedin'].forEach(f => {
+    if (u[f] != null && String(u[f]).trim() !== '') companyUpdate[f] = u[f];
+  });
+  if (Object.keys(companyUpdate).length) {
+    const { data: upd, error: coErr } = await db.from('nr_companies')
+      .update(companyUpdate).eq('id', u.company_id).select('id');
+    if (coErr) { toast('Not published — company update failed: ' + coErr.message); console.warn('nr_companies update failed:', coErr); return; }
+    if (!upd || !upd.length) { toast('Not published — no company row was updated (check permissions / company link)'); return; }
+  }
+
   const { error } = await db.from('nr_profile_updates').update({
     status: 'approved',
     reviewed_at: now,
     reviewed_by: reviewer
   }).eq('id', id);
-  if (error) { toast('Error: ' + error.message); return; }
-
-  // Write approved fields back to nr_companies
-  const u = nrAllUpdates.find(x => x.id === id);
-  if (u && u.company_id) {
-    const companyUpdate = {};
-    if (u.description)   companyUpdate.description   = u.description;
-    if (u.website)       companyUpdate.website        = u.website;
-    if (u.logo_url)      companyUpdate.logo_url       = u.logo_url;
-    if (u.region)        companyUpdate.region         = u.region;
-    if (u.employees)     companyUpdate.employees      = u.employees;
-    if (u.capabilities)  companyUpdate.capabilities   = u.capabilities;
-    if (u.contact_name)  companyUpdate.contact_name   = u.contact_name;
-    if (u.contact_email) companyUpdate.contact_email  = u.contact_email;
-    if (u.linkedin)      companyUpdate.linkedin       = u.linkedin;
-    if (Object.keys(companyUpdate).length) {
-      const { error: coErr } = await db.from('nr_companies').update(companyUpdate).eq('id', u.company_id);
-      if (coErr) console.warn('nr_companies update failed:', coErr.message);
-    }
-  }
+  if (error) { toast('Published, but could not mark as approved: ' + error.message); return; }
 
   toast('✓ Update approved and published');
-  if (u) { u.status = 'approved'; u.reviewed_at = now; u.reviewed_by = reviewer; }
+  u.status = 'approved'; u.reviewed_at = now; u.reviewed_by = reviewer;
   nrUpdateCounts();
   nrRender();
 }
