@@ -6491,7 +6491,7 @@ function coLoadDetails(co) {
 
 // ── NuclearReady tab — the same controls that used to live only on the
 // separate "NuclearReady Companies" admin grid, now on the one company view ──
-const NUCLEARREADY_EXPLORER_BASE = 'https://renrenrenx10.github.io/nuccol-tools/NuclearReady_Explorer_v8.html'; // public Explorer — links use #company/<slug>
+const NUCLEARREADY_EXPLORER_BASE = 'https://renrenrenx10.github.io/nuccol-tools/NuclearReady.html'; // public Explorer — links use #company/<slug>
 
 function coSlugify(name) {
   return String(name || '').toLowerCase().trim()
@@ -8509,6 +8509,15 @@ function nrnRender() {
   const statusBg = s => s==='pending'?'#fef3e0':s==='approved'?'#e8f7ef':'#fff0ee';
   const statusBd = s => s==='pending'?'#f0c070':s==='approved'?'#a8d5bb':'#f5c6c0';
 
+  // [2026-09-24] Which approved stories the landing page is showing right now:
+  // the public_nr_news view returns approved, not-removed items, pinned first,
+  // newest first, and the landing page takes the top NRN_LANDING_COUNT.
+  const nrnPub = n => new Date(n.reviewed_at || n.submitted_at).getTime();
+  const liveIds = new Set(nrnAllItems
+    .filter(n => n.status === 'approved' && !n.unpublished_at)
+    .sort((a,b) => (b.pinned?1:0) - (a.pinned?1:0) || nrnPub(b) - nrnPub(a))
+    .slice(0, NRN_LANDING_COUNT).map(n => n.id));
+
   list.innerHTML = items.map(n => {
     const date = new Date(n.submitted_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
     const actions = n.status === 'pending' ? `
@@ -8516,6 +8525,15 @@ function nrnRender() {
         <button class="btn primary" onclick="nrnApprove('${n.id}')">✓ Approve</button>
         <button class="btn danger"  onclick="nrnReject('${n.id}')">✕ Reject</button>
       </div>` : `
+      ${n.status==='approved' ? `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+        ${n.unpublished_at
+          ? `<span style="font-size:.72rem;font-weight:700;color:var(--red)">REMOVED FROM SITE</span>
+             <button class="btn" onclick="nrnSetRemoved('${n.id}', false)">↺ Restore to site</button>`
+          : `${liveIds.has(n.id) ? `<span style="font-size:.72rem;font-weight:700;color:var(--ok)">● LIVE ON LANDING PAGE</span>` : `<span style="font-size:.72rem;color:var(--muted)">Approved — not in the latest ${NRN_LANDING_COUNT}</span>`}
+             <button class="btn" onclick="nrnSetPinned('${n.id}', ${!n.pinned})">${n.pinned ? '📌 Unpin' : '📌 Pin to top'}</button>
+             <button class="btn danger" onclick="nrnSetRemoved('${n.id}', true)">Remove from site</button>`}
+      </div>` : ''}
       <div style="margin-top:10px;font-size:.75rem;color:var(--muted)">
         ${n.status==='approved'?'✓ Approved':'✕ Rejected'}${n.reviewed_by?' by '+n.reviewed_by:''}${n.reviewed_at?' · '+new Date(n.reviewed_at).toLocaleDateString('en-GB'):''}
         ${n.reviewer_notes?`<div style="margin-top:3px;color:var(--ink)">${escH(n.reviewer_notes)}</div>`:''}
@@ -8533,6 +8551,29 @@ function nrnRender() {
       ${actions}
     </div>`;
   }).join('');
+}
+
+const NRN_LANDING_COUNT = 3;   // keep in step with limit= in NuclearReady_Landing.html
+
+async function nrnSetPinned(id, pinned) {
+  const { data, error } = await db.from('nr_news_submissions').update({ pinned }).eq('id', id).select('id');
+  if (error) { toast('Error: ' + error.message); return; }
+  if (!data || !data.length) { toast('Not saved — check permissions'); return; }
+  const n = nrnAllItems.find(x => x.id === id); if (n) n.pinned = pinned;
+  toast(pinned ? '📌 Pinned to top of landing page' : 'Unpinned');
+  nrnRender();
+}
+
+async function nrnSetRemoved(id, removed) {
+  if (removed && !confirm('Remove this story from the landing page? You can restore it later.')) return;
+  const unpublished_at = removed ? new Date().toISOString() : null;
+  const patch = removed ? { unpublished_at, pinned: false } : { unpublished_at };
+  const { data, error } = await db.from('nr_news_submissions').update(patch).eq('id', id).select('id');
+  if (error) { toast('Error: ' + error.message); return; }
+  if (!data || !data.length) { toast('Not saved — check permissions'); return; }
+  const n = nrnAllItems.find(x => x.id === id); if (n) Object.assign(n, patch);
+  toast(removed ? 'Removed from site' : '↺ Restored to site');
+  nrnRender();
 }
 
 async function nrnApprove(id) {
