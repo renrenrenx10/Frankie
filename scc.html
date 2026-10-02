@@ -663,6 +663,10 @@ button{cursor:pointer}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         <span class="sb-label">Usage Analytics</span>
       </button>
+      <button class="sb-item" data-screen="manuk" onclick="nav('manuk')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 5-5"/></svg>
+        <span class="sb-label">Manufacturing UK</span>
+      </button>
       <button class="sb-item" data-screen="companies" onclick="nav('companies')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
         <span class="sb-label">F4N Companies</span>
@@ -1633,6 +1637,65 @@ Custom actions can be removed from the plan if they are no longer relevant – t
         </div>
       </div>
     </div><!-- /screen-usage -->
+
+    <!-- ──────────── MANUFACTURING UK PUBLIC-PAGE ANALYTICS -->
+    <div class="screen" id="screen-manuk">
+      <div>
+        <div class="stats-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:8px">
+          <div class="stat-card"><div class="val" id="mu-stat-views">0</div><div class="lbl">Page Views (30d)</div></div>
+          <div class="stat-card"><div class="val" id="mu-stat-visits">0</div><div class="lbl">Unique Visits (30d)</div></div>
+          <div class="stat-card"><div class="val" id="mu-stat-manuk" style="color:#075985">0</div><div class="lbl">From Manufacturing UK</div></div>
+          <div class="stat-card"><div class="val" id="mu-stat-contact" style="color:#b91c1c">0</div><div class="lbl">Contact Clicks</div></div>
+          <div class="stat-card"><div class="val" id="mu-stat-downloads" style="color:#6d28d9">0</div><div class="lbl">Downloads</div></div>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:16px">Anonymous, per-visit analytics from the four sponsored Best Practice pages. "From Manufacturing UK" counts page views whose referrer or campaign tag is Manufacturing UK. Last 30 days.</div>
+
+        <div id="mu-loading" style="color:var(--muted);font-size:.88rem;padding:20px 0">Loading…</div>
+        <div id="mu-error" style="display:none;color:var(--red);font-size:.85rem;padding:10px 0"></div>
+
+        <div id="mu-body" style="display:none">
+          <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:20px">
+            <div style="background:var(--wash);padding:8px 12px;font-weight:700;font-size:.8rem;border-bottom:1px solid var(--line)">By Page</div>
+            <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+              <thead><tr style="text-align:left">
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Page</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);text-align:right">Views</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);text-align:right">Quiz start / done</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);text-align:right">Contact</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line);text-align:right">Downloads</th>
+              </tr></thead>
+              <tbody id="mu-pages-tbody"></tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <input id="mu-search" type="text" placeholder="Search page, detail or referrer…" oninput="muFilter()"
+              style="flex:1;min-width:200px;background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;color:var(--navy);outline:none">
+            <select id="mu-type-filter" onchange="muFilter()" style="background:var(--wash);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:.85rem;outline:none;cursor:pointer">
+              <option value="all">All event types</option>
+              <option value="view">Page view</option>
+              <option value="quiz_start">Quiz started</option>
+              <option value="quiz_complete">Quiz completed</option>
+              <option value="contact_click">Contact click</option>
+              <option value="download">Download</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px">
+            <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+              <thead><tr style="background:var(--wash);text-align:left">
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Page</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Type</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Detail</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Referrer</th>
+                <th style="padding:8px 10px;border-bottom:1px solid var(--line)">When</th>
+              </tr></thead>
+              <tbody id="mu-activity-tbody"></tbody>
+            </table>
+          </div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:8px">Up to the 200 most recent events from the last 30 days.</div>
+        </div>
+      </div>
+    </div><!-- /screen-manuk -->
 
     <!-- ──────────── SUPPLIER DATABASE -->
     <div class="screen" id="screen-supplierdb">
@@ -2918,6 +2981,7 @@ function showApp() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════
 const TOPBAR = {
+  manuk:       {title:'Manufacturing UK', sub:'Sponsored Best Practice pages — views, click-throughs, quiz and contact actions', actions:`<button class="tb-btn primary" onclick="muLoad()">↻ Refresh</button>`},
   dashboard:   {title:'F.R.A.N.K.I.E.', sub:'Future Readiness And Nuclear Knowledge Intelligence Engine', actions:''},
   usage:       {title:'Usage Analytics', sub:'Members-area activity — logins, section views and toolkit downloads', actions:`<button class="tb-btn primary" onclick="usageLoad()">↻ Refresh</button>`},
   companies:   {title:'Companies', sub:'All managed companies — evidence, assessments and certificates', actions:`<button class="tb-btn primary" onclick="nrcShowAddModal()">+ Add Company</button><button class="tb-btn" onclick="mrShowAddModal()" style="margin-left:8px">+ Add Member Request</button><button class="tb-btn" onclick="llCheckLegacyLinks()" style="margin-left:8px">🔎 Check Legacy Links</button>`},
@@ -2971,6 +3035,7 @@ function nav(screen, opts) {
     : '';
   document.getElementById('tb-actions').innerHTML = backBtn + (tb.actions || '');
   if (screen === 'usage') usageLoad();
+  if (screen === 'manuk') muLoad();
   if (screen === 'companies') coLoad();
   if (screen === 'assessment') populateAssessCompanySelect();
   if (screen === 'reports') populateReportSelects();
@@ -3117,6 +3182,84 @@ function usageFilter() {
     <td style="padding:7px 10px;border-bottom:1px solid var(--line)">${usageEsc(r.event_type === 'view' ? usageSectionLabel(r.detail) : (r.detail || '—'))}</td>
     <td style="padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;color:var(--muted)">${new Date(r.created_at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
   </tr>`).join('') : `<tr><td colspan="4" style="padding:12px 10px;color:var(--muted)">No matching activity.</td></tr>`;
+}
+
+// ════════════════════════════════════════════════════
+// MANUFACTURING UK — PUBLIC PAGE ANALYTICS
+// Reads public_events, written by the sponsored Man UK pages'
+// tracker (anonymous, per-visit). Companion to Usage Analytics.
+// ════════════════════════════════════════════════════
+const MU_PAGE_LABELS = { quiz:'Is Your Business Nuclear-Ready?', traceability:'Traceability & Documentation', cfsi:'Spotting Counterfeit Parts', lean:'Lean Quick Wins' };
+const MU_TYPE_COLOR = { view:'#dbeafe', quiz_start:'#fef9c3', quiz_complete:'#dcfce7', contact_click:'#fee2e2', download:'#ede9fe' };
+const MU_TYPE_LABEL = { view:'Page view', quiz_start:'Quiz started', quiz_complete:'Quiz completed', contact_click:'Contact click', download:'Download' };
+let muRows = [];
+function muEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function muPageLabel(p){ return MU_PAGE_LABELS[p] || p || '—'; }
+function muIsManUK(r){ const s = ((r.referrer||'') + ' ' + (r.utm_source||'')).toLowerCase(); return s.includes('manufacturing'); }
+
+async function muLoad(){
+  const L = document.getElementById('mu-loading'), B = document.getElementById('mu-body'), E = document.getElementById('mu-error');
+  L.style.display=''; B.style.display='none'; E.style.display='none';
+  const since = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+  const { data, error } = await db.from('public_events')
+    .select('visit_id,page,event_type,detail,referrer,utm_source,created_at')
+    .gte('created_at', since).order('created_at', { ascending:false }).limit(5000);
+  L.style.display='none';
+  if (error){ E.textContent = 'Could not load public page data: ' + error.message + ' — has the public_events table been created in Supabase yet? (See supabase-public_events.sql.)'; E.style.display=''; return; }
+  B.style.display=''; muRows = data || []; muRender();
+}
+
+function muRender(){
+  let views=0, manuk=0, contact=0, downloads=0;
+  const visits = new Set(); const per = {};
+  muRows.forEach(r => {
+    visits.add(r.visit_id);
+    const p = per[r.page] || (per[r.page] = { views:0, qs:0, qc:0, cc:0, dl:0 });
+    if (r.event_type === 'view'){ views++; p.views++; if (muIsManUK(r)) manuk++; }
+    else if (r.event_type === 'quiz_start') p.qs++;
+    else if (r.event_type === 'quiz_complete'){ p.qc++; }
+    else if (r.event_type === 'contact_click'){ contact++; p.cc++; }
+    else if (r.event_type === 'download'){ downloads++; p.dl++; }
+  });
+  document.getElementById('mu-stat-views').textContent = views;
+  document.getElementById('mu-stat-visits').textContent = visits.size;
+  document.getElementById('mu-stat-manuk').textContent = manuk;
+  document.getElementById('mu-stat-contact').textContent = contact;
+  document.getElementById('mu-stat-downloads').textContent = downloads;
+
+  const order = ['quiz','traceability','cfsi','lean'];
+  const keys = order.filter(k => per[k]).concat(Object.keys(per).filter(k => order.indexOf(k) < 0));
+  document.getElementById('mu-pages-tbody').innerHTML = keys.length
+    ? keys.map(k => { const p = per[k]; const quiz = (k === 'quiz') ? (p.qs + ' / ' + p.qc) : '—';
+        return `<tr>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--line)">${muEsc(muPageLabel(k))}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;font-weight:600">${p.views}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--line);text-align:right">${quiz}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--line);text-align:right">${p.cc}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--line);text-align:right">${p.dl}</td>
+        </tr>`; }).join('')
+    : `<tr><td colspan="5" style="padding:12px 10px;color:var(--muted)">No events in the last 30 days.</td></tr>`;
+
+  muFilter();
+}
+
+function muFilter(){
+  const q = (document.getElementById('mu-search')?.value || '').toLowerCase().trim();
+  const tf = document.getElementById('mu-type-filter')?.value || 'all';
+  const rows = muRows.filter(r => {
+    if (tf !== 'all' && r.event_type !== tf) return false;
+    if (q && !((r.detail||'').toLowerCase().includes(q) || (r.referrer||'').toLowerCase().includes(q) || muPageLabel(r.page).toLowerCase().includes(q))) return false;
+    return true;
+  }).slice(0, 200);
+  document.getElementById('mu-activity-tbody').innerHTML = rows.length
+    ? rows.map(r => `<tr>
+        <td style="padding:7px 10px;border-bottom:1px solid var(--line)">${muEsc(muPageLabel(r.page))}</td>
+        <td style="padding:7px 10px;border-bottom:1px solid var(--line)"><span style="background:${MU_TYPE_COLOR[r.event_type]||'#e2e8f0'};padding:2px 8px;border-radius:10px;font-size:.72rem">${muEsc(MU_TYPE_LABEL[r.event_type]||r.event_type)}</span></td>
+        <td style="padding:7px 10px;border-bottom:1px solid var(--line)">${muEsc(r.detail||'—')}</td>
+        <td style="padding:7px 10px;border-bottom:1px solid var(--line);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)">${muEsc(r.referrer||'—')}</td>
+        <td style="padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;color:var(--muted)">${new Date(r.created_at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="5" style="padding:12px 10px;color:var(--muted)">No matching activity.</td></tr>`;
 }
 
 // Give every sidebar item a native tooltip (its label) so icon-only mode
