@@ -10589,7 +10589,7 @@ async function sdbLoad(force) {
     sdbState.loaded = true;
 
     await sharedCosLoad();
-    const CRM_LINK_COLS_FULL = 'id,name,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group';
+    const CRM_LINK_COLS_FULL = 'id,name,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group,lat,lng';
     const CRM_LINK_COLS_BASE = 'id,name,sharepoint_company_id,capabilities,accreditations,markets';
     let { data: crmLinks, error: crmLinksErr } = await db.from('nr_companies')
       .select(CRM_LINK_COLS_FULL)
@@ -10916,6 +10916,24 @@ function sdbProfileFieldsFor(c) {
     const v = fields[k];
     if (v !== undefined && v !== null && String(v).trim() !== '') out[k] = v;
   });
+
+  // Coordinates. Kept out of the loop above for three reasons:
+  //  - they must reach Supabase as numbers, not strings;
+  //  - 0,0 is what a failed geocode looks like, not a real location,
+  //    so it is rejected rather than stored;
+  //  - rounding to 6dp keeps the String() comparison in sdbSyncTagsToCrm
+  //    stable, otherwise float formatting makes every row look changed
+  //    on every load and rewrites it forever.
+  // c.lat / c.lng survive sdbNormaliseCompany untouched (it spreads ...c),
+  // and sdbLoad fetches Companies with an empty $select, so both columns
+  // are already in the payload — no SharePoint change needed.
+  const lat = parseFloat(c.lat);
+  const lng = parseFloat(c.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)) {
+    out.lat = Math.round(lat * 1e6) / 1e6;
+    out.lng = Math.round(lng * 1e6) / 1e6;
+  }
+
   return out;
 }
 
