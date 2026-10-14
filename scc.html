@@ -8142,7 +8142,7 @@ function fjRender() {
         <span>✓ Approved${u.reviewed_by ? ` by ${u.reviewed_by}` : ''}${u.reviewed_at ? ` on ${new Date(u.reviewed_at).toLocaleDateString('en-GB')}` : ''}</span>
         ${u.case_study_slug ? `
           <span style="color:var(--ok);font-weight:700">· Live</span>
-          <a href="../../2026_Website_Update v2/f4n-case-study.html?slug=${encodeURIComponent(u.case_study_slug)}" target="_blank" class="btn" style="padding:4px 10px">👁 View case study</a>
+          <a href="https://www.nuccol.co.uk/f4n-case-study.html?slug=${encodeURIComponent(u.case_study_slug)}" target="_blank" class="btn" style="padding:4px 10px">👁 View case study</a>
           <button class="btn" style="padding:4px 10px" onclick="fjOpenCaseStudyModal('${u.id}')">✎ Edit</button>
           <button class="btn danger" style="padding:4px 10px" onclick="fjUnpublishCaseStudy('${u.id}')">🗑 Unpublish</button>
         ` : `
