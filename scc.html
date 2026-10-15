@@ -6113,7 +6113,7 @@ async function sdbPickSelect(spId) {
   // immediately without a full reload or losing an open folder's state.
   const c = sdbState.companies.find(x => x.ID === spId);
   const tags = c ? sdbTagsFor(c) : { capabilities: [], accreditations: [], markets: [] };
-  const shareId = c ? String(c.CompanyID ?? c.ID) : null;
+  const shareId = c ? String(c.CompanyID || c.ID) : null;
   [typeof coAllCompanies !== 'undefined' ? coAllCompanies : null,
    typeof nrcAll !== 'undefined' ? nrcAll : null].forEach(arr => {
     if (!arr) return;
@@ -9195,7 +9195,7 @@ async function nrcAddCompany() {
   let shareId = null;
   if (nrcAddSelectedSp) {
     const tags = sdbTagsFor(nrcAddSelectedSp);
-    shareId = String(nrcAddSelectedSp.CompanyID ?? nrcAddSelectedSp.ID);
+    shareId = String(nrcAddSelectedSp.CompanyID || nrcAddSelectedSp.ID);
     payload.sharepoint_company_id = shareId;
     payload.capabilities = tags.capabilities;
     payload.accreditations = tags.accreditations;
@@ -10526,7 +10526,7 @@ function sdbNormaliseCompany(c) {
     F4H2Candidate:      c.field_20 ?? c.F4H2Candidate,
     Address:            c.field_25 ?? c.Address,
     Notes:              c.field_30 ?? c.Notes,
-    CompanyID:          c.field_1  ?? c.ID
+    CompanyID:          c.field_1  || c.ID
   };
 }
 
@@ -10618,7 +10618,7 @@ async function sdbLoad(force) {
     // Keep already-linked CRM companies' capability/accreditation/market tags
     // fresh on every load (not just at link time).
     for (const c of sdbState.companies) {
-      const shareId = String(c.CompanyID ?? c.ID);
+      const shareId = String(c.CompanyID || c.ID);
       const crmRow = sdbCrmByShareId[shareId];
       if (crmRow) await sdbSyncTagsToCrm(c, crmRow);
     }
@@ -10647,7 +10647,7 @@ function sdbPopulateFilters() {
 }
 
 function sdbCrmLinkFor(c) {
-  const shareId = String(c.CompanyID ?? c.ID);
+  const shareId = String(c.CompanyID || c.ID);
   if (sdbCrmByShareId[shareId]) return sdbCrmByShareId[shareId];
   return f4nFindMatch(c.Title) || null;
 }
@@ -10668,7 +10668,7 @@ function sdbApplyFilters() {
     if (com && !sdbJunctions.coms.some(j => j.CompanyID_Ref === c.ID && j.CommodityName_Ref === com)) return false;
     if (acr && !sdbJunctions.acreds.some(j => j.CompanyID_Ref === c.ID && j.AccreditationName_Ref === acr)) return false;
     if (mkt && !sdbJunctions.mkts.some(j => j.CompanyID_Ref === c.ID && j.MarketName_Ref === mkt)) return false;
-    const isLinked = !!sdbCrmByShareId[String(c.CompanyID ?? c.ID)];
+    const isLinked = !!sdbCrmByShareId[String(c.CompanyID || c.ID)];
     if (linkFilter === 'linked' && !isLinked) return false;
     if (linkFilter === 'unlinked' && isLinked) return false;
     return true;
@@ -10712,7 +10712,7 @@ function sdbRender() {
 
   tbody.innerHTML = sdbFiltered.map(c => {
     const crm = sdbCrmLinkFor(c);
-    const isConfirmedLink = !!sdbCrmByShareId[String(c.CompanyID ?? c.ID)];
+    const isConfirmedLink = !!sdbCrmByShareId[String(c.CompanyID || c.ID)];
     let linkCell;
     if (isConfirmedLink) {
       linkCell = `<span onclick="sdbOpenCrmCompany('${crm.id}')" style="color:var(--accent);cursor:pointer;text-decoration:underline;font-weight:600">🔗 ${escH(crm.name)}</span>`;
@@ -10733,8 +10733,8 @@ function sdbRender() {
       <td style="padding:10px 12px">${c.F4NCandidate === 'Y' ? '✓' : ''}</td>
       <td style="padding:10px 12px" onclick="event.stopPropagation()">${linkCell}</td>
       <td style="padding:10px 12px" onclick="event.stopPropagation()">
-        <a href="${NUCCOL_TOOLS_BASE}datavault.html?companyId=${c.CompanyID ?? c.ID}" target="_blank" style="font-size:.72rem;color:var(--accent);text-decoration:none;margin-right:10px">DataVault ↗</a>
-        <a href="${NUCCOL_TOOLS_BASE}rolodex.html?companyId=${c.CompanyID ?? c.ID}" target="_blank" style="font-size:.72rem;color:var(--accent);text-decoration:none">Rolodex ↗</a>
+        <a href="${NUCCOL_TOOLS_BASE}datavault.html?companyId=${c.CompanyID || c.ID}" target="_blank" style="font-size:.72rem;color:var(--accent);text-decoration:none;margin-right:10px">DataVault ↗</a>
+        <a href="${NUCCOL_TOOLS_BASE}rolodex.html?companyId=${c.CompanyID || c.ID}" target="_blank" style="font-size:.72rem;color:var(--accent);text-decoration:none">Rolodex ↗</a>
       </td>
     </tr>`;
   }).join('');
@@ -10821,7 +10821,7 @@ function sdbRenderMap() {
   pts.forEach(c => {
     const lat = parseFloat(c.lat), lng = parseFloat(c.lng);
     const marker = L.marker([lat, lng]);
-    const linked = !!sdbCrmByShareId[String(c.CompanyID ?? c.ID)];
+    const linked = !!sdbCrmByShareId[String(c.CompanyID || c.ID)];
     marker.bindPopup(`
       <div style="min-width:180px">
         <div style="font-weight:700;margin-bottom:4px">${escH(c.Title)}</div>
@@ -10850,7 +10850,7 @@ function sdbOpenDetail(id) {
   document.getElementById('sdb-modal-desc').textContent = c.QuickDescription || '';
 
   const crm = sdbCrmLinkFor(c);
-  const isConfirmedLink = !!sdbCrmByShareId[String(c.CompanyID ?? c.ID)];
+  const isConfirmedLink = !!sdbCrmByShareId[String(c.CompanyID || c.ID)];
   const crmEl = document.getElementById('sdb-modal-crm');
   if (isConfirmedLink) {
     crmEl.innerHTML = `🔗 Linked to CRM company <strong>${escH(crm.name)}</strong> &nbsp; <button onclick="sdbUnlink(${c.ID})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;text-decoration:underline">Unlink</button>`;
@@ -10886,7 +10886,7 @@ const NUCCOL_TOOLS_BASE = 'https://renrenrenx10.github.io/nuccol-tools/';
 
 function sdbOpenExternal(tool) {
   if (!sdbSelected) return;
-  const companyId = sdbSelected.CompanyID ?? sdbSelected.ID;
+  const companyId = sdbSelected.CompanyID || sdbSelected.ID;
   const url = tool === 'rolodex'
     ? `${NUCCOL_TOOLS_BASE}rolodex.html?companyId=${companyId}`
     : `${NUCCOL_TOOLS_BASE}datavault.html?companyId=${companyId}`;
@@ -10979,7 +10979,7 @@ async function sdbSyncTagsToCrm(spCompany, crmRow) {
 async function sdbLinkCompany(spCompanyRowId, crmId) {
   const c = sdbState.companies.find(x => x.ID === spCompanyRowId);
   if (!c) return;
-  const shareId = String(c.CompanyID ?? c.ID);
+  const shareId = String(c.CompanyID || c.ID);
   const { error } = await db.from('nr_companies').update({ sharepoint_company_id: shareId }).eq('id', crmId);
   if (error) { toast('Error: ' + error.message); return; }
   const crmRow = sharedCos.find(x => x.id === crmId) || { id: crmId, name: c.Title };
@@ -10993,7 +10993,7 @@ async function sdbLinkCompany(spCompanyRowId, crmId) {
 async function sdbUnlink(spCompanyRowId) {
   const c = sdbState.companies.find(x => x.ID === spCompanyRowId);
   if (!c) return;
-  const shareId = String(c.CompanyID ?? c.ID);
+  const shareId = String(c.CompanyID || c.ID);
   const crm = sdbCrmByShareId[shareId];
   if (!crm) return;
   const { error } = await db.from('nr_companies').update({ sharepoint_company_id: null }).eq('id', crm.id);
@@ -11008,7 +11008,7 @@ async function sdbUnlink(spCompanyRowId) {
 async function sdbCreateCrmCompany(spCompanyRowId) {
   const c = sdbState.companies.find(x => x.ID === spCompanyRowId);
   if (!c) return;
-  const shareId = String(c.CompanyID ?? c.ID);
+  const shareId = String(c.CompanyID || c.ID);
   const status = c.F4NCandidate === 'Y' ? 'in_progress' : 'in_progress';
   const tags = sdbTagsFor(c);
   const profileFields = sdbFieldSyncAvailable ? sdbProfileFieldsFor(c) : {};
