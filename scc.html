@@ -5884,7 +5884,7 @@ async function coLoad() {
   if (loadEl) loadEl.style.display = 'block';
   if (listEl) listEl.innerHTML = '';
 
-  const FULL_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group';
+  const FULL_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group,full_description';
   const BASE_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets';
 
   const { data, error } = await db.from('nr_companies')
@@ -6760,6 +6760,11 @@ function coLoadNuclearReady(co) {
     <textarea onchange="coNrUpdateField('${co.id}','description',this.value)" rows="3"
       placeholder="Short description shown to the public on the NuclearReady Explorer…"
       style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.82rem;color:var(--ink);outline:none;box-sizing:border-box;font-family:inherit;resize:vertical;margin-bottom:14px">${esc2(co.description || '')}</textarea>
+
+    <div class="co-detail-lbl" style="margin-bottom:5px">Full Description <span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0">&mdash; the longer &ldquo;about us&rdquo;, shown under capabilities on the company page</span></div>
+    <textarea onchange="coNrUpdateField('${co.id}','full_description',this.value)" rows="6"
+      placeholder="The longer version. Leave a blank line between paragraphs&hellip;"
+      style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.82rem;color:var(--ink);outline:none;box-sizing:border-box;font-family:inherit;resize:vertical;margin-bottom:14px">${esc2(co.full_description || '')}</textarea>
 
     ${coTagChips(co)}
 
@@ -7990,7 +7995,8 @@ async function nrApprove(id) {
 
   const companyUpdate = {};
   ['description','website','logo_url','region','employees','capabilities',
-   'contact_name','contact_phone','contact_email','linkedin'].forEach(f => {
+   'contact_name','contact_phone','contact_email','linkedin',
+   'full_description'].forEach(f => {
     if (u[f] != null && String(u[f]).trim() !== '') companyUpdate[f] = u[f];
   });
   if (typeof companyUpdate.capabilities === 'string') {
