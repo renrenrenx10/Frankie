@@ -5884,7 +5884,7 @@ async function coLoad() {
   if (loadEl) loadEl.style.display = 'block';
   if (listEl) listEl.innerHTML = '';
 
-  const FULL_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group,full_description';
+  const FULL_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group,full_description,links';
   const BASE_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets';
 
   const { data, error } = await db.from('nr_companies')
@@ -7996,7 +7996,7 @@ async function nrApprove(id) {
   const companyUpdate = {};
   ['description','website','logo_url','region','employees','capabilities',
    'contact_name','contact_phone','contact_email','linkedin',
-   'full_description'].forEach(f => {
+   'full_description','links'].forEach(f => {
     if (u[f] != null && String(u[f]).trim() !== '') companyUpdate[f] = u[f];
   });
   if (typeof companyUpdate.capabilities === 'string') {
