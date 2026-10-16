@@ -10816,9 +10816,18 @@ function sdbRenderMap() {
 
   if (!sdbMap) {
     sdbMap = L.map('sdb-map', { center: [54.5, -2.5], zoom: 6 });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+    // Esri ArcGIS Location Platform basemap tiles. Replaces raw
+    // {s}.tile.openstreetmap.org, which sits outside OSM's tile usage
+    // policy for an application and had started returning 403s.
+    // The key is referrer-locked to renrenrenx10.github.io in the
+    // ArcGIS portal, so it is safe in page source but useless from
+    // anywhere else. IT EXPIRES ON 16 OCTOBER 2027 — after that this
+    // map goes blank until it is regenerated. maxZoom is 18 because
+    // that is the deepest level this service serves; 19 would render
+    // a grid of error tiles at full zoom.
+    L.tileLayer('https://static-map-tiles-api.arcgis.com/arcgis/rest/services/static-basemap-tiles-service/v1/arcgis/light-gray/static/tile/{z}/{y}/{x}?token=AAPTaeD82wO_f0v6q4yaPbrwhgA..L99S25WLK8F4dYC1Z3rjVm9-FMrlShHTDIC-r2BQacbE3PCrW6nQi4os81wkgb7Y_AAeo5Qhn00BhpAfYLw1l12iVzpvikhvtngovT7VDpGN_-tnevzlSCmi1aKLTTWc2l2cZVooisFSD-U9Rq5uhea0DJ3e_Q1L92yHWQl0FHG4jG-rjP5S7zjj8GMPp6S2mWA4mIegF6foTZyOsREJ-hcLge9s_Jp3a4ANtYLEdi9JIEFktjUMxkwcAmSQAT1_L5rzF2UX', {
+      maxZoom: 18,
+      attribution: 'Powered by <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a> | &copy; OpenStreetMap contributors'
     }).addTo(sdbMap);
     sdbMarkerCluster = L.markerClusterGroup({ maxClusterRadius: 50 });
     sdbMap.addLayer(sdbMarkerCluster);
