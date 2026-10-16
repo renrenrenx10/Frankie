@@ -1458,7 +1458,9 @@ async function loadLookupData() {
       spGetAll('Commodities',  'ID,Title', '', 2000),
       spGetAll('Accreditations','ID,Title','', 2000),
       spGetAll('Markets',      'ID,Title', '', 2000),
-      spGetAll('Companies',    'ID,Title,field_2,field_3,field_4,field_13,field_10', '', 5000),
+      // field_1 (CompanyID) added: the junction lists key on it, and without
+      // it in the select the search filter had nothing to match on.
+      spGetAll('Companies',    'ID,Title,field_1,field_2,field_3,field_4,field_13,field_10', '', 5000),
       spGetAll('SCRLs',        'ID,Title,field_1,field_9,field_10,field_4,field_12,field_5', '', 2000),
     ]);
     state.capabilities  = caps.sort((a,b)=>(a.Title||"").localeCompare(b.Title||""));
@@ -1563,13 +1565,26 @@ function applySearchFilters() {
   const reg  = document.getElementById('s-region')?.value || '';
   const mkt  = document.getElementById('s-market')?.value || '';
 
+  /* The junction lists key on CompanyID (field_1), never the SharePoint item
+     ID. Verified against 400 companies whose two ids differ: 400/400 matched
+     the CompanyID, 0/400 the item ID. NuccolSupplierMap and rolodex.html both
+     key on field_1 as well. Matching on c.ID returned another company's tags.
+     No fallback to c.ID on purpose: the two id spaces overlap (3,318 numbers
+     are in use as both), so guessing is what caused the damage. */
+  const tagKey = c => (c && c.field_1 !== null && c.field_1 !== undefined && String(c.field_1).trim() !== '')
+    ? String(c.field_1).trim() : null;
+  const hasTag = (rows, c, field, want) => {
+    const k = tagKey(c);
+    return !!k && rows.some(j => String(j.CompanyID_Ref).trim() === k && j[field] === want);
+  };
+
   let results = state.companies.filter(c => {
     if (txt && !(c.Title||'').toLowerCase().includes(txt)) return false;
     if (reg && c.County !== reg) return false;
-    if (cap && !_searchJunctionCaps.some(j=>j.CompanyID_Ref===c.ID && j.CapabilityName_Ref===cap)) return false;
-    if (com && !_searchJunctionComs.some(j=>j.CompanyID_Ref===c.ID && j.CommodityName_Ref===com)) return false;
-    if (acr && !_searchJunctionAcreds.some(j=>j.CompanyID_Ref===c.ID && j.AccreditationName_Ref===acr)) return false;
-    if (mkt && !_searchJunctionMkts.some(j=>j.CompanyID_Ref===c.ID && j.MarketName_Ref===mkt)) return false;
+    if (cap && !hasTag(_searchJunctionCaps,   c, 'CapabilityName_Ref',    cap)) return false;
+    if (com && !hasTag(_searchJunctionComs,   c, 'CommodityName_Ref',     com)) return false;
+    if (acr && !hasTag(_searchJunctionAcreds, c, 'AccreditationName_Ref', acr)) return false;
+    if (mkt && !hasTag(_searchJunctionMkts,   c, 'MarketName_Ref',        mkt)) return false;
     return true;
   });
 
@@ -1703,8 +1718,9 @@ async function saveCompany() {
       saved = { ...state.selectedCompany, ...body };
       toast('Company saved', 'success');
     } else {
+      body.field_1 = await nextCompanyID();
       saved = await spPost('Companies', body);
-      toast('Company created', 'success');
+      toast('Company created (CompanyID ' + body.field_1 + ')', 'success');
     }
     state.selectedCompany = saved;
     // refresh local cache
@@ -1717,6 +1733,29 @@ async function saveCompany() {
     renderCompany(state.selectedCompany);
   } catch (e) { toast('Save failed: ' + e.message, 'error'); }
   showLoading(false);
+}
+
+/* DataVault used to create companies with no CompanyID while rolodex.html has
+   always assigned one. That asymmetry is the root of the whole mess: a company
+   with no CompanyID made every downstream tool fall back to the SharePoint item
+   ID, which collides because the two id spaces overlap. Assign one on create,
+   the same way rolodex does.
+
+   Read the live list rather than trusting state.companies: the firm form can be
+   opened without the search screen having loaded, and a stale maximum would
+   mint a duplicate CompanyID -- exactly the fault being fixed. If the read
+   looks wrong, throw rather than guess; the caller's catch turns it into a
+   visible "Save failed" instead of a silently broken record. */
+async function nextCompanyID() {
+  const rows = await spGetAll('Companies', 'ID,field_1', '', 5000);
+  if (rows.length < 100)
+    throw new Error('could not read existing CompanyIDs (' + rows.length + ' rows) - refusing to assign one that may collide');
+  const max = rows.reduce((m, r) => {
+    const v = parseInt(r.field_1, 10);
+    return Number.isFinite(v) && v > m ? v : m;
+  }, 0);
+  if (!max) throw new Error('no existing CompanyID found - refusing to assign');
+  return max + 1;
 }
 
 /* ── CAPABILITIES / COMMODITIES tab ──────────────────────────────────────── */

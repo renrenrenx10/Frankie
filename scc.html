@@ -10539,7 +10539,16 @@ function sdbNormaliseCompany(c) {
     // makes the generated key incapable of colliding with any CompanyID.
     // CompanyID above is left alone: the DataVault and rolodex deep links
     // need the numeric id.
-    ShareKey:           c.field_1  || ('SP' + c.ID)
+    ShareKey:           c.field_1  || ('SP' + c.ID),
+    // The key the junction lists (Company_Capabilities etc.) are keyed on.
+    // They store the CompanyID, NOT the SharePoint item ID -- verified against
+    // 400 companies whose two ids differ: 400/400 matched the CompanyID. The
+    // Supplier Map and Rolodex both key on field_1 too. Reading them by c.ID
+    // handed almost every company another company's tags.
+    // No fallback on purpose: a company with no CompanyID has no tags, and
+    // guessing the item ID is what caused the damage.
+    TagKey: (c.field_1 === null || c.field_1 === undefined || String(c.field_1).trim() === '')
+              ? null : String(c.field_1).trim()
   };
 }
 
@@ -10605,10 +10614,11 @@ async function sdbLoad(force) {
     sdbState.companies = companies.map(sdbNormaliseCompany).sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
     sdbState.counties = [...new Set(sdbState.companies.map(c => c.County).filter(Boolean))].sort();
     sdbJunctions = { caps: capsJ, coms: comsJ, acreds: acredsJ, mkts: mktsJ };
+    sdbBuildTagIndex();
     sdbState.loaded = true;
 
     await sharedCosLoad();
-    const CRM_LINK_COLS_FULL = 'id,name,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group,lat,lng';
+    const CRM_LINK_COLS_FULL = 'id,name,sharepoint_company_id,capabilities,commodities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group,lat,lng';
     const CRM_LINK_COLS_BASE = 'id,name,sharepoint_company_id,capabilities,accreditations,markets';
     let { data: crmLinks, error: crmLinksErr } = await db.from('nr_companies')
       .select(CRM_LINK_COLS_FULL)
@@ -10677,10 +10687,10 @@ function sdbApplyFilters() {
   sdbFiltered = sdbState.companies.filter(c => {
     if (txt && !(c.Title || '').toLowerCase().includes(txt)) return false;
     if (reg && c.County !== reg) return false;
-    if (cap && !sdbJunctions.caps.some(j => j.CompanyID_Ref === c.ID && j.CapabilityName_Ref === cap)) return false;
-    if (com && !sdbJunctions.coms.some(j => j.CompanyID_Ref === c.ID && j.CommodityName_Ref === com)) return false;
-    if (acr && !sdbJunctions.acreds.some(j => j.CompanyID_Ref === c.ID && j.AccreditationName_Ref === acr)) return false;
-    if (mkt && !sdbJunctions.mkts.some(j => j.CompanyID_Ref === c.ID && j.MarketName_Ref === mkt)) return false;
+    if (cap && !sdbHasTag(c, 'caps',   cap)) return false;
+    if (com && !sdbHasTag(c, 'coms',   com)) return false;
+    if (acr && !sdbHasTag(c, 'acreds', acr)) return false;
+    if (mkt && !sdbHasTag(c, 'mkts',   mkt)) return false;
     const isLinked = !!sdbCrmByShareId[String(c.ShareKey)];
     if (linkFilter === 'linked' && !isLinked) return false;
     if (linkFilter === 'unlinked' && isLinked) return false;
@@ -10894,10 +10904,7 @@ function sdbOpenDetail(id) {
   const tagGroup = (label, items) => items.length
     ? `<div style="margin-bottom:8px"><div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#6a7a90;margin-bottom:4px">${label}</div>${items.map(t => `<span style="display:inline-block;background:var(--wash);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:.72rem;margin:0 4px 4px 0">${escH(t)}</span>`).join('')}</div>`
     : '';
-  const caps = sdbJunctions.caps.filter(j => j.CompanyID_Ref === c.ID).map(j => j.CapabilityName_Ref);
-  const coms = sdbJunctions.coms.filter(j => j.CompanyID_Ref === c.ID).map(j => j.CommodityName_Ref);
-  const acreds = sdbJunctions.acreds.filter(j => j.CompanyID_Ref === c.ID).map(j => j.AccreditationName_Ref);
-  const mkts = sdbJunctions.mkts.filter(j => j.CompanyID_Ref === c.ID).map(j => j.MarketName_Ref);
+  const { capabilities: caps, commodities: coms, accreditations: acreds, markets: mkts } = sdbTagsFor(c);
   document.getElementById('sdb-modal-tags').innerHTML =
     tagGroup('Capabilities', caps) + tagGroup('Commodities', coms) + tagGroup('Accreditations', acreds) + tagGroup('Markets', mkts);
 
@@ -10915,11 +10922,50 @@ function sdbOpenExternal(tool) {
   window.open(url, '_blank');
 }
 
+// Junction rows indexed by CompanyID once per load. Previously every call
+// scanned all 14,868 capability rows (and the same again for commodities,
+// accreditations and markets) for every one of 3,400 companies.
+let sdbTagIndex = { caps: new Map(), coms: new Map(), acreds: new Map(), mkts: new Map() };
+
+function sdbBuildTagIndex() {
+  const build = (rows, nameField) => {
+    const m = new Map();
+    (rows || []).forEach(j => {
+      const k = (j.CompanyID_Ref === null || j.CompanyID_Ref === undefined)
+                  ? '' : String(j.CompanyID_Ref).trim();
+      const v = j[nameField];
+      if (!k || !v) return;
+      if (!m.has(k)) m.set(k, new Set());
+      m.get(k).add(v);          // a Set: the lists contain duplicate rows
+    });
+    return m;
+  };
+  sdbTagIndex = {
+    caps:   build(sdbJunctions.caps,   'CapabilityName_Ref'),
+    coms:   build(sdbJunctions.coms,   'CommodityName_Ref'),
+    acreds: build(sdbJunctions.acreds, 'AccreditationName_Ref'),
+    mkts:   build(sdbJunctions.mkts,   'MarketName_Ref')
+  };
+}
+
+/* Tags for one company. A null TagKey yields nothing, which is correct:
+   the company is untagged until it has a CompanyID. */
+function sdbTagsOf(c, which) {
+  const set = c && c.TagKey ? sdbTagIndex[which].get(c.TagKey) : null;
+  return set ? [...set] : [];
+}
+
+function sdbHasTag(c, which, name) {
+  const set = c && c.TagKey ? sdbTagIndex[which].get(c.TagKey) : null;
+  return !!set && set.has(name);
+}
+
 function sdbTagsFor(c) {
   return {
-    capabilities:   sdbJunctions.caps.filter(j => j.CompanyID_Ref === c.ID).map(j => j.CapabilityName_Ref).filter(Boolean),
-    accreditations: sdbJunctions.acreds.filter(j => j.CompanyID_Ref === c.ID).map(j => j.AccreditationName_Ref).filter(Boolean),
-    markets:        sdbJunctions.mkts.filter(j => j.CompanyID_Ref === c.ID).map(j => j.MarketName_Ref).filter(Boolean)
+    capabilities:   sdbTagsOf(c, 'caps'),
+    commodities:    sdbTagsOf(c, 'coms'),
+    accreditations: sdbTagsOf(c, 'acreds'),
+    markets:        sdbTagsOf(c, 'mkts')
   };
 }
 
@@ -10985,6 +11031,11 @@ async function sdbSyncTagsToCrm(spCompany, crmRow) {
   if (!sdbArraysEqual(tags.capabilities, crmRow.capabilities))     payload.capabilities   = tags.capabilities;
   if (!sdbArraysEqual(tags.accreditations, crmRow.accreditations)) payload.accreditations = tags.accreditations;
   if (!sdbArraysEqual(tags.markets, crmRow.markets))               payload.markets        = tags.markets;
+  // Guarded on the column being present: when nr_companies has no commodities
+  // column yet, the load falls back to CRM_LINK_COLS_BASE and crmRow has no
+  // such key, and writing it would 400 every row.
+  if ('commodities' in crmRow && !sdbArraysEqual(tags.commodities, crmRow.commodities))
+    payload.commodities = tags.commodities;
 
   if (sdbFieldSyncAvailable) {
     const profileFields = sdbProfileFieldsFor(spCompany);
