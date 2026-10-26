@@ -1202,6 +1202,18 @@ async function fetchExternalTenderPortals(braveKey, seenTenders, newTenders) {
 }
 
 // ── MAIN ───────────────────────────────────────────────────────────────────────
+// A full run takes ~10 minutes, so re-read the session before starting rather
+// than trusting a token that may already be 59 minutes old. Cheap, and it
+// means a run either starts with a usable token or fails on the first call
+// instead of dying halfway through. Added 2026-10-26.
+async function ensureFreshSession() {
+  if (typeof db === 'undefined' || !db?.auth) return;
+  try {
+    const { data } = await db.auth.getSession();
+    if (data?.session) sccSession = data.session;
+  } catch (e) { /* non-fatal — the run will surface a 401 if it matters */ }
+}
+
 async function runScraper() {
   if (scraperRunning) return;
   scraperRunning = true;
@@ -1216,6 +1228,7 @@ async function runScraper() {
   // same as everywhere else Groq is used in scc.html.
   let nNews=0, nNuccol=0, nEvents=0, nTenders=0;
   resetFilterStats();
+  await ensureFreshSession();
 
   try {
     // ── 1. RSS FEEDS (via proxy) ───────────────────────────────────────────────
@@ -1457,14 +1470,23 @@ async function runScraper() {
       ? 'Scraper hit proxy rate limit — +'+nNews+' news, +'+nTenders+' tenders so far. Try again in a few minutes for the rest.'
       : 'Scraper done: +'+nNews+' news, +'+nNuccol+' NucCol, +'+nEvents+' events, +'+nTenders+' tenders');
 
-    logFilterStats();
-
     // Re-render whichever content tab is currently active so the editor updates immediately
     if (typeof renderContentList === 'function' && typeof activeContentTab !== 'undefined') {
       renderContentList(activeContentTab);
     }
 
-  } catch(err) { scraperLog('❌ '+err.message,'error'); }
+  } catch(err) {
+    scraperLog('❌ '+err.message,'error');
+    if (/\b401\b/.test(err.message || '')) {
+      scraperLog('   \u21b3 A 401 mid-run means the staff session expired. Reload the page, sign in again, then re-run.','warn');
+    }
+  }
+
+  // Always report the diagnostics, including on an aborted run — the numbers
+  // for the releases that DID get processed are still worth having. On the
+  // 14:01 run the abort meant no diagnostics printed at all. Moved out of the
+  // try block 2026-10-26.
+  logFilterStats();
 
   scraperRunning = false;
   if (btn) { btn.disabled=false; btn.textContent='▶ Run Scraper'; }

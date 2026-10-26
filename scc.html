@@ -2944,6 +2944,21 @@ async function signOut() {
   }
 })();
 
+// Keep sccSession in step with the Supabase client's own token refresh.
+// Added 2026-10-26. sccSession used to be a snapshot taken once at
+// gateLogin() / getSession() and never updated, so its access_token went
+// stale about an hour after sign-in. Every ch-proxy-worker route sits behind
+// checkAuth(), so a single expiry returned 401 for ALL of them at once —
+// blob saves, FTS paging, PCS, Sell2Wales, Brave — and aborted whatever was
+// running. (Observed on the 14:01 scraper run: fine at 14:04:06, every call
+// 401 from 14:04:10.) The client refreshes the token on its own with
+// autoRefreshToken; this listener is what copies the new one into the
+// variable the rest of the app actually reads.
+db.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') { sccSession = null; return; }
+  if (session) sccSession = session;
+});
+
 function checkGroqKey() {
   const banner = document.getElementById('groq-banner');
   const enabled = localStorage.getItem('frankieGroqEnabled') !== 'false';
