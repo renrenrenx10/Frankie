@@ -122,6 +122,58 @@ export default {
       }
     }
 
+    // --- RSS route: gated RAW pass-through for scraper.js's feed list. ------
+    // Added 2026-10-26. scraper.js rssUrl() has always built
+    // SCC_WORKER + '/rss?url=...' when signed in, but no such route existed —
+    // so every one of the 14 feeds hit the "Unknown proxy path" 404 below,
+    // every run, whenever a staff session was present. (Signed out, rssUrl()
+    // falls back to the public proxy, which is why feeds appeared to work.)
+    //
+    // This is deliberately NOT /fetch: that route strips every tag (including
+    // XML), collapses whitespace and caps the body at 15,000 chars, which
+    // destroys a feed. parseRSS() needs the document intact for DOMParser, so
+    // this returns the body untouched with its upstream Content-Type.
+    //
+    // Exposure is the same as /fetch — a signed-in member can pass any URL.
+    // If you'd rather lock it down, allowlist the hostnames in RSS_FEEDS.
+    if (url.pathname === '/rss') {
+      const target = url.searchParams.get('url');
+      if (!target || !/^https?:\/\//.test(target)) {
+        return new Response(JSON.stringify({ error: 'Missing or invalid url param' }), {
+          status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+        });
+      }
+      let resp;
+      try {
+        resp = await fetch(target, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; FrankieBot/1.0)',
+            'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+          },
+          signal: AbortSignal.timeout(20000),
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'Fetch failed', detail: e.message }), {
+          status: 502, headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+        });
+      }
+      if (!resp.ok) {
+        // Pass the upstream status through so scraper.js logs the real cause
+        // ("HTTP 403" from a feed that blocks bots) rather than a flat 404.
+        return new Response(JSON.stringify({ error: 'Upstream ' + resp.status, url: target }), {
+          status: resp.status, headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+        });
+      }
+      return new Response(await resp.text(), {
+        status: 200,
+        headers: {
+          'Content-Type': resp.headers.get('Content-Type') || 'application/xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=300',
+          ...corsHeaders(),
+        },
+      });
+    }
+
     // Special route: /fetch?url=https://... — fetches any public URL (for website scraping)
     if (url.pathname === '/fetch') {
       const target = url.searchParams.get('url');
@@ -330,12 +382,20 @@ async function handleBlob(request, url, env) {
   if (ct) headers['Content-Type'] = ct;
   const blobType = request.headers.get('x-ms-blob-type');
   if (blobType) headers['x-ms-blob-type'] = blobType;
+  // Forward Content-Length so Azure's Put Blob (which needs a known length,
+  // not chunked transfer-encoding) accepts the streamed body below.
+  const cl = request.headers.get('Content-Length');
+  if (cl) headers['Content-Length'] = cl;
 
-  const body = (method === 'PUT' || method === 'POST') ? await request.arrayBuffer() : undefined;
+  // Stream the body straight through rather than buffering it with
+  // request.arrayBuffer() — Workers cap buffered bodies (arrayBuffer/text/
+  // json) at 100MB, which silently broke any video upload bigger than that.
+  // Streaming has no such cap.
+  const body = (method === 'PUT' || method === 'POST') ? request.body : undefined;
 
   let response;
   try {
-    response = await fetch(blobUrl, { method, headers, body });
+    response = await fetch(blobUrl, { method, headers, body, duplex: body ? 'half' : undefined });
   } catch (err) {
     return new Response(JSON.stringify({ error: 'Blob request failed', detail: err.message }), {
       status: 502, headers: { 'Content-Type': 'application/json', ...corsHeaders() },

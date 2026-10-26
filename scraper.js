@@ -277,7 +277,43 @@ const TENDER_SEARCHES = {
                           'submarine','armoured vehicle'],
   'Aerospace':           ['aerospace component manufacture','MRO aviation','aircraft component','airframe'],
   'Water & Utilities':   ['water treatment infrastructure','water industry AMP7','sewage treatment',
-                          'wastewater treatment']
+                          'wastewater treatment'],
+  // Added 2026-10-26. Used ONLY when a release carries no CPV at all, and all
+  // words are now required as whole words — so these read like real wording.
+  'Petrochemical':       ['petrochemical plant','oil refinery','refinery turnaround',
+                          'catalytic cracker','process plant shutdown'],
+  'Pharma':              ['pharmaceutical plant','cleanroom installation',
+                          'sterile manufacturing facility'],
+  'Renewables':          ['solar farm construction','battery energy storage',
+                          'onshore wind farm','pumped storage hydro']
+};
+
+// ── CONTRACTS FINDER SEARCH TERMS ────────────────────────────────────────────
+// Separate from TENDER_SEARCHES, added 2026-10-26. CF's server-side keyword
+// search does not honour multi-word phrases — it appears to OR the words. The
+// first shadow run returned 100 results against hitCounts of 5,000-29,000 with
+// NONE containing the phrase, for 'storage tank manufacture', 'North Sea
+// decommissioning', 'water industry AMP7', 'petrochemical plant', 'process
+// plant shutdown', 'pharmaceutical plant' and 'sterile manufacturing
+// facility'; 'precision machining' and 'structural steel fabrication' timed
+// out outright. Since every term is one POST per run, phrases spend requests
+// on junk.
+//
+// So: CF gets single distinctive words (~24 requests instead of ~60), and
+// TENDER_SEARCHES stays as the classification vocabulary for categTender().
+const CF_KEYWORDS = {
+  'Nuclear':             ['Sellafield','Sizewell','UKAEA','radioactive','decommissioning'],
+  'Manufacturing':       ['machining','fabrication','forgings','castings','weldment','foundry'],
+  'Hydrogen':            ['electrolyser','hydrogen'],
+  'CCUS':                ['CCUS'],
+  'Offshore Renewables': ['turbine'],
+  'Petrochemical':       ['refinery','petrochemical'],
+  'Pharma':              ['cleanroom'],
+  'Rail':                ['signalling'],
+  'Oil & Gas':           ['subsea'],
+  'Defence':             ['submarine'],
+  'Aerospace':           ['airframe'],
+  'Water & Utilities':   ['wastewater'],
 };
 
 // ── CPV CODE SECTOR MAP ──────────────────────────────────────────────────────
@@ -330,6 +366,18 @@ const CPV_SECTORS = {
     '5022',                              // repair/maintenance of locomotives/rolling stock
     '71311230',                          // railway engineering services
   ],
+  'Petrochemical': [
+    '45253400',                          // petrochemical plant construction
+    '45255200',                          // oil refinery construction work
+  ],
+  'Pharma': [
+    '45253500',                          // pharmaceutical plant construction
+    '45214631',                          // installation works of cleanrooms
+  ],
+  'Renewables': [
+    '09331','09332',                     // solar panels/modules, solar installation
+    '45251140','45251160',               // thermal, wind-power installation works
+  ],
   'Oil & Gas': [
     '4313','34514',                      // drilling/production platforms & equipment incl. subsea (clean block)
     '4416',                              // pipelines/piping (clean block)
@@ -374,13 +422,369 @@ function cpvSector(cpvCode) {
 }
 
 // CPV first (precise, catches unpredictable wording), text terms as fallback.
-function sectorForRelease(rel) {
+// ── TENDER FILTER, REBUILT 2026-10-26 ───────────────────────────────────────
+// Capability is now the GATE; sector is only a LABEL. A notice is kept when an
+// F4N member company could make or service the thing, whatever market it sits
+// in. That is the inverse of the old design, where a sector match was the
+// entry ticket — which is how relevant non-nuclear work was being missed.
+//
+// The old sectorForRelease() also had a structural fault: a CPV MISS fell
+// through to text, so CPV could only ever say "yes". A taxi notice carries CPV
+// 60120000, cpvSector() correctly returned null, and the text matcher then
+// overrode that correct "no". CPV_SECTORS was never the problem — it was being
+// overruled.
+
+// Hard no. Checked first, never reaches text matching. Drawn from the actual
+// noise in the 2026-10 sample pull.
+const CPV_EXCLUDE = [
+  '85',    // Health and social work services
+  '80',    // Education and training services
+  '75',    // Administration, defence and social security services
+  '79',    // Business services: law, marketing, recruitment, printing
+  '66',    // Financial and insurance services
+  '60',    // Transport services  <- the taxi flood
+  '15',    // Food, beverages, tobacco
+  '03',    // Agricultural, farming, fishing, forestry
+  '18',    // Clothing, footwear, luggage
+  '22',    // Printed matter
+  '55',    // Hotel, restaurant and retail trade
+  '64',    // Postal and telecommunications services
+  '65',    // Public utilities (billing/supply, not plant)
+  '70',    // Real estate services
+  '72',    // IT services
+  '77',    // Agricultural, forestry, horticultural services
+  '92',    // Recreational, cultural and sporting services
+  '98',    // Other community, social and personal services
+  '33',    // Medical equipment and pharmaceutical PRODUCTS.
+           //   Pharmaceutical PLANT is 45253500 and stays in scope below.
+  '48',    // Software packages
+  '30',    // Office and computing machinery
+  '9091',  // Cleaning services — was '90919', too narrow: it missed the
+           //   90910000 parent, which was 8 hits in the first shadow run
+  '45453', // Overhaul and refurbishment (housing stock)
+  // Added from the 2026-10-26 shadow run histogram:
+  '37',    // Musical instruments, sports goods, games, toys
+  '63',    // Supporting transport services; travel agencies
+  '5042',  // Repair/maintenance of medical and surgical equipment
+];
+
+// The gate. Recall-oriented by design: "could one of our companies make or
+// service this?" — NOT "is this nuclear?". Curated 2026-10-26 against all
+// 9,454 codes in cpv/cpv_2008_xml.zip, children read to confirm homogeneity
+// before any short prefix was used.
+const CPV_CAPABILITIES = {
+  'Machinery & rotating equipment': [
+    '42',                 // whole division, minus the 4296 carve-out below
+    '43',                 // whole division (incl. casting, foundry, rolling)
+    '3111','3112','3113','3116',  // motors, generators, alternators, parts
+    '3114',               // cooling towers
+  ],
+  'Pressure vessels & tanks': [
+    // 4461 minus its packaging tail: 44617 (boxes/cartons), 44618 (corks,
+    // stoppers, lids, cans), 44619 (cases, barrels, crates) are not
+    // fabrication work. NB 35411 is BATTLE TANKS — deliberately not here.
+    '44610','44611','44612','44613','44614','44615','44616',
+  ],
+  'Pipework, valves & fittings': [
+    '4213',               // taps, cocks, valves and similar (42 codes)
+    '4416',               // pipeline, piping, pipes, casing, tubing (54)
+    '4413',               // sewer mains
+    '45232','45231200','45231210','45231220',  // pipeline construction work
+    '4533',               // plumbing and sanitary works
+  ],
+  'Fabrication & structural steel': [
+    '4421',               // structures and parts of structures (57 codes)
+    '4417','4433','4443','4445','4446','4447',
+    '45223210',           // structural steelworks
+    '45262400','45262410','45262420','45262423','45262425','45262426','45262670',
+  ],
+  'Welding, coating & surface treatment': [
+    '4266',               // soldering, brazing, welding tools, hot-spraying
+    '44315',              // welding consumables
+    '45262680',           // welding work
+    '45442000','45442120','45442200',  // protective coating / painting
+    '4294',               // machinery for heat treatment of materials
+  ],
+  'Castings, forgings & foundry': [
+    '4342','4372','4371', // foundry mould-forming, casting, metal-rolling
+    '24957100','43415000','43420000',
+  ],
+  'NDT, inspection & testing': [
+    // Explicit codes, not the 7163 block: 71631200 is automobile (MOT) work
+    // and 71631300 is building inspection — neither is member capability.
+    '71630000','71631000','71631100','71631400','71631430','71631440',
+    '71632000','71632100','71632200',
+    '7173',               // industrial inspection / quality control services
+    '716',                // Technical testing, analysis and consultancy —
+                          //   the group parent. All three children (7161
+                          //   composition/purity, 7162 analysis, 7163
+                          //   technical inspection) were already listed, but
+                          //   71600000 itself was dropping as a root code in
+                          //   the 3rd shadow run. Added 2026-10-26.
+    '5041',               // repair/maintenance of measuring & testing kit
+  ],
+  'Electrical & instrumentation': [
+    '3117','3121','3122','3123',   // transformers, switchgear, circuit parts
+    '313',                // insulated wire and cable
+    '4431','4432',        // wire products, cable and related products
+    '4531',               // electrical installation work
+    '38',                 // measuring/testing/navigational instruments.
+                          //   Broad — check the shadow histogram and trim to
+                          //   3842/3854/3858 if lab/optical noise shows up.
+  ],
+  'Seals, bearings & fasteners': [
+    '4444','4453','4454','4455',   // bearings, fasteners, chain, springs
+                          // NB 4452 (locks/keys/hinges) deliberately excluded
+                          //   — it reintroduced the door-lock noise.
+  ],
+  'Plant construction & modular build': [
+    '4525',               // plants, mining and manufacturing construction:
+                          //   incl. 45251110/11 nuclear power station,
+                          //   45253400 petrochemical, 45253500 pharmaceutical,
+                          //   45255 oil & gas, 45255200 refinery
+    '45214631',           // installation works of cleanrooms
+    '4535','4532',        // mechanical installations, insulation work
+  ],
+  'Machinery repair & maintenance': [
+    '5051','5053',        // pumps/valves/taps/metal containers, machinery
+    '507',                // building installations M&E — broadened from the
+                          //   5071-5075 children, which missed the 50700000
+                          //   parent (5 hits in the first shadow run).
+                          //   Includes 5076 (public conveniences) — harmless.
+    '5043',               // repair/maintenance of precision equipment
+    '5024','5022',        // marine vessels, rail vehicles
+  ],
+  'Engineering & design services': [
+    '713',                // consultative/design/misc/integrated engineering +
+                          //   engineering-related scientific & technical (124)
+    '7155',               // blacksmith services
+    '71521','71541',      // construction supervision, construction management
+  ],
+  'Marine & offshore fabrication': [
+    '345',                // ships and boats — broadened from '3451', which
+                          //   missed the 34500000 parent
+    '45241',              // harbour construction works
+    '45262421','45262422','45262424',
+    '7652',               // offshore installation / supply services
+  ],
+};
+
+// Inside division 42 but command/control, printing, graphics and office
+// automation — not member capability.
+const CPV_CAPABILITY_CARVEOUTS = ['4296'];
+
+function capabilityForCode(cpvCode) {
+  if (!cpvCode) return null;
+  const digits = String(cpvCode).split('-')[0];
+  if (CPV_CAPABILITY_CARVEOUTS.some(p => digits.startsWith(p))) return null;
+  for (const [cap, prefixes] of Object.entries(CPV_CAPABILITIES)) {
+    if (prefixes.some(p => digits.startsWith(p))) return cap;
+  }
+  return null;
+}
+
+// A CPV that is a bare division/group/class root — 45000000 "Construction
+// work", 50000000 "Repair and maintenance services", 90500000 "Refuse and
+// waste related services" — carries no information: the buyer filed against a
+// top-level parent instead of a real code. In the 2026-10-26 shadow run these
+// were ~51 of the 146 codes counted as "unmapped". Treating them as "CPV says
+// no" is wrong, but accepting them is worse (45000000 is ALL construction), so
+// they fall through to the text matcher and the buyer check instead.
+//
+// Four or fewer significant digits once trailing zeros are stripped:
+//   45000000 -> '45'     = 2 -> uninformative
+//   45210000 -> '4521'   = 4 -> uninformative
+//   44221100 -> '442211' = 6 -> specific  (windows/doors — stays dropped)
+// CPV_EXCLUDE is checked first, so known-noise roots stay hard drops.
+function cpvUninformative(cpvCode) {
+  const digits = String(cpvCode || '').split('-')[0].replace(/0+$/, '');
+  return digits.length > 0 && digits.length <= 4;
+}
+
+function cpvExcluded(cpvCode) {
+  if (!cpvCode) return false;
+  const digits = String(cpvCode).split('-')[0];
+  return CPV_EXCLUDE.some(p => digits.startsWith(p));
+}
+
+// Highest-signal filter available and previously unused. Nuclear supply chain
+// work is identified by WHO IS BUYING far more reliably than by wording:
+// "Provision of Scaffolding Services" at Sellafield is member work with no
+// nuclear words and CPV 45262100. Move to a blob once it settles so it can be
+// edited from SCC without a code change.
+const NUCLEAR_BUYERS = [
+  'sellafield','nuclear decommissioning authority','nuclear restoration services',
+  'nuclear waste services','llw repository','nuclear transport solutions',
+  'direct rail services','magnox','dounreay','ukaea','atomic energy authority',
+  'national nuclear laboratory','urenco','springfields','westinghouse',
+  'nnb gen','sizewell c','rolls royce smr','great british energy',
+  'great british nuclear','office for nuclear regulation','awe plc',
+  'devonport royal dockyard','babcock marine','cavendish nuclear',
+  'doosan babcock','assystem','submarine delivery agency',
+  'defence equipment and support','edf energy',
+];
+
+function buyerIsNuclear(buyerName) {
+  const n = String(buyerName || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ');
+  return NUCLEAR_BUYERS.some(b => n.includes(b));
+}
+
+// ── Diagnostics ─────────────────────────────────────────────────────────────
+const filterStats = {
+  seen:0, cpvPresent:0, cpvAbsent:0,
+  keptBuyer:0, keptCapability:0, keptCpvSector:0, keptText:0,
+  droppedExcluded:0, droppedCpvUnmapped:0, droppedNoText:0,
+  cpvUninformativeRoot:0, unmappedCpv:{}, excludedCpv:{}, rootDroppedCpv:{},
+  shadowDisagreed:0,
+};
+function resetFilterStats() {
+  Object.assign(filterStats, {
+    seen:0, cpvPresent:0, cpvAbsent:0,
+    keptBuyer:0, keptCapability:0, keptCpvSector:0, keptText:0,
+    droppedExcluded:0, droppedCpvUnmapped:0, droppedNoText:0,
+    cpvUninformativeRoot:0, unmappedCpv:{}, excludedCpv:{}, rootDroppedCpv:{},
+    shadowDisagreed:0,
+  });
+}
+
+// 'shadow'  — compute and COUNT the new decision, but RETURN THE OLD ONE.
+//             Nothing about what gets saved changes. Start here.
+// 'enforce' — act on the new decision.
+// Flipped to 'enforce' 2026-10-26 after three shadow runs:
+//   - gate 3 (unmapped): every code in the histogram verified as genuine
+//     noise across two runs — windows, house construction, pest control,
+//     refuse bins, traffic lights, freezers, mains gas
+//   - gate 0 (excluded): top 25 verified — education, software, insurance,
+//     marketing, IT, cleaning, medical, transport, relocation. No false
+//     exclusions, and the two collision bugs that WERE there are fixed
+//   - keep rate steady at 11-17% across runs of 195, 580 and 1,358 releases
+// Set back to 'shadow' to measure again without changing what gets saved.
+const FILTER_MODE = 'enforce';
+
+// The old behaviour, kept so shadow mode can return it and the two compared.
+function _sectorForReleaseLegacy(rel) {
   const cls = rel.tender?.classification;
   if (cls?.scheme === 'CPV' && cls.id) {
     const s = cpvSector(cls.id);
     if (s) return s;
   }
   return categTender((rel.tender?.title || '') + ' ' + (rel.tender?.description || ''));
+}
+
+// Returns null to DROP, or { sector, capability, gate } to KEEP.
+// sector may be null on a keep — a buyer or capability match is reason enough.
+function classifyRelease(rel) {
+  filterStats.seen++;
+  const cls   = rel.tender?.classification;
+  const cpv   = (cls?.scheme === 'CPV' && cls.id) ? cls.id : null;
+  const text  = (rel.tender?.title || '') + ' ' + (rel.tender?.description || '');
+  const buyer = rel.buyer?.name || '';
+  if (cpv) filterStats.cpvPresent++; else filterStats.cpvAbsent++;
+
+  let decision = null;
+
+  // Gate 0 — hard no, UNLESS a curated list explicitly claims the code.
+  // FIXED 2026-10-26 (after the 2nd shadow run): broad exclusion prefixes were
+  // shadowing codes deliberately curated into CPV_SECTORS. '98' killed
+  // 98113100 nuclear safety services; '60' killed 60651600 offshore supply
+  // ship services; '75' killed 75220000/75221000/75222000 defence services;
+  // '65' killed the whole 651xx water distribution block; '48' and '72' killed
+  // the aviation software codes; '5061' killed 50610000 inside Defence's '506'.
+  // A curated capability or sector match now always beats a broad exclusion,
+  // so adding an exclude prefix can never silently delete curated coverage.
+  if (cpv && cpvExcluded(cpv) && !capabilityForCode(cpv) && !cpvSector(cpv)) {
+    filterStats.droppedExcluded++;
+    const ek = String(cpv).split('-')[0];
+    filterStats.excludedCpv[ek] = (filterStats.excludedCpv[ek] || 0) + 1;
+  } else if (buyerIsNuclear(buyer)) {                 // Gate 1 — buyer wins
+    filterStats.keptBuyer++;
+    decision = { sector:'Nuclear', capability: cpv ? capabilityForCode(cpv) : null, gate:'buyer' };
+  } else {
+    const capability = cpv ? capabilityForCode(cpv) : null;
+    const cpvSec     = cpv ? cpvSector(cpv) : null;
+
+    // Gate 2 — a CPV that maps to a CAPABILITY or to a SECTOR is a keep.
+    // FIXED 2026-10-26: this used to test capability only, which silently
+    // dropped every curated sector-specific code — 24111600 (hydrogen),
+    // 09340/09341/09343 (nuclear fuels, uranium, radioactive materials),
+    // 90521 (radioactive waste services), 98113100 (nuclear safety services),
+    // 35113xxx (radiological protection equipment). The first shadow run
+    // caught 24111600 sitting in the "unmapped" histogram, which is how this
+    // was spotted. The capability map ADDS recall; it does not replace
+    // CPV_SECTORS.
+    if (capability || cpvSec) {
+      if (capability) filterStats.keptCapability++; else filterStats.keptCpvSector++;
+      decision = {
+        sector: cpvSec || categTender(text) || null,
+        capability,
+        gate: capability ? 'cpv-capability' : 'cpv-sector',
+      };
+    }
+    // Gate 3 — a SPECIFIC CPV that maps to nothing is a decision. Drop.
+    else if (cpv && !cpvUninformative(cpv)) {
+      filterStats.droppedCpvUnmapped++;
+      const k = String(cpv).split('-')[0];
+      filterStats.unmappedCpv[k] = (filterStats.unmappedCpv[k] || 0) + 1;
+    }
+    // Gate 4 — no CPV at all, OR an uninformative root code. Fall through to
+    // the text matcher rather than dropping on a code that says nothing.
+    else {
+      if (cpv) filterStats.cpvUninformativeRoot++;
+      const sector = categTender(text);
+      if (sector) {
+        filterStats.keptText++;
+        decision = { sector, capability:null, gate: cpv ? 'root-text' : 'text' };
+      } else {
+        filterStats.droppedNoText++;
+        if (cpv) {
+          const rk = String(cpv).split('-')[0];
+          filterStats.rootDroppedCpv[rk] = (filterStats.rootDroppedCpv[rk] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  const legacy = _sectorForReleaseLegacy(rel);
+  if (!!legacy !== !!decision) filterStats.shadowDisagreed++;
+  if (FILTER_MODE === 'shadow') {
+    return legacy ? { sector: legacy, capability:null, gate:'legacy' } : null;
+  }
+  return decision;
+}
+
+function logFilterStats() {
+  const s = filterStats;
+  const kept = s.keptBuyer + s.keptCapability + s.keptCpvSector + s.keptText;
+  const dropped = s.droppedExcluded + s.droppedCpvUnmapped + s.droppedNoText;
+  scraperLog('── FILTER DIAGNOSTICS ('+FILTER_MODE+' mode) ──');
+  scraperLog('  releases seen        : '+s.seen);
+  scraperLog('  CPV present / absent : '+s.cpvPresent+' / '+s.cpvAbsent);
+  scraperLog('  WOULD KEEP           : '+kept+'   (buyer '+s.keptBuyer+
+             ', capability '+s.keptCapability+', cpv-sector '+s.keptCpvSector+
+             ', text '+s.keptText+')');
+  scraperLog('  uninformative roots  : '+s.cpvUninformativeRoot+
+             '   (fell through to text, not dropped on the code)');
+  scraperLog('  WOULD DROP           : '+dropped+'   (excluded '+s.droppedExcluded+
+             ', CPV unmapped '+s.droppedCpvUnmapped+', no text match '+s.droppedNoText+')');
+  scraperLog('  differs from current : '+s.shadowDisagreed);
+  // All three drop buckets are reported. The exclusion bucket is the largest
+  // (71% of releases in the 2nd shadow run) and was previously invisible — if
+  // an exclude prefix is too broad, this histogram is the only place it shows.
+  function hist(label, obj, limit) {
+    const top = Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0, limit);
+    if (!top.length) return top;
+    scraperLog('  ' + label);
+    top.forEach(([code,n]) => scraperLog('    '+String(n).padStart(4)+'  '+code));
+    return top;
+  }
+  const tU = hist('top CPV dropped as UNMAPPED (triage into capability/exclude):', s.unmappedCpv, 25);
+  const tE = hist('top CPV dropped as EXCLUDED (check none of these belong):',     s.excludedCpv, 25);
+  const tR = hist('top CPV dropped as ROOT + no text match:',                      s.rootDroppedCpv, 15);
+  try {
+    console.table(tU.map(([cpv,count])=>({bucket:'unmapped',cpv,count}))
+      .concat(tE.map(([cpv,count])=>({bucket:'excluded',cpv,count})))
+      .concat(tR.map(([cpv,count])=>({bucket:'root',cpv,count}))));
+  } catch(e){}
 }
 
 const BRAVE_EVENT_CATS = ['Nuclear','Hydrogen','CCUS','Offshore Renewables'];
@@ -515,12 +919,43 @@ async function braveSearch(query, braveKey, count) {
 // pluralisation/tense differences while still filtering out results that
 // only share one incidental word (e.g. "tank" alone matching an unrelated
 // aquarium refit).
+// Words too generic to carry meaning inside a phrase. 'and' and 'non' were
+// the live offenders: the old filter(w => w.length > 2) kept both, so
+// 'castings and forgings' and 'non-destructive testing' half-matched on them.
+const TERM_STOPWORDS = new Set(['and', 'the', 'for', 'with', 'from', 'into', 'non']);
+
+// Precompiled once per term — otherwise this is a lot of RegExp construction
+// per run (~60 terms x every notice x every word).
+const _termCache = new Map();
+function _termWords(term) {
+  let w = _termCache.get(term);
+  if (!w) {
+    w = term.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\s+/)
+      .filter(x => x.length > 2 && !TERM_STOPWORDS.has(x))
+      // Light plural/tense tolerance, so 'pressure vessel manufacture' still
+      // matches 'manufacture of pressure vessels'.
+      .map(x => new RegExp('\\b' + x + '(s|es|ing|ed)?\\b'));
+    _termCache.set(term, w);
+  }
+  return w;
+}
+
+// REWRITTEN 2026-10-26. The old version matched if HALF the words (rounded up)
+// appeared anywhere as SUBSTRINGS — so every 2-word term degenerated into an
+// OR of its two words, matched unanchored. Measured over a 1,342-record live
+// pull: 'armoured vehicle' fired on "vehicle" 148 times, 'train maintenance'
+// on "maintenance" 113 times, 'nuclear safety' on "safety", 'radioactive
+// waste' on "waste", 'sewage treatment' on "treatment". Substring hits
+// included "Window"->wind, "wellbeing"->well, "Training"->train,
+// "Checkpoint"->point, "Cellular"->cell. All 1,342 were false positives.
+// Now: ALL significant words, each as a WHOLE word.
 function termMatches(text, term) {
-  const t = text.toLowerCase();
-  const words = term.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-  if (words.length <= 1) return t.includes(term.toLowerCase());
-  const matched = words.filter(w => t.includes(w)).length;
-  return matched >= Math.ceil(words.length / 2);
+  // Normalise punctuation to spaces on BOTH sides, so 'non-destructive
+  // testing' matches 'non destructive testing' and vice versa.
+  const t = String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const rx = _termWords(term);
+  if (!rx.length) return false;
+  return rx.every(r => r.test(t));
 }
 
 // Shared sector classifier for every keyword-less tender source (FTS, PCS,
@@ -596,8 +1031,9 @@ async function fetchFTS(seenTenders, newTenders) {
         pages++;
         for (const rel of (data.releases || [])) {
           const noticeType = ftsNoticeType(rel.tag);
-          const sector = sectorForRelease(rel);
-          if (!sector) continue;
+          const cl = classifyRelease(rel);
+          if (!cl) continue;
+          const sector = cl.sector;
           const title = rel.tender?.title || '';
           const description = rel.tender?.description || '';
           const noticeUrl = rel.id ? 'https://www.find-tender.service.gov.uk/Notice/' + rel.id : '';
@@ -611,6 +1047,8 @@ async function fetchFTS(seenTenders, newTenders) {
             organisation: cleanText(rel.buyer?.name || '').slice(0,255),
             description: cleanText(description + (suppliers.length ? ' | Awarded to: '+suppliers.join(', ') : '')).slice(0,500),
             sector, noticeType,
+            capability: cl.capability || '', filterGate: cl.gate,
+            cpv: (rel.tender?.classification?.scheme === 'CPV' ? rel.tender.classification.id : ''),
             value: val?.amount ? (val.currency||'GBP')+' '+Number(val.amount).toLocaleString() : 'Not disclosed',
             publishedDate: safeDate(rel.date), closingDate,
             scraped_at: new Date().toISOString()
@@ -675,8 +1113,9 @@ async function fetchKlickstream(seenTenders, newTenders) {
         const data = await r.json();
         let n = 0;
         for (const rel of (data.releases || [])) {
-          const sector = sectorForRelease(rel);
-          if (!sector) continue;
+          const cl = classifyRelease(rel);
+          if (!cl) continue;
+          const sector = cl.sector;
           const title = rel.tender?.title || '';
           const description = rel.tender?.description || '';
           const id = ocidToId(rel.ocid);
@@ -691,6 +1130,8 @@ async function fetchKlickstream(seenTenders, newTenders) {
             organisation: cleanText(rel.buyer?.name || '').slice(0,255),
             description: cleanText(description + (suppliers.length ? ' | Awarded to: '+suppliers.join(', ') : '')).slice(0,500),
             sector, noticeType: nt.noticeType,
+            capability: cl.capability || '', filterGate: cl.gate,
+            cpv: (rel.tender?.classification?.scheme === 'CPV' ? rel.tender.classification.id : ''),
             value: val?.amount ? (val.currency||'GBP')+' '+Number(val.amount).toLocaleString() : 'Not disclosed',
             publishedDate: safeDate(rel.date), closingDate,
             scraped_at: new Date().toISOString()
@@ -774,6 +1215,7 @@ async function runScraper() {
   // gated on the signed-in staff session and proxied through SCC_WORKER,
   // same as everywhere else Groq is used in scc.html.
   let nNews=0, nNuccol=0, nEvents=0, nTenders=0;
+  resetFilterStats();
 
   try {
     // ── 1. RSS FEEDS (via proxy) ───────────────────────────────────────────────
@@ -869,7 +1311,7 @@ async function runScraper() {
     let proxyRateLimited = false;
     let cfConfirmedWorking = false; // sanity check — see note below
     outer:
-    for (const [sector, terms] of Object.entries(TENDER_SEARCHES)) {
+    for (const [sector, terms] of Object.entries(CF_KEYWORDS)) {
       for (const term of terms) {
         if (proxyRateLimited) break outer;
         try {
@@ -1014,6 +1456,8 @@ async function runScraper() {
     toast(proxyRateLimited
       ? 'Scraper hit proxy rate limit — +'+nNews+' news, +'+nTenders+' tenders so far. Try again in a few minutes for the rest.'
       : 'Scraper done: +'+nNews+' news, +'+nNuccol+' NucCol, +'+nEvents+' events, +'+nTenders+' tenders');
+
+    logFilterStats();
 
     // Re-render whichever content tab is currently active so the editor updates immediately
     if (typeof renderContentList === 'function' && typeof activeContentTab !== 'undefined') {
