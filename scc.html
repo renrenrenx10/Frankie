@@ -8031,18 +8031,28 @@ function nrRender() {
     const statusBg     = u.status === 'pending' ? '#fef3e0' : u.status === 'approved' ? '#e8f7ef' : '#fff0ee';
     const statusBorder = u.status === 'pending' ? '#f0c070' : u.status === 'approved' ? '#a8d5bb' : '#f5c6c0';
 
+    // [2026-10-30] full_description and links are published by nrApprove but
+    // were never rendered here, so reviewers were approving them unseen. That
+    // is how ASD Limited's rewritten long description went unnoticed.
     const fields = [
-      ['Description',    u.description],
-      ['Website',        u.website],
-      ['Logo',           u.logo_url],
-      ['Capabilities',   u.capabilities],
-      ['Services',       u.services],
-      ['Region',         u.region],
-      ['Employees',      u.employees],
-      ['Contact Name',   u.contact_name],
-      ['Contact Phone',  u.contact_phone],
-      ['Contact Email',  u.contact_email],
-      ['LinkedIn',       u.linkedin],
+      ['Description',      u.description],
+      ['Full Description', u.full_description],
+      ['Website',          u.website],
+      ['Logo',             u.logo_url],
+      ['Capabilities',     u.capabilities],
+      ['Services',         u.services],
+      ['Region',           u.region],
+      ['Employees',        u.employees],
+      ['Contact Name',     u.contact_name],
+      ['Contact Phone',    u.contact_phone],
+      ['Contact Email',    u.contact_email],
+      ['LinkedIn',         u.linkedin],
+      ['Links',            (() => {
+                             let L = u.links;
+                             if (typeof L === 'string') { try { L = JSON.parse(L); } catch (e) { return null; } }
+                             if (!Array.isArray(L) || !L.length) return null;
+                             return L.map(l => (l && l.label ? l.label + ' - ' : '') + (l && l.url ? l.url : '')).join('\n');
+                           })()],
     ].filter(([,v]) => v);
 
     const fieldRows = fields.map(([k,v]) => `
