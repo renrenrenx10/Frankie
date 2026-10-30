@@ -750,6 +750,10 @@ button{cursor:pointer}
         <span class="sb-label">F4N Journey / Case Studies</span>
         <span class="sb-count" id="sb-fj-count">—</span>
       </button>
+      <button class="sb-item" data-screen="nranalytics" onclick="nav('nranalytics')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+        <span class="sb-label">Site Analytics</span>
+      </button>
 
       <div class="sb-section" style="margin-top:8px">Comms</div>
       <button class="sb-item" data-screen="pcv" onclick="nav('pcv')">
@@ -1696,6 +1700,79 @@ Custom actions can be removed from the plan if they are no longer relevant – t
         </div>
       </div>
     </div><!-- /screen-manuk -->
+
+    <!-- ──────────── NUCLEARREADY SITE ANALYTICS -->
+    <div class="screen" id="screen-nranalytics">
+      <div>
+        <div class="stats-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:8px">
+          <div class="stat-card"><div class="val" id="nra-stat-views">0</div><div class="lbl">Page Views (30d)</div></div>
+          <div class="stat-card"><div class="val" id="nra-stat-visits">0</div><div class="lbl">Unique Visits (30d)</div></div>
+          <div class="stat-card"><div class="val" id="nra-stat-profiles" style="color:#075985">0</div><div class="lbl">Profile Views</div></div>
+          <div class="stat-card"><div class="val" id="nra-stat-searches" style="color:#6d28d9">0</div><div class="lbl">Searches</div></div>
+          <div class="stat-card"><div class="val" id="nra-stat-outbound" style="color:#b91c1c">0</div><div class="lbl">Outbound Clicks</div></div>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:16px">Anonymous, cookieless analytics from nuclearready.uk. A visit is one browser tab, so the same person returning tomorrow counts again. No IP addresses or personal data are recorded, and nothing here identifies which organisation a visitor belongs to.</div>
+
+        <div id="nra-loading" style="color:var(--muted);font-size:.88rem;padding:20px 0">Loading…</div>
+        <div id="nra-error" style="display:none;color:var(--red);font-size:.85rem;padding:10px 0"></div>
+
+        <div id="nra-body" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+
+            <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+              <div style="background:var(--wash);padding:8px 12px;font-weight:700;font-size:.8rem;border-bottom:1px solid var(--line)">By Page</div>
+              <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+                <thead><tr style="text-align:left"><th style="padding:8px 10px">Page</th><th style="padding:8px 10px;text-align:right">Views</th></tr></thead>
+                <tbody id="nra-pages"></tbody>
+              </table>
+            </div>
+
+            <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+              <div style="background:var(--wash);padding:8px 12px;font-weight:700;font-size:.8rem;border-bottom:1px solid var(--line)">Where They Came From</div>
+              <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+                <thead><tr style="text-align:left"><th style="padding:8px 10px">Source</th><th style="padding:8px 10px;text-align:right">Views</th></tr></thead>
+                <tbody id="nra-sources"></tbody>
+              </table>
+            </div>
+
+            <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+              <div style="background:var(--wash);padding:8px 12px;font-weight:700;font-size:.8rem;border-bottom:1px solid var(--line)">Most Viewed Company Profiles</div>
+              <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+                <thead><tr style="text-align:left"><th style="padding:8px 10px">Company</th><th style="padding:8px 10px;text-align:right">Views</th></tr></thead>
+                <tbody id="nra-companies"></tbody>
+              </table>
+            </div>
+
+            <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+              <div style="background:var(--wash);padding:8px 12px;font-weight:700;font-size:.8rem;border-bottom:1px solid var(--line)">Outbound Clicks</div>
+              <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+                <thead><tr style="text-align:left"><th style="padding:8px 10px">Destination</th><th style="padding:8px 10px;text-align:right">Clicks</th></tr></thead>
+                <tbody id="nra-outbound"></tbody>
+              </table>
+            </div>
+
+            <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+              <div style="background:var(--wash);padding:8px 12px;font-weight:700;font-size:.8rem;border-bottom:1px solid var(--line)">What They Searched For</div>
+              <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+                <thead><tr style="text-align:left"><th style="padding:8px 10px">Search term</th><th style="padding:8px 10px;text-align:right">Times</th></tr></thead>
+                <tbody id="nra-searches"></tbody>
+              </table>
+            </div>
+
+            <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+              <div style="background:var(--wash);padding:8px 12px;font-weight:700;font-size:.8rem;border-bottom:1px solid var(--line)">Filters Applied</div>
+              <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+                <thead><tr style="text-align:left"><th style="padding:8px 10px">Filter</th><th style="padding:8px 10px;text-align:right">Times</th></tr></thead>
+                <tbody id="nra-filters"></tbody>
+              </table>
+            </div>
+
+          </div>
+          <div style="font-size:.75rem;color:var(--muted)">Based on the last 30 days, up to 10,000 events. Searches are logged once the visitor stops typing, and only for terms of three characters or more.</div>
+        </div>
+      </div>
+    </div><!-- /screen-nranalytics -->
+
 
     <!-- ──────────── SUPPLIER DATABASE -->
     <div class="screen" id="screen-supplierdb">
@@ -3021,6 +3098,7 @@ const TOPBAR = {
   settings:    {title:'Settings', sub:'API service controls for Frankie', actions:''},
   nuclearready: {title:'NuclearReady Updates', sub:'Review and approve member-submitted company profile changes', actions:`<button class="tb-btn primary" onclick="nrLoadUpdates()">↻ Refresh</button>`},
   nrcompanies: {title:'NuclearReady Companies', sub:'Manage which companies appear in the Explorer', actions:`<button class="tb-btn primary" onclick="nrcLoad()">↻ Refresh</button><button class="tb-btn" onclick="nrcSyncLogos()" style="margin-left:8px" title="Copy company logos from the website into nr_companies.logo_url">🖼 Sync Logos from Website</button><button class="tb-btn" onclick="nrcShowAddModal()" style="margin-left:8px">+ Add Company</button>`},
+  nranalytics: {title:'NuclearReady Site Analytics', sub:'nuclearready.uk traffic — page views, profile views, searches and click-throughs', actions:`<button class="tb-btn primary" onclick="nraLoad()">↻ Refresh</button>`},
   f4njourney:  {title:'F4N Journey / Case Studies', sub:'Review member-submitted F4N journeys and turn them into published case studies', actions:`<button class="tb-btn primary" onclick="fjLoadSubmissions()">↻ Refresh</button>`},
   pcv:         {title:'Programme Country View', sub:'Edit and publish quarterly nuclear programme slide briefings', actions:`<button class="tb-btn primary" onclick="pcvPublish()">&#9650; Publish to Members</button><button class="tb-btn" onclick="pcvAddSlide()" style="margin-left:8px">+ Add Slide</button>`},
   certgen:     {title:'F4N Certificate Generator', sub:'Issue F4N Granted Status certificates', actions:`<button class="tb-btn primary" onclick="certDownload()">&#11015; Download PDF</button>`},
@@ -3056,6 +3134,7 @@ function nav(screen, opts) {
   document.getElementById('tb-actions').innerHTML = backBtn + (tb.actions || '');
   if (screen === 'usage') usageLoad();
   if (screen === 'manuk') muLoad();
+  if (screen === 'nranalytics') nraLoad();
   if (screen === 'companies') coLoad();
   if (screen === 'assessment') populateAssessCompanySelect();
   if (screen === 'reports') populateReportSelects();
@@ -11405,6 +11484,76 @@ function f4nDownloadIcsOne(id) {
   const exp = f4nEffectiveExpiry(row);
   if (!exp) { toast('No expiry date recorded for this company.'); return; }
   f4nDownloadIcsBlob('F4N-Expiry-' + row.company_name.replace(/[^a-z0-9]+/gi, '-') + '.ics', f4nIcsWrap([f4nBuildVevent(row, exp)]));
+}
+
+
+// ════════════════════════════════════════════════════
+// NUCLEARREADY SITE ANALYTICS
+// Reads nr_events, written by nuclearready.uk through
+// nrTrack() in nr-data.js. Companion to Usage Analytics
+// (member_events) and Manufacturing UK (public_events);
+// its own table so no panel's figures are polluted by
+// another site's traffic.
+// ════════════════════════════════════════════════════
+const NRA_PAGE_LABELS = { home:'Landing page', directory:'Directory', company:'Company profile', compare:'Comparison', map:'Map view' };
+let nraRows = [];
+
+function nraEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function nraLoad(){
+  const L = document.getElementById('nra-loading'), B = document.getElementById('nra-body'), E = document.getElementById('nra-error');
+  L.style.display=''; B.style.display='none'; E.style.display='none';
+  const since = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+  const { data, error } = await db.from('nr_events')
+    .select('visit_id,page,event_type,detail,referrer,utm_source,utm_medium,utm_campaign,created_at')
+    .gte('created_at', since).order('created_at', { ascending:false }).limit(10000);
+  L.style.display='none';
+  if (error){ E.textContent = 'Could not load NuclearReady analytics: ' + error.message + ' — has sql/nr_events.sql been run in Supabase yet?'; E.style.display=''; return; }
+  B.style.display=''; nraRows = data || []; nraRender();
+}
+
+function nraTop(rows, keyFn, n){
+  const t = {};
+  rows.forEach(r => { const k = keyFn(r); if (k) t[k] = (t[k]||0) + 1; });
+  return Object.entries(t).sort((a,b) => b[1] - a[1]).slice(0, n || 15);
+}
+
+function nraPairsHtml(pairs){
+  if (!pairs.length) return '<tr><td colspan="2" style="padding:10px;color:var(--muted);border-top:1px solid var(--line)">Nothing recorded yet.</td></tr>';
+  return pairs.map(([k,v]) =>
+    `<tr><td style="padding:7px 10px;border-top:1px solid var(--line)">${nraEsc(k)}</td>` +
+    `<td style="padding:7px 10px;border-top:1px solid var(--line);text-align:right">${v}</td></tr>`
+  ).join('');
+}
+
+function nraRender(){
+  const views = nraRows.filter(r => r.event_type === 'view');
+  const cv    = nraRows.filter(r => r.event_type === 'company_view');
+  const se    = nraRows.filter(r => r.event_type === 'search');
+  const fi    = nraRows.filter(r => r.event_type === 'filter');
+  const ob    = nraRows.filter(r => r.event_type === 'outbound');
+  const visits = new Set(nraRows.map(r => r.visit_id));
+
+  document.getElementById('nra-stat-views').textContent    = views.length;
+  document.getElementById('nra-stat-visits').textContent   = visits.size;
+  document.getElementById('nra-stat-profiles').textContent = cv.length;
+  document.getElementById('nra-stat-searches').textContent = se.length;
+  document.getElementById('nra-stat-outbound').textContent = ob.length;
+
+  document.getElementById('nra-pages').innerHTML     = nraPairsHtml(nraTop(views, r => NRA_PAGE_LABELS[r.page] || r.page, 20));
+  document.getElementById('nra-companies').innerHTML = nraPairsHtml(nraTop(cv, r => r.detail, 15));
+  document.getElementById('nra-searches').innerHTML  = nraPairsHtml(nraTop(se, r => r.detail, 15));
+  document.getElementById('nra-filters').innerHTML   = nraPairsHtml(nraTop(fi, r => r.detail, 15));
+  document.getElementById('nra-outbound').innerHTML  = nraPairsHtml(nraTop(ob, r => r.detail, 15));
+
+  // A campaign tag is the most specific answer to "where did they come
+  // from", then any utm_source, then the referring host. Direct traffic
+  // and browsers that withhold a referrer both land in "Direct".
+  document.getElementById('nra-sources').innerHTML = nraPairsHtml(nraTop(views, r =>
+    r.utm_campaign ? 'Campaign: ' + r.utm_campaign + (r.utm_source ? ' / ' + r.utm_source : '')
+    : r.utm_source ? 'Source: ' + r.utm_source
+    : r.referrer   ? r.referrer
+    : 'Direct / no referrer', 15));
 }
 
 </script>
