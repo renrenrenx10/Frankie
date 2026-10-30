@@ -8087,6 +8087,37 @@ async function nrApprove(id) {
   if (!u) { toast('Error: submission not found — refresh and try again'); return; }
   if (!u.company_id) { toast('Cannot approve: this submission is not linked to a company'); return; }
 
+  // [2026-10-30] Ordering guard. The review list is newest-first, so working
+  // down it approves the newest submission and then the older ones, and each
+  // older one overwrites the newer values on the live row. ASD Limited lost a
+  // submission exactly that way: approved 14:49 at 15:53:24, then 14:27 at
+  // 15:53:31, seven seconds apart. Checked against the database rather than
+  // nrAllUpdates so that a colleague approving in another tab still counts.
+  const { data: newer, error: newerErr } = await db.from('nr_profile_updates')
+    .select('submitted_at,reviewed_at,reviewed_by')
+    .eq('company_id', u.company_id)
+    .eq('status', 'approved')
+    .gt('submitted_at', u.submitted_at)
+    .order('submitted_at', { ascending: false })
+    .limit(1);
+  if (newerErr) {
+    toast('Not published - could not check submission order: ' + newerErr.message);
+    return;
+  }
+  if (newer && newer.length) {
+    const nwr = newer[0];
+    const fmtDt = d => d ? new Date(d).toLocaleString('en-GB') : 'an unknown date';
+    const proceed = confirm(
+      'This is NOT the latest submission for this company.\n\n' +
+      'A newer one, submitted ' + fmtDt(nwr.submitted_at) + ', was already approved on ' +
+      fmtDt(nwr.reviewed_at) + (nwr.reviewed_by ? ' by ' + nwr.reviewed_by : '') + '.\n\n' +
+      'Publishing this older submission will overwrite those newer values on the ' +
+      'live site, and the company will see their most recent changes disappear.\n\n' +
+      'Publish anyway?'
+    );
+    if (!proceed) { toast('Not published - a newer submission is already live'); return; }
+  }
+
   const companyUpdate = {};
   ['description','website','logo_url','region','employees','capabilities',
    'contact_name','contact_phone','contact_email','linkedin',
