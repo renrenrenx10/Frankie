@@ -6860,6 +6860,65 @@ function coLoadNuclearReady(co) {
       placeholder="The longer version. Leave a blank line between paragraphs&hellip;"
       style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.82rem;color:var(--ink);outline:none;box-sizing:border-box;font-family:inherit;resize:vertical;margin-bottom:14px">${esc2(co.full_description || '')}</textarea>
 
+    <div class="co-detail-lbl" style="margin-bottom:5px">Profile Details <span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0">&mdash; members can edit these themselves; set them here when they ask you to</span></div>
+    <div class="co-detail-grid" style="margin-bottom:8px">
+      <div class="co-detail">
+        <div class="co-detail-lbl">Website</div>
+        <input type="text" value="${esc2(co.website || '')}" placeholder="https://&hellip;"
+          onchange="coNrUpdateField('${co.id}','website',this.value.trim())"
+          style="width:100%;background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:.8rem;color:var(--navy);outline:none;box-sizing:border-box"/>
+      </div>
+      <div class="co-detail">
+        <div class="co-detail-lbl">LinkedIn</div>
+        <input type="text" value="${esc2(co.linkedin || '')}" placeholder="https://www.linkedin.com/company/&hellip;"
+          onchange="coNrUpdateField('${co.id}','linkedin',this.value.trim())"
+          style="width:100%;background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:.8rem;color:var(--navy);outline:none;box-sizing:border-box"/>
+      </div>
+      <div class="co-detail">
+        <div class="co-detail-lbl">Region</div>
+        <select onchange="coNrUpdateField('${co.id}','region',this.value)"
+          style="width:100%;background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:.8rem;color:var(--navy);cursor:pointer;outline:none;box-sizing:border-box">
+          <option value="">&mdash;</option>
+          ${['East Midlands','East of England','London','North East','North West','Northern Ireland','Scotland','South East','South West','Wales','West Midlands','Yorkshire and the Humber'].map(r => `<option ${co.region === r ? 'selected' : ''}>${r}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="co-detail-grid" style="margin-bottom:8px">
+      <div class="co-detail">
+        <div class="co-detail-lbl">Contact Name</div>
+        <input type="text" value="${esc2(co.contact_name || '')}"
+          onchange="coNrUpdateField('${co.id}','contact_name',this.value.trim())"
+          style="width:100%;background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:.8rem;color:var(--navy);outline:none;box-sizing:border-box"/>
+      </div>
+      <div class="co-detail">
+        <div class="co-detail-lbl">Contact Email</div>
+        <input type="text" value="${esc2(co.contact_email || '')}"
+          onchange="coNrUpdateField('${co.id}','contact_email',this.value.trim())"
+          style="width:100%;background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:.8rem;color:var(--navy);outline:none;box-sizing:border-box"/>
+      </div>
+      <div class="co-detail">
+        <div class="co-detail-lbl">Contact Phone</div>
+        <input type="text" value="${esc2(co.contact_phone || '')}"
+          onchange="coNrUpdateField('${co.id}','contact_phone',this.value.trim())"
+          style="width:100%;background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:.8rem;color:var(--navy);outline:none;box-sizing:border-box"/>
+      </div>
+    </div>
+
+    <div class="co-detail-grid" style="margin-bottom:14px">
+      <div class="co-detail">
+        <div class="co-detail-lbl">Employees</div>
+        <select onchange="coNrUpdateField('${co.id}','employees',this.value)"
+          style="width:100%;background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:.8rem;color:var(--navy);cursor:pointer;outline:none;box-sizing:border-box">
+          <option value="">&mdash;</option>
+          ${['1–10','11–50','51–200','201–500','500+'].map(b => `<option ${String(co.employees) === b ? 'selected' : ''}>${b}</option>`).join('')}
+        </select>
+        <div style="font-size:.68rem;color:var(--muted);margin-top:3px;line-height:1.35">
+          Also synced from the Supplier Database &mdash; opening that screen can overwrite this.
+        </div>
+      </div>
+    </div>
+
     ${coTagChips(co)}
 
     <div style="margin-top:12px;font-size:.78rem;color:var(--muted)">
