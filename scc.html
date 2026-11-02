@@ -11205,6 +11205,28 @@ function sdbProfileFieldsFor(c) {
   return out;
 }
 
+/* How many tags a member actually selected, when nr_companies.capabilities holds
+   their own grouped object rather than the Supplier Database's flat array.
+   Returns -1 when the value is not a member-grouped object at all.
+
+   [2026-11-02] sdbArraysEqual below compares .length. A grouped object has none,
+   so `tags.capabilities` never matched it and the flat SharePoint list was
+   written over the member's selections on EVERY Supplier Database load. Measured
+   across the 17 companies that had submitted: all 16 linked ones had been
+   flattened, and the single unlinked one was the only survivor. That also
+   defeated the markets decision of 2026-10-30, since a member's markets live
+   inside this object - once flattened, nr-data.js falls back to the flat
+   DataVault column, which is exactly what that change set out to stop.
+
+   An empty grouped object is deliberately NOT protected: a member who selected
+   nothing should not block the Supplier Database's tags from showing. */
+function sdbMemberGroupedCount(v) {
+  let c = v;
+  if (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) { return -1; } }
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return -1;
+  return Object.keys(c).reduce((n, k) => n + (Array.isArray(c[k]) ? c[k].length : 0), 0);
+}
+
 function sdbArraysEqual(a, b) {
   a = a || []; b = b || [];
   if (a.length !== b.length) return false;
@@ -11222,7 +11244,9 @@ async function sdbSyncTagsToCrm(spCompany, crmRow) {
   const tags = sdbTagsFor(spCompany);
   const payload = {};
 
-  if (!sdbArraysEqual(tags.capabilities, crmRow.capabilities))     payload.capabilities   = tags.capabilities;
+  // Members win: leave a member's own grouped selections alone.
+  if (sdbMemberGroupedCount(crmRow.capabilities) <= 0 &&
+      !sdbArraysEqual(tags.capabilities, crmRow.capabilities))     payload.capabilities   = tags.capabilities;
   if (!sdbArraysEqual(tags.accreditations, crmRow.accreditations)) payload.accreditations = tags.accreditations;
   if (!sdbArraysEqual(tags.markets, crmRow.markets))               payload.markets        = tags.markets;
   // Guarded on the column being present: when nr_companies has no commodities
