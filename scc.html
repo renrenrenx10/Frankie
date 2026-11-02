@@ -6009,7 +6009,16 @@ async function coLoad() {
 
 function coSearch(val) {
   const q = val.trim().toLowerCase();
-  const filtered = q ? coAllCompanies.filter(c => c.name.toLowerCase().includes(q)) : coAllCompanies;
+  // [2026-11-02] Punctuated names never matched a raw substring: "P.A.R.C. Ltd"
+  // lowercases to "p.a.r.c. ltd", which does not contain "parc", so the company
+  // looked absent entirely. nrcNormName strips punctuation and company suffixes.
+  // Guarded on nq being non-empty, or a query of just "ltd" normalises to ""
+  // and matches every row.
+  const nq = nrcNormName(val);
+  const filtered = q
+    ? coAllCompanies.filter(c => c.name.toLowerCase().includes(q)
+        || (!!nq && nrcNormName(c.name).includes(nq)))
+    : coAllCompanies;
   coRender(filtered);
 }
 
@@ -9087,12 +9096,19 @@ function nrcFilter() {
   const q      = (document.getElementById('nrc-search')?.value || '').toLowerCase().trim();
   const status = document.getElementById('nrc-status-filter')?.value || 'all';
   const vis    = document.getElementById('nrc-vis-filter')?.value || 'all';
+  const nq     = nrcNormName(q);
 
   nrcFiltered = nrcAll.filter(co => {
     if (status !== 'all' && co.status !== status) return false;
     if (vis === 'visible' && co.hidden) return false;
     if (vis === 'hidden' && !co.hidden) return false;
-    if (q && !co.name.toLowerCase().includes(q) && !(co.website||'').toLowerCase().includes(q)) return false;
+    if (q) {
+      // Same punctuation problem as coSearch — see nrcNormName there.
+      const hit = co.name.toLowerCase().includes(q)
+               || (co.website||'').toLowerCase().includes(q)
+               || (!!nq && nrcNormName(co.name).includes(nq));
+      if (!hit) return false;
+    }
     return true;
   });
   nrcRender();
