@@ -1759,11 +1759,36 @@ async function nextCompanyID() {
 }
 
 /* ── CAPABILITIES / COMMODITIES tab ──────────────────────────────────────── */
+/* The junction lists (Company_Capabilities / _Commodities / _Accreditations /
+   _Markets) are keyed on the NuCCoL CompanyID (field_1), never the SharePoint
+   item ID. applySearchFilters and scc.html's sdbNormaliseCompany were corrected
+   for this; the company edit screen below was missed, and because it both READ
+   and WROTE with the item ID it agreed with itself - the damage only showed in
+   SCC, which reads by CompanyID. [2026-11-02] Heatrod (item id 1053, CompanyID
+   1089) had its ATEX and IECEx filed against Hambleton Holdings, whose
+   CompanyID is 1053.
+   No fallback to the item id on purpose: the two id spaces overlap (3,318
+   numbers are in use as both), so guessing is what caused the damage. */
+function dvCompanyTagKey(c) {
+  if (!c) return null;
+  const v = c.field_1;
+  return (v === null || v === undefined || String(v).trim() === '') ? null : String(v).trim();
+}
+
 async function loadCompanyCapsComs() {
   if (!state.selectedCompany?.ID) return;
+  const id = dvCompanyTagKey(state.selectedCompany);
+  if (!id) {
+    // No CompanyID: this company genuinely has no tags. Showing an empty list
+    // is correct; querying by item id would show another company's.
+    state.companyCapabilities = [];
+    state.companyCommodities  = [];
+    renderTagList('c-caps-list', [], 'CapabilityName_Ref', 'removeCompanyCap');
+    renderTagList('c-coms-list', [], 'CommodityName_Ref',  'removeCompanyCom');
+    return;
+  }
   showLoading(true);
   try {
-    const id = state.selectedCompany.ID;
     const [caps, coms] = await Promise.all([
       spGetAll('Company_Capabilities', 'ID,CapabilityName_Ref', `CompanyID_Ref eq ${id}`),
       spGetAll('Company_Commodities',  'ID,CommodityName_Ref',  `CompanyID_Ref eq ${id}`),
@@ -1778,9 +1803,16 @@ async function loadCompanyCapsComs() {
 
 async function loadCompanyAccredsMkts() {
   if (!state.selectedCompany?.ID) return;
+  const id = dvCompanyTagKey(state.selectedCompany);
+  if (!id) {
+    state.companyAccreditations = [];
+    state.companyMarkets        = [];
+    renderTagList('c-acreds-list', [], 'AccreditationName_Ref', 'removeCompanyAcred');
+    renderTagList('c-mkts-list',   [], 'MarketName_Ref',        'removeCompanyMkt');
+    return;
+  }
   showLoading(true);
   try {
-    const id = state.selectedCompany.ID;
     const [acreds, mkts] = await Promise.all([
       spGetAll('Company_Accreditations','ID,AccreditationName_Ref',`CompanyID_Ref eq ${id}`),
       spGetAll('Company_Markets',       'ID,MarketName_Ref',       `CompanyID_Ref eq ${id}`),
@@ -1818,8 +1850,14 @@ async function addCompanyTag(type) {
   if (!selVal) return;
   const lookupItem = cfg.lookupList.find(x => x.Title === selVal);
   if (!lookupItem) return;
-  const cid = state.selectedCompany.ID;
+  const cid = dvCompanyTagKey(state.selectedCompany);
   const cname = state.selectedCompany.Title;
+  if (!cid) {
+    // Refuse rather than fall back to the item id, which would file this tag
+    // against whichever company holds that number as its CompanyID.
+    toast('This company has no NuCCoL CompanyID, so a tag cannot be filed against it without risking another company\'s record. Set its CompanyID first.', 'error');
+    return;
+  }
   showLoading(true);
   try {
     const existing = await spGetAll(cfg.list, 'ID', `CompanyID_Ref eq ${cid} and ${cfg.nameField} eq '${selVal.replace(/'/g,"''")}'`);
