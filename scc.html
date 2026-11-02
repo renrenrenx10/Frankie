@@ -9433,6 +9433,18 @@ async function nrcLinkMemberAndCreateFolder(companyId, companyName, uid) {
       : 'company saved, but folder link failed: ' + dbErr.message;
   }
 
+  // [2026-11-02] Also add them as a Portal User. Setting member_user_id alone
+  // left the company record saying "linked" while the Portal Users tab said
+  // nobody was, and the gap only showed up if someone ran Check Legacy Links.
+  // Existence check first, mirroring pmAddUser, so re-linking doesn't throw.
+  const { data: cmExisting } = await db.from('company_members')
+    .select('user_id').eq('company_id', companyId).eq('user_id', uid);
+  if (!cmExisting || !cmExisting.length) {
+    const { error: cmErr } = await db.from('company_members')
+      .insert({ company_id: companyId, user_id: uid, role: 'Member' });
+    if (cmErr) return 'linked, but Portal User add failed: ' + cmErr.message;
+  }
+
   const profile = JSON.stringify({ userId: uid, company: companyName, updated: new Date().toISOString() });
   const blob    = new Blob([profile], { type: 'application/json' });
   const res = await fetch(`${SUPA_URL}/storage/v1/object/evidence-docs/${uid}/_profile.json`, {
