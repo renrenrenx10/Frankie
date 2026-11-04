@@ -11149,7 +11149,13 @@ function sdbOpenDetail(id) {
   document.getElementById('sdb-modal').style.display = 'flex';
 }
 
-const NUCCOL_TOOLS_BASE = 'https://renrenrenx10.github.io/nuccol-tools/';
+// [2026-11-04] Was nuccol-tools, where datavault.html and rolodex.html used
+// to live. Both were copied into this repo on 2026-07-08 and datavault.html
+// has been maintained here since - the junction key was fixed on 16 Oct and
+// again on 2 Nov. These links still pointed at the old copy, so every "Open
+// in DataVault" opened a July-era file that files tags against the SharePoint
+// item ID instead of the CompanyID. rolodex.html is byte-identical in both.
+const NUCCOL_TOOLS_BASE = 'https://renrenrenx10.github.io/Frankie/';
 
 function sdbOpenExternal(tool) {
   if (!sdbSelected) return;
