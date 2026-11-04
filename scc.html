@@ -9116,7 +9116,23 @@ function nrcFilter() {
 
 function nrcTagChips(co) {
   const pill = (t) => `<span style="display:inline-block;background:var(--wash);border:1px solid var(--line);border-radius:999px;padding:1px 8px;font-size:.68rem;margin:3px 4px 0 0">${escH(t)}</span>`;
-  const all = [...(co.capabilities || []), ...(co.accreditations || []), ...(co.markets || [])];
+  // [2026-11-04] capabilities is a flat array from the Supplier DB sync OR a
+  // grouped object from an approved member update. Spreading the object threw
+  // 'not iterable' inside nrcRender's map, so list.innerHTML was never assigned
+  // and the whole NuclearReady Companies list rendered blank — which read as
+  // "the company is missing" rather than as an error. coTagChips was taught
+  // both shapes on 2026-09-24; this one was missed.
+  let caps = co.capabilities;
+  if (typeof caps === 'string') { try { caps = JSON.parse(caps); } catch (e) { caps = caps ? [caps] : []; } }
+  const asList = v => Array.isArray(v) ? v.filter(Boolean) : [];
+  let capList, mktList = asList(co.markets);
+  if (Array.isArray(caps)) capList = asList(caps);
+  else if (caps && typeof caps === 'object') {
+    capList = ['categories','commodities','machining','welding','testing','design','services']
+      .flatMap(k => asList(caps[k]));
+    if (!mktList.length) mktList = asList(caps.markets);
+  } else capList = [];
+  const all = [...capList, ...asList(co.accreditations), ...mktList];
   if (!all.length) return '';
   const shown = all.slice(0, 6);
   const extra = all.length - shown.length;
