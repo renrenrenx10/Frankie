@@ -5516,24 +5516,33 @@ function weRenderCompanyRows(container) {
     container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:40px 0;font-size:.88rem">No companies yet. Click “+ Add Row” to add one.</div>';
     return;
   }
-  const granted = weRows.filter(r => r.section === 'Granted').sort((a,b)=>(a.sort||0)-(b.sort||0));
-  const journey = weRows.filter(r => r.section === 'Journey').sort((a,b)=>(a.sort||0)-(b.sort||0));
+  // Hidden companies are pulled out of the two live groups and listed on their
+  // own at the bottom, so Granted / Journey show exactly what the public
+  // f4n-companies page will render — nothing more.
+  const bySort  = (a,b)=>(a.sort||0)-(b.sort||0);
+  const granted = weRows.filter(r => r.section === 'Granted' && !r.hidden).sort(bySort);
+  const journey = weRows.filter(r => r.section === 'Journey' && !r.hidden).sort(bySort);
+  const hiddenR = weRows.filter(r => !!r.hidden).sort(bySort);
   const renderGroup = (label, items, color) => {
     if (!items.length) return '';
     return `<div style="margin-bottom:20px">
       <div style="font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${color};margin-bottom:8px">${label} (${items.length})</div>
       ${items.map(row => {
-        const hasLogo = row.imageUrl;
-        return `<div class="we-row" id="we-row-${row.id}" style="margin-bottom:8px">
+        const hasLogo  = row.imageUrl;
+        const isHidden = !!row.hidden;
+        return `<div class="we-row" id="we-row-${row.id}" style="margin-bottom:8px${isHidden ? ';opacity:.6;border-style:dashed' : ''}">
           <div style="display:flex;align-items:center;gap:10px">
             ${hasLogo ? `<img src="${escH(row.imageUrl)}" style="height:36px;width:60px;object-fit:contain;border:1px solid var(--line);border-radius:3px;background:#fff;padding:2px;flex-shrink:0">` : `<div style="width:60px;height:36px;border:1px dashed var(--line);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--muted);flex-shrink:0">Logo</div>`}
-            <strong style="flex:1;font-size:.88rem">${escH(row.title||'Company Name')}</strong>
+            <strong style="flex:1;font-size:.88rem">${escH(row.title||'Company Name')}${isHidden ? ` <span style="font-weight:600;font-size:.66rem;background:#e2e8f0;color:#475569;border:1px solid #cbd5e1;border-radius:3px;padding:1px 6px;margin-left:6px;vertical-align:middle">HIDDEN</span>` : ''}</strong>
             <select style="border:1px solid var(--line);background:var(--wash);border-radius:5px;padding:5px 7px;font-size:.78rem;outline:none" onchange="weRowSet('${row.id}','section',this.value);weRenderRows()">
               <option${row.section==='Granted'?' selected':''}>Granted</option>
               <option${row.section==='Journey'?' selected':''}>Journey</option>
             </select>
             <input type="number" value="${row.sort||1}" min="1" style="width:52px;border:1px solid var(--line);background:var(--wash);border-radius:5px;padding:5px 6px;font-size:.78rem;text-align:center;outline:none" title="Sort order" onchange="weRowSet('${row.id}','sort',Number(this.value))">
-            <button class="we-row-del" onclick="weDeleteRow('${row.id}')" title="Remove">✕</button>
+            <button class="we-img-btn" onclick="weToggleRowHidden('${row.id}')"
+              title="${isHidden ? 'Show this company on the website again' : 'Hide from the website without deleting the record'}"
+              style="font-size:.7rem;padding:3px 8px;flex-shrink:0;${isHidden ? 'color:var(--accent)' : 'color:#8595a8'}">${isHidden ? '👁 Show' : '🚫 Hide'}</button>
+            <button class="we-row-del" onclick="weDeleteRow('${row.id}')" title="Delete permanently — use Hide to keep the record">✕</button>
           </div>
           <div class="we-row-grid" style="margin-top:8px;margin-bottom:6px">
             <div>
@@ -5560,7 +5569,33 @@ function weRenderCompanyRows(container) {
   };
   container.innerHTML =
     renderGroup('✅ F4N Granted', granted, 'var(--accent)') +
-    renderGroup('⏳ On the Journey', journey, '#f0b429');
+    renderGroup('⏳ On the Journey', journey, '#f0b429') +
+    (hiddenR.length ? renderGroup('🚫 Hidden from website', hiddenR, '#8595a8') : '');
+}
+
+// Hide a company from the public f4n-companies page without deleting it. The
+// record, logo, description, sort order and case-study link all stay put, so
+// putting them back is one click. Delete (✕) is still there for genuine
+// removals.
+//
+// The flag travels in site-pages/f4n-companies.json as `hidden: true`.
+// nuccol-cms.js skips flagged rows when it builds the Granted / Journey grids,
+// so the change reaches the live site on the next 🚀 Publish.
+function weToggleRowHidden(id) {
+  const row = weRows.find(r => r.id === id);
+  if (!row) return;
+  if (row.hidden) delete row.hidden; else row.hidden = true;
+  weRenderRows();
+
+  const btn = document.getElementById('we-publish-btn');
+  if (btn) btn.disabled = false;
+  const hiddenCount = weRows.filter(r => !!r.hidden).length;
+  const st = document.getElementById('we-pages-status');
+  if (st) st.textContent = `${weRows.length - hiddenCount} live · ${hiddenCount} hidden — 🚀 Publish to apply`;
+
+  toast(row.hidden
+    ? `🚫 ${row.title || 'Company'} hidden — Publish to apply`
+    : `👁 ${row.title || 'Company'} will show again — Publish to apply`);
 }
 
 function weRenderIndexRows(container) {
@@ -8680,7 +8715,9 @@ async function fjLoadCompanyOptions(u) {
   const opts = [`<option value="">— Don't link to a company card —</option>`];
   opts.push(`<option value="__new__">+ Add as a new company (not yet listed)</option>`);
   sorted.forEach(r => {
-    opts.push(`<option value="${escH(r.id)}">${escH(r.title || '(untitled)')} — ${escH(r.section || '')}${r.caseStudyUrl ? ' [has case study]' : ''}</option>`);
+    // Flag hidden rows — linking a case study to one would attach it to a card
+    // the public page doesn't render, which is otherwise invisible from here.
+    opts.push(`<option value="${escH(r.id)}">${escH(r.title || '(untitled)')} — ${escH(r.section || '')}${r.hidden ? ' [HIDDEN on website]' : ''}${r.caseStudyUrl ? ' [has case study]' : ''}</option>`);
   });
   sel.innerHTML = opts.join('');
 
