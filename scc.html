@@ -1134,6 +1134,12 @@ Custom actions can be removed from the plan if they are no longer relevant – t
       <div class="co-search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input id="co-search-input" placeholder="Search companies…" oninput="coSearch(this.value)" autocomplete="off">
+        <select id="co-archive-filter" onchange="coApplyFilters()" title="Show active members, archived (lapsed) members, or both"
+          style="background:var(--wash);border:1px solid var(--line);border-radius:5px;padding:4px 8px;font-size:.78rem;color:var(--navy);outline:none;cursor:pointer;flex-shrink:0">
+          <option value="active">Active only</option>
+          <option value="archived">Archived only</option>
+          <option value="all">Active + Archived</option>
+        </select>
         <span id="co-count" style="font-size:.75rem;color:var(--muted);white-space:nowrap;flex-shrink:0"></span>
       </div>
 
@@ -3546,7 +3552,9 @@ async function naSupabaseSignals() {
 
   // F4N certificates expiring within 30 days (or already expired)
   try {
-    const { data } = await db.from('nr_companies').select('id,name,expiry_date,status').eq('status', 'granted');
+    let { data, error } = await db.from('nr_companies').select('id,name,expiry_date,status')
+      .eq('status', 'granted').eq('archived', false);
+    if (error) ({ data } = await db.from('nr_companies').select('id,name,expiry_date,status').eq('status', 'granted'));
     const today = new Date();
     const soon = (data || []).filter(c => {
       if (!c.expiry_date) return false;
@@ -3561,7 +3569,9 @@ async function naSupabaseSignals() {
 
   // Evidence gone stale — in_progress companies with no upload in 30+ days
   try {
-    const { data: companies } = await db.from('nr_companies').select('id,name,status,member_user_id').eq('status', 'in_progress');
+    let { data: companies, error: cErr } = await db.from('nr_companies').select('id,name,status,member_user_id')
+      .eq('status', 'in_progress').eq('archived', false);
+    if (cErr) ({ data: companies } = await db.from('nr_companies').select('id,name,status,member_user_id').eq('status', 'in_progress'));
     const inProgress = (companies || []).filter(c => c.member_user_id);
     const cData = window._dashCompanyData || [];
     const byUserId = {};
@@ -5953,14 +5963,24 @@ const CO_EV_SLUGS = [
 ];
 
 let coAllCompanies = [];
+let coArchiveAvailable = false;   // true once nr_companies_archive.sql has been run
+let coPortalCounts = null;        // { [company_id]: portal user count }
 
 // ── Shared company list — single source of truth for all dropdowns ────────────
 let sharedCos = [];
 async function sharedCosLoad(force) {
   if (sharedCos.length && !force) return sharedCos;
-  // Reuse coAllCompanies if already loaded
-  if (coAllCompanies.length && !force) { sharedCos = coAllCompanies; return sharedCos; }
-  const { data } = await db.from('nr_companies').select('id,name,status,expiry_date').eq('hidden', false).order('name');
+  // Reuse coAllCompanies if already loaded — minus archived members, or this
+  // shortcut would put lapsed companies back into dropdowns the query below
+  // deliberately excludes them from.
+  if (coAllCompanies.length && !force) { sharedCos = coAllCompanies.filter(c => !c.archived); return sharedCos; }
+  // Archived (lapsed, non-renewing) members are kept out of every dropdown.
+  // Falls back to the pre-archive query if nr_companies_archive.sql hasn't run yet.
+  let { data, error } = await db.from('nr_companies').select('id,name,status,expiry_date')
+    .eq('hidden', false).eq('archived', false).order('name');
+  if (error) {
+    ({ data } = await db.from('nr_companies').select('id,name,status,expiry_date').eq('hidden', false).order('name'));
+  }
   sharedCos = data || [];
   return sharedCos;
 }
@@ -5978,12 +5998,19 @@ async function coLoad() {
   if (loadEl) loadEl.style.display = 'block';
   if (listEl) listEl.innerHTML = '';
 
-  const FULL_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group,full_description,links';
+  const CORE_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets,region,city,county,postcode,address,employees,turnover,main_commodity_group,full_description,links';
+  const FULL_COLS = CORE_COLS + ',archived,archived_at,archive_reason';
   const BASE_COLS = 'id,name,status,website,description,hidden,granted_date,expiry_date,member_user_id,sharepoint_company_id,capabilities,accreditations,markets';
 
-  const { data, error } = await db.from('nr_companies')
-    .select(FULL_COLS)
-    .order('name');
+  // Three-tier fallback: full set including the archive columns → full set
+  // without them (nr_companies_archive.sql not run yet) → base set (older
+  // schema again). coArchiveAvailable gates the Archive buttons accordingly.
+  let { data, error } = await db.from('nr_companies').select(FULL_COLS).order('name');
+  if (!error) {
+    coArchiveAvailable = true;
+  } else {
+    ({ data, error } = await db.from('nr_companies').select(CORE_COLS).order('name'));
+  }
 
   if (loadEl) loadEl.style.display = 'none';
 
@@ -6000,15 +6027,41 @@ async function coLoad() {
     sdbFieldSyncAvailable = true;
   }
 
-  const countEl = document.getElementById('co-count');
-  if (countEl) countEl.textContent = coAllCompanies.length + ' companies';
-  document.getElementById('sb-company-count').textContent = coAllCompanies.length;
-
-  coRender(coAllCompanies);
+  coLoadPortalUserCounts();
+  coApplyFilters();
 }
 
 function coSearch(val) {
-  const q = val.trim().toLowerCase();
+  const input = document.getElementById('co-search-input');
+  if (input && input.value !== val) input.value = val;
+  coApplyFilters();
+}
+
+// Deep links (F4N tracker, Actions, Supplier DB, coOpenProfile) jump straight to
+// a folder by id. Clear any search, and if the target is archived switch the
+// filter to "Active + Archived" so the folder is actually on screen — otherwise
+// the active-only default filters it out and the jump fails silently.
+function coRevealCompany(companyId) {
+  const co    = coAllCompanies.find(c => String(c.id) === String(companyId));
+  const input = document.getElementById('co-search-input');
+  if (input) input.value = '';
+  const filt = document.getElementById('co-archive-filter');
+  if (co && co.archived && filt && filt.value === 'active') filt.value = 'all';
+  coApplyFilters();
+}
+
+// Single filter pipeline for the Companies list: archive state first, then the
+// text search. Called by the search box, the Active/Archived dropdown, and by
+// anything that archives or restores a company.
+function coApplyFilters() {
+  const val  = document.getElementById('co-search-input')?.value || '';
+  const mode = document.getElementById('co-archive-filter')?.value || 'active';
+  const q    = val.trim().toLowerCase();
+
+  let list = coAllCompanies;
+  if (mode === 'active')        list = list.filter(c => !c.archived);
+  else if (mode === 'archived') list = list.filter(c => !!c.archived);
+
   // [2026-11-02] Punctuated names never matched a raw substring: "P.A.R.C. Ltd"
   // lowercases to "p.a.r.c. ltd", which does not contain "parc", so the company
   // looked absent entirely. nrcNormName strips punctuation and company suffixes.
@@ -6016,9 +6069,18 @@ function coSearch(val) {
   // and matches every row.
   const nq = nrcNormName(val);
   const filtered = q
-    ? coAllCompanies.filter(c => c.name.toLowerCase().includes(q)
+    ? list.filter(c => c.name.toLowerCase().includes(q)
         || (!!nq && nrcNormName(c.name).includes(nq)))
-    : coAllCompanies;
+    : list;
+
+  const activeCount = coAllCompanies.filter(c => !c.archived).length;
+  const archCount   = coAllCompanies.length - activeCount;
+  const countEl = document.getElementById('co-count');
+  if (countEl) countEl.textContent = filtered.length + ' shown · ' + activeCount + ' active'
+    + (archCount ? ' · ' + archCount + ' archived' : '');
+  const sbEl = document.getElementById('sb-company-count');
+  if (sbEl) sbEl.textContent = activeCount;
+
   coRender(filtered);
 }
 
@@ -6059,8 +6121,9 @@ function coRender(list) {
     const linkedCls  = co.member_user_id ? 'color:var(--ok)' : 'color:var(--warn)';
     const sdbLinked    = co.sharepoint_company_id ? '🔗 Supplier DB' : '— Supplier DB';
     const sdbLinkedCls = co.sharepoint_company_id ? 'color:var(--accent)' : 'color:var(--muted)';
+    const isArchived   = !!co.archived;
 
-    return `<div class="co-folder" id="co-folder-${co.id}">
+    return `<div class="co-folder" id="co-folder-${co.id}" style="${isArchived ? 'opacity:.55' : ''}">
       <div class="co-folder-head" onclick="coToggle('${co.id}')">
         <span class="co-folder-icon">📁</span>
         <div style="flex:1;min-width:0">
@@ -6068,14 +6131,19 @@ function coRender(list) {
             <span>${esc2(co.name)}</span>
             <button class="co-act-btn" title="Fix / rename company name" onclick="event.stopPropagation(); coRenameCompany('${co.id}')" style="font-size:.7rem;padding:1px 6px;font-weight:400;text-transform:none;letter-spacing:0">✏️ Rename</button>
           </div>
-          <div class="co-folder-meta">${datesMeta} &nbsp;·&nbsp; <span style="${linkedCls};font-size:.7rem">${linked}</span> &nbsp;·&nbsp; <span style="${sdbLinkedCls};font-size:.7rem">${sdbLinked}</span> &nbsp;·&nbsp; <span id="co-interactions-${co.id}"></span></div>
+          <div class="co-folder-meta">${isArchived ? `<span style="color:#64748b;font-weight:600">Archived ${fmt(co.archived_at)}${co.archive_reason ? ' — ' + esc2(co.archive_reason) : ''}</span> &nbsp;·&nbsp; ` : ''}${datesMeta} &nbsp;·&nbsp; <span style="${linkedCls};font-size:.7rem">${linked}</span> &nbsp;·&nbsp; <span style="${sdbLinkedCls};font-size:.7rem">${sdbLinked}</span> &nbsp;·&nbsp; <span id="co-interactions-${co.id}"></span><span id="co-portal-warn-${co.id}"></span></div>
         </div>
         <div class="co-folder-right">
-          <span class="hcp-badge ${badgeCls}" style="font-size:.7rem;padding:2px 8px;border-radius:3px">${badgeTxt}</span>
+          ${isArchived
+            ? `<span class="hcp-badge" style="font-size:.7rem;padding:2px 8px;border-radius:3px;background:#e2e8f0;color:#475569;border:1px solid #cbd5e1">📦 Archived</span>`
+            : `<span class="hcp-badge ${badgeCls}" style="font-size:.7rem;padding:2px 8px;border-radius:3px">${badgeTxt}</span>`}
           <div class="co-folder-actions" onclick="event.stopPropagation()">
-            <button class="co-act-btn" onclick="coQuickNav('${co.id}','assessment')">Assess</button>
+            ${isArchived
+              ? `<button class="co-act-btn" onclick="coRestore('${co.id}')" title="Bring this company back into the active list">↩ Restore</button>`
+              : `<button class="co-act-btn" onclick="coQuickNav('${co.id}','assessment')">Assess</button>
             <button class="co-act-btn" onclick="coQuickNav('${co.id}','reports')">Reports</button>
             <button class="co-act-btn" onclick="coQuickNav('${co.id}','certgen')">Cert</button>
+            <button class="co-act-btn" onclick="coArchive('${co.id}')" title="Archive — lapsed / did not renew">📦 Archive</button>`}
           </div>
           <span class="co-folder-chevron">▼</span>
         </div>
@@ -6106,6 +6174,91 @@ function coRender(list) {
   }).join('');
 
   coRenderInteractionBadges();
+  coRenderPortalWarnings();
+}
+
+// ═══════════════════════════════════════════════════════════
+// ARCHIVING LAPSED MEMBERS
+// SQL to run once: nr_companies_archive.sql (adds archived, archived_at,
+// archive_reason). Until that has been run coArchiveAvailable stays false and
+// the Archive button says so rather than failing silently.
+//
+// `archived` is deliberately NOT the same flag as `hidden`. `hidden` means
+// "temporarily off the public Explorer"; `archived` means "did not renew".
+// Archiving sets hidden = true too, so one action does both. Restoring does
+// NOT unhide — you re-publish deliberately from the NuclearReady tab.
+// ═══════════════════════════════════════════════════════════
+
+async function coLoadPortalUserCounts() {
+  try {
+    const { data, error } = await db.from('company_members').select('company_id');
+    if (error) return;   // table not created yet — the warning just stays blank
+    const counts = {};
+    (data || []).forEach(r => { counts[String(r.company_id)] = (counts[String(r.company_id)] || 0) + 1; });
+    coPortalCounts = counts;
+    coRenderPortalWarnings();
+  } catch (e) {}
+}
+
+// Archiving does not revoke portal logins — it only flags them here so access
+// is removed deliberately, on the company's Portal Users tab.
+function coRenderPortalWarnings() {
+  if (!coPortalCounts) return;
+  coAllCompanies.filter(c => c.archived).forEach(co => {
+    const el = document.getElementById('co-portal-warn-' + co.id);
+    if (!el) return;
+    const n = coPortalCounts[String(co.id)] || 0;
+    el.innerHTML = n
+      ? ` &nbsp;·&nbsp; <span style="color:var(--warn);font-size:.7rem;font-weight:600" title="Archiving does not revoke portal access — remove them on this company's Portal Users tab if they should no longer be able to sign in">⚠ ${n} portal user${n !== 1 ? 's' : ''} still have access</span>`
+      : ` &nbsp;·&nbsp; <span style="color:var(--muted);font-size:.7rem">No portal users</span>`;
+  });
+}
+
+async function coArchive(coId) {
+  const co = coAllCompanies.find(c => String(c.id) === String(coId));
+  if (!co) { toast('Company not found'); return; }
+  if (!coArchiveAvailable) { toast('Archiving needs nr_companies_archive.sql run in Supabase first'); return; }
+
+  const reason = prompt(
+    `Archive "${co.name}"?\n\n` +
+    `They drop out of the active Companies list, the public Explorer and every company dropdown.\n\n` +
+    `Nothing is deleted — evidence, assessments and history stay attached, and you can restore them at any time.\n\n` +
+    `Reason (optional):`, 'Did not renew');
+  if (reason === null) return;   // cancelled
+
+  const payload = {
+    archived: true,
+    archived_at: new Date().toISOString(),
+    archive_reason: reason.trim() || null,
+    hidden: true                 // archiving also pulls them off the Explorer
+  };
+  const { error } = await db.from('nr_companies').update(payload).eq('id', coId);
+  if (error) { toast('Error: ' + error.message); return; }
+
+  Object.assign(co, payload);
+  toast(`📦 ${co.name} archived and removed from the Explorer`);
+  coApplyFilters();
+  // Keep the NuclearReady Companies grid in step without a full reload.
+  if (typeof nrcAll !== 'undefined' && nrcAll.length) {
+    nrcAll = nrcAll.filter(c => String(c.id) !== String(coId));
+    if (typeof nrcUpdateStats === 'function') nrcUpdateStats();
+    if (typeof nrcFilter === 'function') nrcFilter();
+  }
+}
+
+async function coRestore(coId) {
+  const co = coAllCompanies.find(c => String(c.id) === String(coId));
+  if (!co) { toast('Company not found'); return; }
+  if (!confirm(`Restore "${co.name}" to the active list?\n\nThey stay hidden from the public Explorer until you switch them back on from their NuclearReady tab.`)) return;
+
+  const payload = { archived: false, archived_at: null, archive_reason: null };
+  const { error } = await db.from('nr_companies').update(payload).eq('id', coId);
+  if (error) { toast('Error: ' + error.message); return; }
+
+  Object.assign(co, payload);
+  toast(`↩ ${co.name} restored — still hidden from the Explorer`);
+  coApplyFilters();
+  if (typeof nrcLoad === 'function' && typeof nrcAll !== 'undefined' && nrcAll.length) nrcLoad();
 }
 
 let coInteractionCountsByShareId = null; // null = not loaded this session
@@ -9021,10 +9174,13 @@ async function nrcLoad() {
   if (loading) loading.style.display = 'block';
   if (list)    list.innerHTML = '';
 
-  const { data, error } = await db
-    .from('nr_companies')
-    .select('id,name,status,website,hidden,granted_date,expiry_date,updated_at,capabilities,accreditations,markets')
-    .order('name');
+  // Archived (lapsed) members are managed from the Companies screen. Keeping
+  // them out stops this grid and its stat cards counting ex-members.
+  const NRC_COLS = 'id,name,status,website,hidden,granted_date,expiry_date,updated_at,capabilities,accreditations,markets';
+  let { data, error } = await db.from('nr_companies').select(NRC_COLS).eq('archived', false).order('name');
+  if (error) {
+    ({ data, error } = await db.from('nr_companies').select(NRC_COLS).order('name'));
+  }
 
   if (loading) loading.style.display = 'none';
   if (error) { toast('Error loading companies: ' + error.message); return; }
@@ -10150,7 +10306,7 @@ async function f4nCreateCompany(rowId) {
 function f4nOpenCompany(companyId) {
   nav('companies');
   setTimeout(() => {
-    coSearch('');
+    coRevealCompany(companyId);
     const el = document.getElementById('co-folder-' + companyId);
     if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); coToggle(companyId); }
   }, 250);
@@ -10552,7 +10708,7 @@ async function actUpdateField(id, field, value) {
 function actOpenCompany(companyId) {
   nav('companies');
   setTimeout(() => {
-    coSearch('');
+    coRevealCompany(companyId);
     const el = document.getElementById('co-folder-' + companyId);
     if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); coToggle(companyId); }
   }, 250);
@@ -11371,7 +11527,7 @@ async function sdbCreateCrmCompany(spCompanyRowId) {
 function sdbOpenCrmCompany(companyId) {
   nav('companies');
   setTimeout(() => {
-    coSearch('');
+    coRevealCompany(companyId);
     const el = document.getElementById('co-folder-' + companyId);
     if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); coToggle(companyId); }
   }, 250);
@@ -11383,7 +11539,7 @@ function sdbOpenCrmCompany(companyId) {
 function coOpenProfile(companyId, tab) {
   nav('companies');
   setTimeout(() => {
-    coSearch('');
+    coRevealCompany(companyId);
     const el = document.getElementById('co-folder-' + companyId);
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
