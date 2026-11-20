@@ -4497,7 +4497,7 @@ function buildBESections() {
 
 const SCC_WORKER = 'https://ch.rene-dorset.workers.dev';
 
-async function groqCall(prompt, statusEl, spinnerId) {
+async function groqCall(prompt, statusEl, spinnerId, maxTokens) {
   document.getElementById(spinnerId).style.display = '';
   setStatus(statusEl, 'Generating…');
   try {
@@ -4508,7 +4508,7 @@ async function groqCall(prompt, statusEl, spinnerId) {
         model: localStorage.getItem('frankieGroqModel') || 'openai/gpt-oss-120b',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.4,
-        max_tokens: 800
+        max_tokens: maxTokens || 800
       })
     });
     if (!res.ok) throw new Error(await res.text());
@@ -8735,45 +8735,88 @@ function fjParseCaseStudyDraft(text) {
   return { headline: h, tagline: t, body };
 }
 
+// Pulls the company's own website text through the worker's /fetch route, which
+// strips tags and caps the payload. Part one of the case study needs more about
+// the business than the submission's single company question provides.
+// Returns '' on any failure — no website must never block a draft.
+async function fjFetchWebsiteText(website) {
+  if (!website) return '';
+  let url = String(website).trim();
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  try {
+    const res = await fetch(SCC_WORKER + '/fetch?url=' + encodeURIComponent(url), { headers: blobAuthHeaders() });
+    if (!res.ok) return '';
+    const data = await res.json();
+    return (data.text || '').trim().slice(0, 12000);
+  } catch (e) {
+    return '';
+  }
+}
+
 async function fjRegenerateCaseStudy() {
   const u = fjModalSubmission;
   if (!u) return;
   const milestones = fjParseJSON(u.milestones, []);
   const metrics    = fjParseJSON(u.impact_metrics, []);
 
-  const prompt = `You are a marketing copywriter for NucCol, who supports UK nuclear supply chain companies through their Fit For Nuclear (F4N) journey. Write a short published case study about ${u.company_name || 'the company'}, following the classic F4N case study arc: company intro → motivation → starting challenges → what they did → impact → what's next.
+  const btn = document.getElementById('fj-cs-regen-btn');
+  btn.disabled = true;
 
-Company overview: ${u.company_overview || 'Not provided.'}
+  setStatus('fj-cs-status', 'Reading company website…');
+  const siteText = await fjFetchWebsiteText(u.website);
+
+  const prompt = `You are a journalist writing a published Fit For Nuclear (F4N) case study for NucCol, the organisation that supports UK nuclear supply chain companies through the F4N programme. Write a case study about ${u.company_name || 'the company'}.
+
+LENGTH AND SHAPE
+The finished piece fills two sides of A4 — roughly 1,000 to 1,100 words of body text, in two halves of similar length.
+PART ONE (about 500 words, 4 to 5 paragraphs) is about the company itself: who they are, what they make, who they sell to, and how nuclear fits their direction of travel. A reader who knows nothing about them should finish part one understanding the business.
+PART TWO (about 550 words, 5 to 6 paragraphs) is about their F4N journey: why they started it, what the assessment found, what they changed, what it has delivered, and where they go next.
+
+SOURCE A — WHAT THE COMPANY SUBMITTED TO NUCCOL
+Company name: ${u.company_name || 'Not provided.'}
+Website: ${u.website || 'Not provided.'}
+What the company does: ${u.company_overview || 'Not provided.'}
 Why they started their F4N journey / what they hoped to achieve: ${u.journey_reason || 'Not provided.'}
 What their F4N assessment identified as needing improvement (their starting gaps): ${u.starting_gaps || 'Not provided.'}
-Milestones and actions taken to close those gaps: ${milestones.length ? milestones.join('; ') : 'Not provided.'}
-Benefits seen so far (narrative): ${u.impact_narrative || 'Not provided.'}
+Milestones and actions taken to close those gaps: ${milestones.length ? milestones.map((m, i) => `(${i + 1}) ${m}`).join(' ') : 'Not provided.'}
+Benefits seen so far: ${u.impact_narrative || 'Not provided.'}
 Impact metrics: ${metrics.length ? metrics.map(m => `${m.label}: ${m.value}`).join(', ') : 'Not provided.'}
 Opportunities they see ahead in nuclear: ${u.opportunities_ahead || 'Not provided.'}
 Where they see the business in five years: ${u.five_year_outlook || 'Not provided.'}
 
+SOURCE B — RAW TEXT FROM THE COMPANY'S OWN WEBSITE (background for part one only)
+${siteText || 'Not available.'}
+
+HOW TO USE THE TWO SOURCES
+Part one may draw on both sources. Source B is where the detail lives — company history, product ranges, the sectors they serve, where they operate — and it is what lets part one fill its side.
+Part two must come from Source A alone. The website says nothing reliable about their F4N journey, and anything it does say about nuclear is promotional. Never let Source B supply a gap, an action, a benefit or an outcome.
+Where the two sources disagree, the submission wins.
+Source B is raw page text. Ignore navigation, menus, cookie and privacy notices, contact details, job adverts, news items and legal boilerplate. Do not carry over promotional language — "world-leading", "unrivalled", "trusted partner of choice" — and do not quote slogans. State plainly what the company makes and who it sells to.
+Invent nothing. Every fact in the piece must appear in Source A or Source B. Do not add founding dates, locations, parent companies, customer names, product names, accreditations, standards or figures from your own knowledge of this company or its industry.
+Work through Source A closely and give every point its own sentence or clause. Do not compress a list of five gaps into a single clause, and do not reduce ten milestones to "a range of improvements". Where the submission gives a list, group the related items and turn each group into flowing prose that says what changed and why it mattered.
+Never state an outcome more strongly than the submission does — "increased confidence from customers" must not become "a surge in new orders".
+The published page shows the milestones, the impact metrics and the customer quote in their own panels beside your text, so do not reproduce them as a list and do not quote the testimonial. Cover the same ground in your own words.
+If Source B is unavailable or too thin to support part one, write a shorter part one from Source A rather than padding it with generic industry copy.
+
+OUTPUT FORMAT
 Write your response in exactly this format, nothing else:
 HEADLINE: <a punchy 4-8 word headline, e.g. "Fan Systems moves up the supply chain">
 TAGLINE: <one sentence sub-headline summarising the story>
 BODY:
-<paragraph 1 - introduce the company, what they do, and their motivation for starting F4N>
-<paragraph 2 - honestly describe the starting gaps/challenges the assessment identified>
-<paragraph 3 - describe what they did to close those gaps (the milestones/actions)>
-<paragraph 4 - describe the impact and benefits seen so far>
-<paragraph 5 - close on their future outlook: opportunities ahead and where they see the business in five years>
+<part one paragraphs, then part two paragraphs>
 
-Only write paragraphs for beats that have real input above — skip a beat entirely rather than inventing detail for "Not provided" fields. Write in third person, professional but warm tone, in the tone of a trade press case study. No bullet points, no markdown formatting, no extra commentary before or after.`;
+Separate each paragraph with a single blank line. Write in third person, UK English, in the measured and specific tone of a trade press feature — professional and warm, never promotional. No bullet points, no markdown, no sub-headings, no labels such as "Part one", and no commentary before or after.`;
 
-  const btn = document.getElementById('fj-cs-regen-btn');
-  btn.disabled = true;
-  const result = await groqCall(prompt, 'fj-cs-status', 'fj-cs-spinner');
+  const result = await groqCall(prompt, 'fj-cs-status', 'fj-cs-spinner', 3000);
   btn.disabled = false;
   if (!result) return;
   const parsed = fjParseCaseStudyDraft(result);
   if (parsed.headline) document.getElementById('fj-cs-headline').value = parsed.headline;
   if (parsed.tagline)  document.getElementById('fj-cs-tagline').value  = parsed.tagline;
   if (parsed.body)     document.getElementById('fj-cs-body').value    = parsed.body;
-  document.getElementById('fj-cs-status').textContent = '✓ Draft generated. Review and edit before publishing.';
+  document.getElementById('fj-cs-status').textContent = siteText
+    ? '✓ Draft generated. Part one draws on the company website — verify those facts before publishing.'
+    : '✓ Draft generated from the submission only — no website text available. Review before publishing.';
 }
 
 async function fjPublishCaseStudy() {
