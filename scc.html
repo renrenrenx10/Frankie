@@ -2432,6 +2432,7 @@ Custom actions can be removed from the plan if they are no longer relevant – t
 
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" onclick="fjRegenerateCaseStudy()" id="fj-cs-regen-btn">✨ Regenerate with AI</button>
+          <button class="btn" onclick="fjSaveDraft()" id="fj-cs-draft-btn">💾 Save &amp; preview draft</button>
           <button class="btn" onclick="window.open(document.getElementById('fj-cs-preview-link').href,'_blank')" id="fj-cs-preview-btn" style="display:none">👁 Preview</button>
           <a id="fj-cs-preview-link" href="#" style="display:none"></a>
           <div style="flex:1"></div>
@@ -8819,43 +8820,83 @@ Separate each paragraph with a single blank line. Write in third person, UK Engl
     : '✓ Draft generated from the submission only — no website text available. Review before publishing.';
 }
 
+// Builds the case-study record from the current modal fields. Shared by
+// fjSaveDraft and fjPublishCaseStudy so the draft preview is byte-for-byte what
+// publishing would put live — if these ever diverge, the preview stops being a
+// preview.
+async function fjBuildCaseStudyObject(u, slug) {
+  // Upload any replacement photos chosen in the modal; otherwise fall back
+  // to whatever's currently in the (possibly cleared) hidden URL fields.
+  const uploaded1 = await fjUploadModalPhoto(1);
+  const uploaded2 = await fjUploadModalPhoto(2);
+  return {
+    slug,
+    company_name: u.company_name || '',
+    headline: document.getElementById('fj-cs-headline').value.trim(),
+    tagline:  document.getElementById('fj-cs-tagline').value.trim(),
+    body:     document.getElementById('fj-cs-body').value.split(/\n+/).map(p => p.trim()).filter(Boolean),
+    milestones: fjParseJSON(u.milestones, []),
+    metrics:    fjParseJSON(u.impact_metrics, []),
+    quote: {
+      text: document.getElementById('fj-cs-quote').value.trim(),
+      name: document.getElementById('fj-cs-quote-name').value.trim(),
+      role: document.getElementById('fj-cs-quote-role').value.trim()
+    },
+    photo_url:  uploaded1 || document.getElementById('fj-cs-photo-url').value.trim(),
+    photo2_url: uploaded2 || document.getElementById('fj-cs-photo2-url').value.trim(),
+    published_at: new Date().toISOString()
+  };
+}
+
+// Saves the modal contents to a SEPARATE drafts file and opens the public page
+// in draft mode. Nothing goes live: the live blob is untouched, no company card
+// is linked, and the submission's status does not change. The link can be sent
+// to the member for sign-off before publishing.
+async function fjSaveDraft() {
+  const id   = document.getElementById('fj-cs-submission-id').value;
+  const u    = fjAllSubmissions.find(x => x.id === id);
+  if (!u) return;
+  const slug = document.getElementById('fj-cs-slug').value.trim() || fjSlugify(u.company_name);
+
+  const btn = document.getElementById('fj-cs-draft-btn');
+  if (btn) btn.disabled = true;
+  document.getElementById('fj-cs-status').textContent = 'Saving draft\u2026';
+  try {
+    const caseStudy = await fjBuildCaseStudyObject(u, slug);
+    caseStudy.is_draft = true;
+
+    let drafts = await loadBlob2('site-pages/f4n-case-studies-drafts.json') || [];
+    if (!Array.isArray(drafts)) drafts = [];
+    const idx = drafts.findIndex(c => c.slug === slug);
+    if (idx >= 0) drafts[idx] = caseStudy; else drafts.push(caseStudy);
+    await saveBlob('site-pages/f4n-case-studies-drafts.json', drafts);
+
+    const url = `https://www.nuccol.co.uk/f4n-case-study.html?slug=${encodeURIComponent(slug)}&draft=1`;
+    const link = document.getElementById('fj-cs-preview-link');
+    if (link) link.href = url;
+    const pv = document.getElementById('fj-cs-preview-btn');
+    if (pv) pv.style.display = '';
+    document.getElementById('fj-cs-status').textContent = '\u2713 Draft saved \u2014 not published. Preview opened in a new tab.';
+    window.open(url, '_blank');
+    toast('\u2713 Draft saved');
+  } catch (e) {
+    document.getElementById('fj-cs-status').textContent = '\u26a0 Draft save failed: ' + e.message;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function fjPublishCaseStudy() {
   const id   = document.getElementById('fj-cs-submission-id').value;
   const u    = fjAllSubmissions.find(x => x.id === id);
   if (!u) return;
   const slug = document.getElementById('fj-cs-slug').value.trim() || fjSlugify(u.company_name);
 
-  const metrics = fjParseJSON(u.impact_metrics, []);
-  const milestones = fjParseJSON(u.milestones, []);
-  const bodyParas = document.getElementById('fj-cs-body').value
-    .split(/\n+/).map(p => p.trim()).filter(Boolean);
-
   document.getElementById('fj-cs-status').textContent = 'Uploading photos…';
   try {
     // Upload any replacement photos chosen in the modal; otherwise fall back
     // to whatever's currently in the (possibly cleared) hidden URL fields.
-    const uploaded1 = await fjUploadModalPhoto(1);
-    const uploaded2 = await fjUploadModalPhoto(2);
-    const photo_url  = uploaded1 || document.getElementById('fj-cs-photo-url').value.trim();
-    const photo2_url = uploaded2 || document.getElementById('fj-cs-photo2-url').value.trim();
-
-    const caseStudy = {
-      slug,
-      company_name: u.company_name || '',
-      headline: document.getElementById('fj-cs-headline').value.trim(),
-      tagline:  document.getElementById('fj-cs-tagline').value.trim(),
-      body:     bodyParas,
-      milestones,
-      metrics,
-      quote: {
-        text: document.getElementById('fj-cs-quote').value.trim(),
-        name: document.getElementById('fj-cs-quote-name').value.trim(),
-        role: document.getElementById('fj-cs-quote-role').value.trim()
-      },
-      photo_url,
-      photo2_url,
-      published_at: new Date().toISOString()
-    };
+    const caseStudy = await fjBuildCaseStudyObject(u, slug);
 
     document.getElementById('fj-cs-status').textContent = 'Publishing…';
 
@@ -8869,7 +8910,7 @@ async function fjPublishCaseStudy() {
     // 2. Attach the case study link to the company card staff selected — never
     // auto-create unless "Add as a new company" was explicitly chosen.
     const companyMatch = document.getElementById('fj-cs-company-match').value;
-    if (companyMatch) await fjUpsertCompanyRow({ ...u, photo_url }, slug, companyMatch);
+    if (companyMatch) await fjUpsertCompanyRow({ ...u, photo_url: caseStudy.photo_url }, slug, companyMatch);
 
     // 3. Mark submission approved, keeping the photo edits in sync on the
     // original submission row too (so re-opening Edit shows the same photos).
@@ -8878,15 +8919,15 @@ async function fjPublishCaseStudy() {
     const { error } = await db.from('f4n_journey_submissions').update({
       status: 'approved',
       case_study_slug: slug,
-      photo_url,
-      photo2_url,
+      photo_url:  caseStudy.photo_url,
+      photo2_url: caseStudy.photo2_url,
       reviewed_at: now,
       reviewed_by: user?.email || 'SCC'
     }).eq('id', id);
     if (error) throw error;
 
     u.status = 'approved'; u.case_study_slug = slug; u.reviewed_at = now; u.reviewed_by = user?.email || 'SCC';
-    u.photo_url = photo_url; u.photo2_url = photo2_url;
+    u.photo_url = caseStudy.photo_url; u.photo2_url = caseStudy.photo2_url;
     document.getElementById('fj-cs-status').textContent = '✓ Published.';
     toast('✓ Case study published');
     fjUpdateCounts();
