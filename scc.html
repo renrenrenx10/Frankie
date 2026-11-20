@@ -8456,6 +8456,7 @@ async function fjLoadSubmissions() {
   if (error) { list.innerHTML = `<div style="color:var(--red);font-size:.85rem">Error loading submissions: ${error.message}</div>`; return; }
 
   fjAllSubmissions = data || [];
+  await fjLoadCaseStudyRecords();
   fjUpdateCounts();
   fjRender();
 
@@ -8536,10 +8537,19 @@ function fjRender() {
       ? `<div style="display:flex;gap:6px;flex-shrink:0">${photoUrls.map(url => `<img src="${escH(url)}" style="width:70px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">`).join('')}</div>`
       : '';
 
+    // A saved draft means text already exists for this submission: offer to open
+    // it rather than implying a fresh generation is the only route in.
+    const draft = fjDraftFor(u);
+    const draftChip = draft
+      ? `<span style="color:var(--accent);font-weight:700">· Draft saved</span>
+         <a href="${fjDraftUrl(fjSlugFor(u))}" target="_blank" class="btn" style="padding:4px 10px">👁 View draft</a>`
+      : '';
+
     const actionBtns = u.status === 'pending' ? `
-      <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line);flex-wrap:wrap">
-        <button class="btn primary" onclick="fjOpenCaseStudyModal('${u.id}')">✨ Generate Case Study</button>
+      <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line);flex-wrap:wrap;align-items:center;font-size:.75rem">
+        <button class="btn primary" onclick="fjOpenCaseStudyModal('${u.id}')">${draft ? '✎ Open draft' : '✨ Generate Case Study'}</button>
         <button class="btn danger"  onclick="fjReject('${u.id}')">✕ Reject</button>
+        ${draftChip}
       </div>` : u.status === 'approved' ? `
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:.75rem;color:var(--muted);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span>✓ Approved${u.reviewed_by ? ` by ${u.reviewed_by}` : ''}${u.reviewed_at ? ` on ${new Date(u.reviewed_at).toLocaleDateString('en-GB')}` : ''}</span>
@@ -8550,7 +8560,8 @@ function fjRender() {
           <button class="btn danger" style="padding:4px 10px" onclick="fjUnpublishCaseStudy('${u.id}')">🗑 Unpublish</button>
         ` : `
           <span>· Not currently published</span>
-          <button class="btn primary" style="padding:4px 10px" onclick="fjOpenCaseStudyModal('${u.id}')">✨ Generate Case Study</button>
+          <button class="btn primary" style="padding:4px 10px" onclick="fjOpenCaseStudyModal('${u.id}')">${draft ? '✎ Open draft' : '✨ Generate Case Study'}</button>
+          ${draftChip}
         `}
       </div>` : `
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:.75rem;color:var(--muted)">
@@ -8591,6 +8602,51 @@ async function fjReject(id) {
   fjRender();
 }
 
+// Saved drafts and live case studies, keyed by slug. Loaded with the submission
+// list so the cards and the modal can tell, without another round trip, whether
+// a case study already has text written for it.
+let fjDraftsBySlug = {};
+let fjLiveBySlug   = {};
+
+async function fjLoadCaseStudyRecords() {
+  const index = (rows) => {
+    const out = {};
+    (Array.isArray(rows) ? rows : []).forEach(c => { if (c && c.slug) out[c.slug] = c; });
+    return out;
+  };
+  try { fjDraftsBySlug = index(await loadBlob2('site-pages/f4n-case-studies-drafts.json')); }
+  catch (e) { fjDraftsBySlug = {}; }
+  try { fjLiveBySlug = index(await loadBlob2('site-pages/f4n-case-studies.json')); }
+  catch (e) { fjLiveBySlug = {}; }
+}
+
+// The slug a submission's case study is stored under, published or not.
+function fjSlugFor(u) {
+  return u.case_study_slug || (fjSlugify(u.company_name) + '-' + String(u.id).slice(0,6));
+}
+
+function fjDraftFor(u) { return fjDraftsBySlug[fjSlugFor(u)] || null; }
+
+// Fills the modal's editable fields from a saved draft or published record, so
+// reopening shows the text that was written rather than silently replacing it
+// with a fresh AI draft.
+function fjFillModalFromRecord(cs) {
+  document.getElementById('fj-cs-headline').value = cs.headline || '';
+  document.getElementById('fj-cs-tagline').value  = cs.tagline  || '';
+  document.getElementById('fj-cs-body').value     = Array.isArray(cs.body) ? cs.body.join('\n\n') : (cs.body || '');
+  if (cs.quote) {
+    document.getElementById('fj-cs-quote').value      = cs.quote.text || '';
+    document.getElementById('fj-cs-quote-name').value = cs.quote.name || '';
+    document.getElementById('fj-cs-quote-role').value = cs.quote.role || '';
+  }
+  fjSetModalPhotoPreview(1, cs.photo_url  || '');
+  fjSetModalPhotoPreview(2, cs.photo2_url || '');
+}
+
+function fjDraftUrl(slug) {
+  return `https://www.nuccol.co.uk/f4n-case-study.html?slug=${encodeURIComponent(slug)}&draft=1`;
+}
+
 function fjOpenCaseStudyModal(id) {
   const u = fjAllSubmissions.find(x => x.id === id);
   if (!u) return;
@@ -8614,7 +8670,24 @@ function fjOpenCaseStudyModal(id) {
   document.getElementById('fj-cs-original-submission').innerHTML = fjBuildOriginalSubmissionHtml(u);
   document.getElementById('fj-cs-modal').style.display = 'flex';
   fjLoadCompanyOptions(u);
-  fjRegenerateCaseStudy();
+
+  // Prefer work already done: a saved draft first, then the published text.
+  // Only call the AI when neither exists, so reopening never destroys edits.
+  // "Regenerate with AI" remains available as a deliberate action.
+  const saved = fjDraftsBySlug[slug] || fjLiveBySlug[slug] || null;
+  if (saved) {
+    const isDraft = !!fjDraftsBySlug[slug];
+    fjFillModalFromRecord(saved);
+    const link = document.getElementById('fj-cs-preview-link');
+    if (link) link.href = fjDraftUrl(slug);
+    document.getElementById('fj-cs-preview-btn').style.display = isDraft ? '' : 'none';
+    const when = saved.published_at ? new Date(saved.published_at).toLocaleString('en-GB') : '';
+    document.getElementById('fj-cs-status').textContent = isDraft
+      ? `Loaded saved draft${when ? ' from ' + when : ''}. Edit and publish, or regenerate to start over.`
+      : `Loaded the published version${when ? ' from ' + when : ''}. Edit and publish, or regenerate to start over.`;
+  } else {
+    fjRegenerateCaseStudy();
+  }
 }
 
 // The AI-drafted headline/tagline/body overwrite the editable fields above as
@@ -8870,6 +8943,8 @@ async function fjSaveDraft() {
     const idx = drafts.findIndex(c => c.slug === slug);
     if (idx >= 0) drafts[idx] = caseStudy; else drafts.push(caseStudy);
     await saveBlob('site-pages/f4n-case-studies-drafts.json', drafts);
+    fjDraftsBySlug[slug] = caseStudy;
+    fjRender();
 
     const url = `https://www.nuccol.co.uk/f4n-case-study.html?slug=${encodeURIComponent(slug)}&draft=1`;
     const link = document.getElementById('fj-cs-preview-link');
@@ -8906,6 +8981,17 @@ async function fjPublishCaseStudy() {
     const idx = all.findIndex(c => c.slug === slug);
     if (idx >= 0) all[idx] = caseStudy; else all.push(caseStudy);
     await saveBlob('site-pages/f4n-case-studies.json', all);
+
+    // The draft has been superseded by the live version — drop it so the card
+    // stops advertising a draft that is now just an older copy.
+    try {
+      let drafts = await loadBlob2('site-pages/f4n-case-studies-drafts.json') || [];
+      if (Array.isArray(drafts) && drafts.some(c => c.slug === slug)) {
+        await saveBlob('site-pages/f4n-case-studies-drafts.json', drafts.filter(c => c.slug !== slug));
+      }
+    } catch (e) { /* a stale draft is harmless; never block publishing */ }
+    delete fjDraftsBySlug[slug];
+    fjLiveBySlug[slug] = caseStudy;
 
     // 2. Attach the case study link to the company card staff selected — never
     // auto-create unless "Add as a new company" was explicitly chosen.
