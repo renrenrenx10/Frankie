@@ -11262,11 +11262,14 @@ async function spPushCompany(coId) {
 
   const { data: { user } } = await db.auth.getUser();
   const who = user?.email || 'SCC';
-  plan.payload.UpdatedBy = who;
-  // LastUpdated is a custom column (field_23), NOT SharePoint's built-in
-  // Modified, so nothing stamps it automatically. Delete this line if
-  // DataVault owns that field differently.
-  plan.payload.field_23  = new Date().toISOString();
+  // Internal names, NOT display names -- SharePoint rejects the whole MERGE
+  // with "property 'X' does not exist on type 'SP.Data.CoreListItem'" if you
+  // use the display name, which is how the first live push failed.
+  // field_24 = UpdatedBy. field_23 = LastUpdated, a custom column and NOT
+  // SharePoint's built-in Modified, so nothing stamps it automatically --
+  // delete that line if DataVault owns the field differently.
+  plan.payload.field_24 = who;
+  plan.payload.field_23 = new Date().toISOString();
 
   try { await spUpdateItem('Companies', resolved.itemId, plan.payload); }
   catch (e) { toast('Push failed: ' + e.message); return; }
