@@ -1796,9 +1796,8 @@ Custom actions can be removed from the plan if they are no longer relevant – t
         <div id="sdb-content" style="display:none">
 
           <!-- Stats -->
-          <div class="stats-row" id="sdb-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+          <div class="stats-row" id="sdb-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
             <div class="stat-card"><div class="val" id="sdb-stat-total">0</div><div class="lbl">Companies (SharePoint)</div></div>
-            <div class="stat-card"><div class="val" id="sdb-stat-f4n" style="color:#166534">0</div><div class="lbl">F4N Candidates</div></div>
             <div class="stat-card"><div class="val" id="sdb-stat-linked" style="color:var(--accent)">0</div><div class="lbl">Linked to CRM</div></div>
             <div class="stat-card"><div class="val" id="sdb-stat-signedin" style="color:var(--muted);font-size:.85rem">—</div><div class="lbl">Signed in as</div></div>
           </div>
@@ -1840,7 +1839,6 @@ Custom actions can be removed from the plan if they are no longer relevant – t
                   <th style="padding:10px 12px;border-bottom:1px solid var(--line);min-width:150px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">Location</th>
                   <th style="padding:10px 12px;border-bottom:1px solid var(--line);min-width:220px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">Description</th>
                   <th style="padding:10px 12px;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">RAG</th>
-                  <th style="padding:10px 12px;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">F4N</th>
                   <th style="padding:10px 12px;border-bottom:1px solid var(--line);min-width:160px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">CRM Link</th>
                   <th style="padding:10px 12px;border-bottom:1px solid var(--line);min-width:150px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">Tools</th>
                 </tr>
@@ -6936,6 +6934,7 @@ function coLoadDetails(co) {
         ${co.sharepoint_company_id ? '🔗 Re-link Supplier DB' : '🔗 Link Supplier DB'}
       </button>
       ${!co.sharepoint_company_id ? `<span style="font-size:.72rem;color:var(--warn)">⚠ Not linked — location/size/turnover won't stay in sync until linked</span>` : ''}
+      ${co.sharepoint_company_id ? `<button class="co-act-btn" onclick="spPushCompany('${co.id}')" title="Write F4N status, dates, description, website and employees to the SharePoint Supplier Database">⬆ Push to DataVault</button>` : ''}
     </div>`;
 }
 
@@ -11108,6 +11107,181 @@ async function spGetAll(listName, select, top, siteUrl) {
   return items;
 }
 
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// PUSH TO DATAVAULT  —  SCC/Supabase -> the SharePoint Companies list
+// Writes the fields in SP_PUSH_FIELDS onto the SharePoint row behind
+// DataVault, Rolodex and the Supplier Map, so they can show F4N state and
+// member-maintained detail that none of them could see before.
+// Push-only: nothing reads these back into Supabase, so unlike
+// sdbSyncTagsToCrm there is no second direction to loop against.
+// Explicit and per-company on purpose. The automatic inbound sync is what
+// flattened 16 of 17 members' capability selections in Nov 2026; a second
+// automatic direction of travel would be that mistake twice.
+// Optional audit table: nr_sp_push_log.sql. The insert is best-effort, so
+// the push still works before that SQL has been run.
+// ═══════════════════════════════════════════════════════════
+
+const F4N_SP_STATUS = { granted: 'Granted', in_progress: 'On Journey' };
+
+// What a push may write.
+//   owner 'scc'    — SCC is the source of truth; pushed whenever it differs.
+//   owner 'member' — member/CRM detail; pushed, but never blanks a populated
+//                    SharePoint value (the same rule the inbound sync uses).
+// Internal names, not display names. F4N* were created in the SharePoint UI
+// on 2026-11-23 so they are clean; everything migrated from the predecessor
+// system is field_N -- field_6 = Website, field_10 = QuickDescription,
+// field_15 = Employees. Verified against the live list schema, not assumed.
+// Nothing here writes a field the SharePoint side owns (city, county,
+// postcode, address, lat/lng, turnover, RAGStatus, CH_*, RegionalIA).
+const SP_PUSH_FIELDS = [
+  { sp: 'F4NStatus',      label: 'F4N status',  group: 'F4N (SCC owns)',            from: co => F4N_SP_STATUS[co.status] || 'On Journey' },
+  { sp: 'F4NGrantedDate', label: 'Granted',     group: 'F4N (SCC owns)',            type: 'date', from: co => co.granted_date },
+  { sp: 'F4NExpiryDate',  label: 'Expires',     group: 'F4N (SCC owns)',            type: 'date', from: (co, ctx) => ctx.expiry },
+  { sp: 'field_10',       label: 'Description', group: 'Company detail (member owns)', from: co => co.description },
+  { sp: 'field_6',        label: 'Website',     group: 'Company detail (member owns)', from: co => co.website },
+  { sp: 'field_15',       label: 'Employees',   group: 'Company detail (member owns)', from: co => co.employees }
+];
+
+const SP_PUSH_SELECT = '$select=Id,Title,' + SP_PUSH_FIELDS.map(f => f.sp).join(',');
+
+// MSAL sign-in from a screen that isn't the Supplier Database. spGetToken
+// throws outright when no account is cached, so offer the popup instead.
+async function spEnsureSignedIn() {
+  await spInitMsal();
+  if (sdbMsalClient.getAllAccounts().length) return;
+  const res = await sdbMsalClient.loginPopup({ scopes: SDB_CONFIG.scopes });
+  sdbCurrentUser = res.account;
+}
+
+// SharePoint item update. odata=nometadata means the body needs no __metadata
+// type; IF-MATCH:* skips the etag check, which is safe here because the item
+// is re-read immediately before the write and nothing else writes these
+// columns.
+async function spUpdateItem(listName, itemId, fields, siteUrl) {
+  return spFetch(
+    "web/lists/getbytitle('" + encodeURIComponent(listName) + "')/items(" + itemId + ")",
+    { method: 'POST',
+      headers: { 'X-HTTP-Method': 'MERGE', 'IF-MATCH': '*' },
+      body: JSON.stringify(fields) },
+    siteUrl
+  );
+}
+
+// ShareKey -> SharePoint item id, plus the pushable columns as they stand
+// right now (needed for the diff preview).
+// An 'SP' prefix means the company had no CompanyID and the key was generated
+// from the item id, so it decodes directly. Otherwise the key IS a CompanyID
+// and has to be looked up -- and because CompanyID and item id share one
+// numeric space with 3,318 numbers in use as both, a filter returning more
+// than one row is an error, never a "take the first". Guessing is exactly what
+// gave Longcliffe and three others another company's address.
+// field_1 is unindexed, which is fine at ~4,000 items; past 5,000 this filter
+// would hit the list view threshold and need an index on CompanyID.
+async function spResolveCompanyItem(shareKey) {
+  const key = String(shareKey).trim();
+  if (/^SP\d+$/.test(key)) {
+    const item = await spFetch("web/lists/getbytitle('Companies')/items(" + key.slice(2) + ')?' + SP_PUSH_SELECT);
+    return { itemId: item.Id, name: item.Title, current: item };
+  }
+  if (!/^\d+$/.test(key)) throw new Error('Unrecognised Supplier DB key "' + key + '"');
+  const res  = await spFetch("web/lists/getbytitle('Companies')/items?$filter=field_1 eq " + key + '&' + SP_PUSH_SELECT + '&$top=2');
+  const rows = res.value || [];
+  if (!rows.length)    throw new Error('No Supplier Database company has CompanyID ' + key);
+  if (rows.length > 1) throw new Error('CompanyID ' + key + ' matches ' + rows.length + ' Supplier Database rows - unlink and re-link this company before pushing');
+  return { itemId: rows[0].Id, name: rows[0].Title, current: rows[0] };
+}
+
+const spDateOut = d => d ? String(d).slice(0, 10) + 'T00:00:00Z' : null;
+const spDateIn  = v => v ? String(v).slice(0, 10) : '';
+const spNorm    = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+const spShort   = v => { const s = spNorm(v); return s.length > 56 ? s.slice(0, 53) + '...' : s; };
+
+// Diff the desired values against what SharePoint holds. A field SCC has no
+// value for is reported as left alone, never cleared -- mirrors the inbound
+// rule that a blank SharePoint field never wipes a populated CRM one.
+function spPushPlan(co, current, ctx) {
+  const payload = {}, changes = [], skipped = [];
+  SP_PUSH_FIELDS.forEach(f => {
+    const raw    = f.from(co, ctx);
+    const isDate = f.type === 'date';
+    const newVal = isDate ? spDateIn(raw)             : spNorm(raw);
+    const curVal = isDate ? spDateIn(current[f.sp])   : spNorm(current[f.sp]);
+    if (!newVal) { if (curVal) skipped.push({ f, curVal }); return; }
+    if (newVal === curVal) return;
+    payload[f.sp] = isDate ? spDateOut(raw) : raw;
+    changes.push({ f, curVal, newVal });
+  });
+  return { payload, changes, skipped };
+}
+
+function spPushPreview(co, resolved, plan) {
+  let out = 'Push to the Supplier Database (SharePoint)?\n\n' +
+            co.name + '\nSharePoint item ' + resolved.itemId + ' - ' + resolved.name + '\n';
+  let lastGroup = null;
+  plan.changes.forEach(c => {
+    if (c.f.group !== lastGroup) { out += '\n' + c.f.group + ':\n'; lastGroup = c.f.group; }
+    out += '  ' + c.f.label + ':  ' + (spShort(c.curVal) || '(blank)') + '  ->  ' + spShort(c.newVal) + '\n';
+  });
+  if (plan.skipped.length) {
+    out += '\nLeft unchanged (SharePoint has a value, SCC has none):\n';
+    plan.skipped.forEach(s => { out += '  ' + s.f.label + ':  ' + spShort(s.curVal) + '\n'; });
+  }
+  return out + '\nThis writes to the live Supplier Database and will show in DataVault.';
+}
+
+async function spPushCompany(coId) {
+  // coAllCompanies is the only company list loaded with sharepoint_company_id,
+  // granted_date, description, website and employees on it; sharedCos carries
+  // just id/name/status/expiry_date.
+  const co = (typeof coAllCompanies !== 'undefined' ? coAllCompanies : []).find(c => c.id === coId);
+  if (!co) { toast('Company not loaded - open it from the Companies screen and try again'); return; }
+  if (!co.sharepoint_company_id) { toast('Not linked to the Supplier Database - link it first'); return; }
+
+  try { await spEnsureSignedIn(); }
+  catch (e) { toast('Microsoft sign-in needed to write to SharePoint: ' + e.message); return; }
+
+  let resolved;
+  try { resolved = await spResolveCompanyItem(co.sharepoint_company_id); }
+  catch (e) { toast('Could not find the SharePoint row: ' + e.message); return; }
+
+  // Expiry mirrors f4nEffectiveExpiry: the company record wins, and the
+  // tracker is only a fallback for a company with no expiry of its own.
+  const trackerRow = (typeof f4nAll !== 'undefined' ? f4nAll : []).find(r => r.company_id === coId);
+  const ctx = { expiry: co.expiry_date || (trackerRow && trackerRow.expiry_date) || null };
+
+  const plan = spPushPlan(co, resolved.current, ctx);
+  if (!plan.changes.length) {
+    toast(plan.skipped.length
+      ? 'Already up to date (' + plan.skipped.length + ' field left alone)'
+      : 'SharePoint already matches');
+    return;
+  }
+
+  if (!confirm(spPushPreview(co, resolved, plan))) { toast('Not pushed'); return; }
+
+  const { data: { user } } = await db.auth.getUser();
+  const who = user?.email || 'SCC';
+  plan.payload.UpdatedBy = who;
+  // LastUpdated is a custom column (field_23), NOT SharePoint's built-in
+  // Modified, so nothing stamps it automatically. Delete this line if
+  // DataVault owns that field differently.
+  plan.payload.field_23  = new Date().toISOString();
+
+  try { await spUpdateItem('Companies', resolved.itemId, plan.payload); }
+  catch (e) { toast('Push failed: ' + e.message); return; }
+
+  try {
+    await db.from('nr_sp_push_log').insert(plan.changes.map(c => ({
+      company_id: coId, company_name: co.name, sp_item_id: resolved.itemId,
+      change: c.f.label + ': ' + (c.curVal || '(blank)') + ' -> ' + c.newVal,
+      pushed_by: who
+    })));
+  } catch (e) { /* nr_sp_push_log.sql not run yet - the push itself still happened */ }
+
+  toast('Pushed to DataVault (' + plan.changes.length + ' field' + (plan.changes.length === 1 ? '' : 's') + ')');
+}
+
 function sdbNormaliseCompany(c) {
   return {
     ...c,
@@ -11123,8 +11297,6 @@ function sdbNormaliseCompany(c) {
     Turnover:           c.field_14 ?? c.Turnover,
     Employees:          c.field_15 ?? c.Employees,
     Size:               c.field_16 ?? c.Size,
-    F4NCandidate:       c.field_19 ?? c.F4NCandidate,
-    F4H2Candidate:      c.field_20 ?? c.F4H2Candidate,
     Address:            c.field_25 ?? c.Address,
     Notes:              c.field_30 ?? c.Notes,
     CompanyID:          c.field_1  || c.ID,
@@ -11306,7 +11478,6 @@ function sdbApplyFilters() {
 function sdbUpdateStats() {
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('sdb-stat-total', sdbState.companies.length);
-  set('sdb-stat-f4n', sdbState.companies.filter(c => c.F4NCandidate === 'Y').length);
   set('sdb-stat-linked', Object.keys(sdbCrmByShareId).length);
   const badge = document.getElementById('sb-sdb-count');
   if (badge) badge.textContent = sdbState.companies.length || '—';
@@ -11354,7 +11525,6 @@ function sdbRender() {
       <td style="padding:10px 12px;color:var(--muted)">${escH([c.City, c.County].filter(Boolean).join(', '))}</td>
       <td style="padding:10px 12px;color:#555">${escH(c.QuickDescription || '')}</td>
       <td style="padding:10px 12px">${sdbRagBadge(c.RAGStatus)}</td>
-      <td style="padding:10px 12px">${c.F4NCandidate === 'Y' ? '✓' : ''}</td>
       <td style="padding:10px 12px" onclick="event.stopPropagation()">${linkCell}</td>
       <td style="padding:10px 12px" onclick="event.stopPropagation()">
         <a href="${NUCCOL_TOOLS_BASE}datavault.html?companyId=${c.CompanyID || c.ID}" target="_blank" style="font-size:.72rem;color:var(--accent);text-decoration:none;margin-right:10px">DataVault ↗</a>
@@ -11459,7 +11629,6 @@ function sdbRenderMap() {
       <div style="min-width:180px">
         <div style="font-weight:700;margin-bottom:4px">${escH(c.Title)}</div>
         <div style="font-size:.78rem;color:#555;margin-bottom:6px">${escH([c.City, c.County].filter(Boolean).join(', '))}</div>
-        ${c.F4NCandidate === 'Y' ? '<div style="font-size:.72rem;color:#166534;margin-bottom:4px">&#10003; F4N Candidate</div>' : ''}
         <div style="font-size:.72rem;color:${linked ? '#26a9d8' : '#94a3b8'};margin-bottom:6px">${linked ? '&#128279; Linked to CRM' : 'Not linked'}</div>
         <button onclick="sdbOpenDetail(${c.ID})" style="font-size:.75rem;padding:3px 8px;border:1px solid #26a9d8;color:#26a9d8;background:none;border-radius:4px;cursor:pointer">View details</button>
       </div>
@@ -11588,7 +11757,12 @@ function sdbProfileFieldsFor(c) {
     county:               c.County,
     postcode:             c.Postcode,
     address:              c.Address,
-    employees:            c.Employees,
+    // employees deliberately NOT synced inbound: members submit it through
+    // nr_profile_updates and own it (see the ownership table in
+    // claude/scc-datavault-twoway-sync-design-2026-11-23.md). 50% of
+    // SharePoint rows hold a value, so syncing it in overwrote the
+    // member's figure on every Supplier Database load and would silently
+    // undo any push back out. SCC -> SharePoint only, via spPushCompany.
     turnover:             c.Turnover,
     main_commodity_group: c.MainCommodityGroup
   };
@@ -11713,9 +11887,16 @@ async function sdbCreateCrmCompany(spCompanyRowId) {
   const c = sdbState.companies.find(x => x.ID === spCompanyRowId);
   if (!c) return;
   const shareId = String(c.ShareKey);
-  const status = c.F4NCandidate === 'Y' ? 'in_progress' : 'in_progress';
+  const status = 'in_progress';
   const tags = sdbTagsFor(c);
   const profileFields = sdbFieldSyncAvailable ? sdbProfileFieldsFor(c) : {};
+  // Seed employees from SharePoint on creation only. sdbProfileFieldsFor no
+  // longer carries it (the member owns it once they've submitted), but a brand
+  // new CRM company has no member yet, so SharePoint's figure is the only one
+  // there is. Seeded once here, never overwritten on later loads.
+  if (sdbFieldSyncAvailable && c.Employees != null && String(c.Employees).trim() !== '') {
+    profileFields.employees = c.Employees;
+  }
   const { data, error } = await db.from('nr_companies').insert({
     name: c.Title, status, website: c.Website || null, description: c.QuickDescription || null,
     hidden: false, sharepoint_company_id: shareId,
