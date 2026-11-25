@@ -1420,6 +1420,42 @@ Custom actions can be removed from the plan if they are no longer relevant – t
         </div>
       </div>
 
+      <!-- [2026-11-25] Create a CRM company from a tracker row, making the vault
+           link at the same time. Without sharepoint_company_id the company can
+           never be pushed to DataVault and never shows in the drift panel, and
+           create time is the only moment the link is cheap to make. -->
+      <div id="f4n-create-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:710;align-items:center;justify-content:center">
+        <div style="background:var(--panel);border-radius:10px;padding:26px 28px 20px;width:480px;max-width:95vw;max-height:88vh;overflow-y:auto">
+          <div style="font-family:'Barlow Condensed';font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);margin-bottom:4px">Create in CRM</div>
+          <div id="f4n-create-sub" style="font-size:.85rem;font-weight:600;color:var(--navy);margin-bottom:16px"></div>
+          <input type="hidden" id="f4n-create-row">
+
+          <div id="f4n-create-signin" style="display:none;text-align:center;padding:16px 0">
+            <p style="font-size:.8rem;color:var(--muted);margin-bottom:10px">Sign in with Microsoft to search the Supplier Database for this company.</p>
+            <button class="btn primary" onclick="f4nCreateSignIn()">Sign in with Microsoft</button>
+          </div>
+
+          <div id="f4n-create-ui">
+            <div class="we-field" style="margin-bottom:8px">
+              <label>Find this company in the Supplier Database</label>
+              <input id="f4n-create-search" type="text" placeholder="Search supplier name…" oninput="f4nCreateSearchFilter()"
+                style="width:100%;border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:.85rem;outline:none;box-sizing:border-box">
+            </div>
+            <div id="f4n-create-results" style="max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:6px"></div>
+            <div id="f4n-create-selected" style="display:none;margin-top:10px;background:var(--wash);border:1px solid var(--accent);border-radius:6px;padding:8px 10px;font-size:.8rem"></div>
+          </div>
+
+          <div id="f4n-create-msg" style="font-size:.76rem;margin-top:10px;min-height:1rem"></div>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <button class="btn primary" onclick="f4nCreateConfirm(false)" style="flex:1">Create and link</button>
+            <button class="btn" onclick="f4nCreateClose()">Cancel</button>
+          </div>
+          <div style="margin-top:10px;text-align:center">
+            <button onclick="f4nCreateConfirm(true)" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;text-decoration:underline">Create without a vault link</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Expiry schedule modal -->
       <div id="f4n-expiry-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:720;align-items:center;justify-content:center">
         <div style="background:var(--panel);border-radius:10px;padding:22px 24px 18px;width:640px;max-width:95vw;max-height:85vh;overflow-y:auto">
@@ -10503,16 +10539,148 @@ async function f4nUnlink(rowId) {
   toast('Unlinked');
 }
 
+/* ── CREATE A CRM COMPANY FROM A TRACKER ROW ───────────────────────────────
+   This used to insert name + status and nothing else, leaving
+   sharepoint_company_id null. The "Push to DataVault" button is gated on that
+   field, so a company created from the tracker could never reach the vault --
+   and so never reached DangerMouse v5 or the Supplier Database drift panel
+   either. The vault search now happens at create time, which is the one moment
+   the link is cheap to make, reusing the same sdbState.companies list the
+   Companies screen's add tab searches.
+
+   "Create without a vault link" keeps the old behaviour, because a company
+   genuinely new to NucCol will not be in the vault yet.
+   ───────────────────────────────────────────────────────────────────────── */
+let f4nCreateSelectedSp = null;
+
 async function f4nCreateCompany(rowId) {
   const row = f4nAll.find(r => r.id === rowId);
   if (!row) return;
-  const status = f4nMapStatusToCrm(row.f4n_status);
-  const { data, error } = await db.from('nr_companies').insert({ name: row.company_name, status, hidden: false }).select().single();
-  if (error) { toast('Error creating company: ' + error.message); return; }
+  f4nCreateSelectedSp = null;
+  document.getElementById('f4n-create-row').value = rowId;
+  document.getElementById('f4n-create-sub').textContent = row.company_name || '';
+  document.getElementById('f4n-create-selected').style.display = 'none';
+  document.getElementById('f4n-create-results').innerHTML = '';
+  document.getElementById('f4n-create-msg').textContent = '';
+  document.getElementById('f4n-create-search').value = row.company_name || '';
+  document.getElementById('f4n-create-modal').style.display = 'flex';
+  await f4nCreateSearchInit();
+}
+
+async function f4nCreateSearchInit() {
+  const signinEl = document.getElementById('f4n-create-signin');
+  const uiEl = document.getElementById('f4n-create-ui');
+  await spInitMsal();
+  if (sdbMsalClient.getAllAccounts().length) {
+    sdbCurrentUser = sdbMsalClient.getAllAccounts()[0];
+    signinEl.style.display = 'none';
+    uiEl.style.display = 'block';
+    if (!sdbState.loaded) await sdbLoad(true);
+    f4nCreateSearchFilter();   // the box is pre-filled with the tracker name
+  } else {
+    signinEl.style.display = 'block';
+    uiEl.style.display = 'none';
+  }
+}
+
+async function f4nCreateSignIn() {
+  try { await spEnsureSignedIn(); } catch (e) { toast('Sign-in failed: ' + e.message); return; }
+  await f4nCreateSearchInit();
+}
+
+function f4nCreateSearchFilter() {
+  const el = document.getElementById('f4n-create-results');
+  if (!el) return;
+  const q = (document.getElementById('f4n-create-search')?.value || '').toLowerCase().trim();
+  const results = !q ? [] : sdbState.companies.filter(c => (c.Title || '').toLowerCase().includes(q)).slice(0, 20);
+  el.innerHTML = results.map(c => {
+    const taken = sdbCrmByShareId[String(c.ShareKey)];
+    const where = escH([c.City, c.County].filter(Boolean).join(', ')) || '—';
+    return '<div onclick="f4nCreateSelectSp(' + c.ID + ')" style="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.8rem"' +
+      ' onmouseover="this.style.background=\'var(--wash)\'" onmouseout="this.style.background=\'\'">' +
+      '<div style="font-weight:600">' + escH(c.Title) + '</div>' +
+      '<div style="color:var(--muted);font-size:.72rem">' + where +
+      (taken ? ' &middot; <span style="color:#92400e">already linked to ' + escH(taken.name || 'a CRM company') + '</span>' : '') +
+      '</div></div>';
+  }).join('') || (q ? '<div style="padding:10px;color:var(--muted);font-size:.78rem">No matches</div>' : '');
+}
+
+function f4nCreateSelectSp(spId) {
+  const c = sdbState.companies.find(x => x.ID === spId);
+  if (!c) return;
+  const msg = document.getElementById('f4n-create-msg');
+  const taken = sdbCrmByShareId[String(c.ShareKey)];
+  if (taken) {
+    // Two CRM rows pointing at one vault company would break the join in both
+    // directions, so this is refused rather than merely warned about.
+    msg.style.color = 'var(--red)';
+    msg.textContent = (c.Title || 'That company') + ' is already linked to ' +
+      (taken.name || 'another CRM company') + '. Link this tracker row to that company instead of creating a second one.';
+    return;
+  }
+  msg.textContent = '';
+  f4nCreateSelectedSp = c;
+  const selEl = document.getElementById('f4n-create-selected');
+  selEl.style.display = 'block';
+  selEl.innerHTML = 'Linking to <strong>' + escH(c.Title) + '</strong> (CompanyID ' + escH(String(c.ShareKey)) +
+    ') — capabilities, accreditations and markets come across too.' +
+    ' <button onclick="f4nCreateClearSp()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;text-decoration:underline;margin-left:6px">Clear</button>';
+}
+
+function f4nCreateClearSp() {
+  f4nCreateSelectedSp = null;
+  document.getElementById('f4n-create-selected').style.display = 'none';
+}
+
+function f4nCreateClose() {
+  f4nCreateSelectedSp = null;
+  document.getElementById('f4n-create-modal').style.display = 'none';
+}
+
+async function f4nCreateConfirm(skipLink) {
+  const rowId = document.getElementById('f4n-create-row').value;
+  const row = f4nAll.find(r => r.id === rowId);
+  if (!row) return;
+  const msg = document.getElementById('f4n-create-msg');
+  const sp = skipLink ? null : f4nCreateSelectedSp;
+
+  if (!skipLink && !sp) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Pick the matching Supplier Database company, or use "Create without a vault link" below.';
+    return;
+  }
+
+  const payload = { name: row.company_name, status: f4nMapStatusToCrm(row.f4n_status), hidden: false };
+  let shareId = null;
+  if (sp) {
+    // Same shape as nrcAddCompany: the link plus the tags that come with it.
+    const tags = sdbTagsFor(sp);
+    shareId = String(sp.ShareKey);
+    payload.sharepoint_company_id = shareId;
+    payload.capabilities   = tags.capabilities;
+    payload.accreditations = tags.accreditations;
+    payload.markets        = tags.markets;
+  }
+
+  const { data, error } = await db.from('nr_companies').insert(payload).select().single();
+  if (error) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Error creating company: ' + error.message;
+    return;
+  }
+
   sharedCos.push(data);
   if (typeof coAllCompanies !== 'undefined') coAllCompanies.push(data);
+  if (shareId) {
+    sdbCrmByShareId[shareId] = data;
+    sdbDrift = null;   // a newly linked company changes what the drift panel sees
+  }
+
   await f4nLinkCompany(rowId, data.id);
-  toast('✓ Company created in CRM and linked');
+  f4nCreateClose();
+  toast(shareId
+    ? '✓ Created, linked to the tracker and to DataVault'
+    : '✓ Created and linked to the tracker — no vault link yet');
 }
 
 function f4nOpenCompany(companyId) {
