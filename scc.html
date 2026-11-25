@@ -1796,11 +1796,17 @@ Custom actions can be removed from the plan if they are no longer relevant – t
         <div id="sdb-content" style="display:none">
 
           <!-- Stats -->
-          <div class="stats-row" id="sdb-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+          <div class="stats-row" id="sdb-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
             <div class="stat-card"><div class="val" id="sdb-stat-total">0</div><div class="lbl">Companies (SharePoint)</div></div>
             <div class="stat-card"><div class="val" id="sdb-stat-linked" style="color:var(--accent)">0</div><div class="lbl">Linked to CRM</div></div>
+            <!-- [2026-11-25] Read-only drift flag. Clicking lists the companies;
+                 pushing stays one deliberate click per company on its own card. -->
+            <div class="stat-card" id="sdb-stat-drift-card" onclick="sdbToggleDrift()" style="cursor:pointer" title="Linked companies whose F4N state in the CRM differs from the SharePoint Supplier Database">
+              <div class="val" id="sdb-stat-drift">0</div><div class="lbl">F4N not pushed</div>
+            </div>
             <div class="stat-card"><div class="val" id="sdb-stat-signedin" style="color:var(--muted);font-size:.85rem">—</div><div class="lbl">Signed in as</div></div>
           </div>
+          <div id="sdb-drift-panel" style="display:none;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:16px;background:var(--panel)"></div>
 
           <!-- Filters -->
           <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
@@ -11604,6 +11610,7 @@ async function sdbLoad(force) {
     }
     sdbCrmByShareId = {};
     (crmLinks || []).forEach(c => { sdbCrmByShareId[String(c.sharepoint_company_id)] = c; });
+    sdbDrift = null;   // both sides just reloaded, so any cached drift is stale
 
     sdbPopulateFilters();
 
@@ -11675,8 +11682,139 @@ function sdbUpdateStats() {
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('sdb-stat-total', sdbState.companies.length);
   set('sdb-stat-linked', Object.keys(sdbCrmByShareId).length);
+  const d = sdbDriftGet();
+  set('sdb-stat-drift', d.pending.length + d.orphaned.length);
+  const dc = document.getElementById('sdb-stat-drift');
+  if (dc) dc.style.color = (d.pending.length + d.orphaned.length) ? 'var(--amber, #92400e)' : 'var(--muted)';
   const badge = document.getElementById('sb-sdb-count');
   if (badge) badge.textContent = sdbState.companies.length || '—';
+}
+
+/* ── F4N DRIFT FLAG ────────────────────────────────────────────────────────
+   Which linked companies would change in the vault if they were pushed.
+   READ ONLY. It runs the same comparison spPushPlan would and writes nothing,
+   and there is deliberately no bulk push behind it: the push stays one
+   considered click per company, for the reason recorded above SP_PUSH_FIELDS.
+
+   The F4NStatus fallback is NOT applied here, and that is the point.
+   spPushPlan turns any unmapped status into 'On Journey', so reusing it
+   wholesale would flag every linked company that has no F4N engagement at all
+   and bury the real drift in noise. Only a status that genuinely maps --
+   granted or in_progress -- counts as something to push.
+
+   Expiry follows f4nEffectiveExpiry and the push: the company record wins, the
+   tracker row is a fallback. f4nAll is only populated once the F4N Tracker
+   screen has been opened, so when it is empty the fallback is unavailable and
+   the panel says so rather than quietly comparing against less.
+
+   A linked company missing from sharedCos is archived or hidden -- sharedCosLoad
+   filters both out -- so if the vault still shows an F4N status for it, that is
+   a company which has left still badged as a member in DataVault, Rolodex, the
+   Supplier Map and DangerMouse v5.
+   ───────────────────────────────────────────────────────────────────────── */
+let sdbDrift = null;
+
+function sdbDriftGet() {
+  if (!sdbDrift) sdbDrift = sdbF4nDrift();
+  return sdbDrift;
+}
+
+function sdbF4nDrift() {
+  const out = { pending: [], orphaned: [], trackerLoaded: !!(f4nAll && f4nAll.length) };
+  if (!sdbState.companies.length) return out;
+
+  const spByKey = {};
+  sdbState.companies.forEach(c => { spByKey[String(c.ShareKey)] = c; });
+  const coById = {};
+  sharedCos.forEach(c => { coById[c.id] = c; });
+
+  Object.keys(sdbCrmByShareId).forEach(key => {
+    const sp = spByKey[key];
+    if (!sp) return;
+    const crm = sdbCrmByShareId[key];
+    const co = coById[crm.id];
+    const spStatus = spNorm(sp.F4NStatus);
+    const spExpiry = spDateIn(sp.F4NExpiryDate);
+
+    if (!co) {
+      if (spStatus) out.orphaned.push({ key, name: crm.name || sp.Title || key, spStatus, spExpiry });
+      return;
+    }
+
+    const wantStatus = F4N_SP_STATUS[co.status] || '';
+    if (!wantStatus) return;
+
+    const tracker = out.trackerLoaded ? f4nAll.find(r => r.company_id === co.id) : null;
+    const wantExpiry = spDateIn(co.expiry_date || (tracker && tracker.expiry_date) || '');
+
+    const diffs = [];
+    if (wantStatus !== spStatus) diffs.push('status ' + (spStatus || '(blank)') + ' → ' + wantStatus);
+    if (wantExpiry && wantExpiry !== spExpiry) diffs.push('expires ' + (spExpiry || '(blank)') + ' → ' + wantExpiry);
+    if (diffs.length) out.pending.push({ key, name: co.name || sp.Title || key, diffs });
+  });
+
+  const byName = (a, b) => String(a.name).localeCompare(String(b.name));
+  out.pending.sort(byName);
+  out.orphaned.sort(byName);
+  return out;
+}
+
+function sdbToggleDrift() {
+  const p = document.getElementById('sdb-drift-panel');
+  if (!p) return;
+  const open = p.style.display !== 'none';
+  if (open) { p.style.display = 'none'; return; }
+  sdbRenderDrift();
+  p.style.display = 'block';
+}
+
+function sdbDriftRecheck() {
+  sdbDrift = null;
+  sdbUpdateStats();
+  sdbRenderDrift();
+}
+
+function sdbRenderDrift() {
+  const p = document.getElementById('sdb-drift-panel');
+  if (!p) return;
+  const d = sdbDriftGet();
+  const row = (name, detail, warn) =>
+    '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:.8rem">' +
+      '<span style="font-weight:600;min-width:220px;color:' + (warn ? '#92400e' : 'var(--navy)') + '">' + escH(name) + '</span>' +
+      '<span style="color:var(--muted)">' + escH(detail) + '</span>' +
+    '</div>';
+
+  let h = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
+          '<strong style="font-size:.85rem">F4N differences against the Supplier Database</strong>' +
+          '<button class="tb-btn" style="margin-left:auto" onclick="sdbDriftRecheck()">Recheck</button>' +
+          '<button class="tb-btn" onclick="sdbToggleDrift()">Hide</button></div>';
+
+  if (!d.trackerLoaded) {
+    h += '<div style="font-size:.76rem;color:var(--muted);margin-bottom:8px">' +
+         'The F4N Tracker screen has not been opened this session, so tracker expiry dates are not loaded. ' +
+         'Companies whose expiry lives only on a tracker row are not compared here.</div>';
+  }
+
+  if (!d.pending.length && !d.orphaned.length) {
+    h += '<div style="font-size:.8rem;color:var(--muted)">Every linked company with an F4N status matches the Supplier Database.</div>';
+  }
+
+  if (d.pending.length) {
+    h += '<div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin:10px 0 4px">' +
+         'Changed in the CRM, not yet pushed &middot; ' + d.pending.length + '</div>' +
+         d.pending.map(r => row(r.name, r.diffs.join('  ·  '), false)).join('');
+  }
+
+  if (d.orphaned.length) {
+    h += '<div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#92400e;font-weight:700;margin:12px 0 4px">' +
+         'Archived or hidden in the CRM, still badged F4N in the vault &middot; ' + d.orphaned.length + '</div>' +
+         d.orphaned.map(r => row(r.name, r.spStatus + (r.spExpiry ? ', expires ' + r.spExpiry : '') +
+           ' — clear this in SharePoint, the push cannot blank it', true)).join('');
+  }
+
+  h += '<div style="font-size:.72rem;color:var(--muted);margin-top:10px;line-height:1.5">' +
+       'Read-only. Push a company from its own card in Companies, so each write stays a decision.</div>';
+  p.innerHTML = h;
 }
 
 function sdbRagBadge(val) {
