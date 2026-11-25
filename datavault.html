@@ -89,17 +89,18 @@ textarea { resize:vertical; min-height:60px; line-height:1.5; }
 .chip button:hover { opacity:1; }
 
 /* ─── shell ────────────────────────────────────────────────────────────── */
-#app { display:none; height:100%; }
-.sidebar { flex:0 0 184px; background:var(--brand); color:#c6d9e8; display:flex; flex-direction:column; padding:14px 0 0; }
-.sidebar .logo { font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:21px; letter-spacing:.04em;
-                 color:#fff; padding:0 16px 14px; }
-.sidebar .logo span { color:var(--accent); }
-.navitem { display:flex; align-items:center; gap:9px; padding:9px 16px; font-size:13px; font-weight:600;
-           cursor:pointer; border-left:3px solid transparent; color:#9fc0d8; }
-.navitem:hover { background:#17304b; color:#fff; }
-.navitem.active { background:#17304b; border-left-color:var(--accent); color:#fff; }
-.navitem svg { width:16px; height:16px; flex:0 0 auto; fill:none; stroke:currentColor; stroke-width:2; }
-.sidebar .foot { margin-top:auto; padding:12px 16px; border-top:1px solid #23466c; font-size:11.5px; }
+#app { display:none; flex-direction:column; height:100%; }
+.appbar { flex:0 0 auto; display:flex; align-items:center; gap:22px; padding:0 22px; height:46px;
+          background:#0a1826; border-bottom:1px solid #1d3550; }
+.brand { font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:20px; letter-spacing:.05em;
+         color:#fff; flex:0 0 auto; }
+.brand span { color:var(--accent); }
+.topnav { display:flex; align-items:stretch; height:100%; gap:2px; }
+.navitem { background:none; border:none; border-bottom:2px solid transparent; padding:0 14px;
+           font-size:13px; font-weight:600; color:#9fc0d8; cursor:pointer; }
+.navitem:hover { color:#fff; }
+.navitem.active { color:#fff; border-bottom-color:var(--accent); }
+.who { margin-left:auto; display:flex; align-items:center; gap:11px; font-size:12.5px; color:#c6d9e8; }
 
 main { flex:1; min-width:0; overflow-y:auto; }
 .topbar { background:var(--brand); color:#fff; padding:14px 24px; }
@@ -212,7 +213,7 @@ table.tbl { width:100%; border-collapse:collapse; }
 .fmore { background:none; border:none; color:var(--accent2); font-size:11.5px; padding:0;
          cursor:pointer; margin-top:2px; }
 
-.resultcol { flex:1 1 360px; min-width:296px; display:flex; flex-direction:column;
+.resultcol { flex:1.25 1 430px; min-width:330px; display:flex; flex-direction:column;
              background:var(--bg,#f3f7fb); border-right:1px solid var(--line); min-width:0; }
 .resulthead { display:flex; align-items:center; flex-wrap:wrap; gap:9px; padding:10px 15px;
               border-bottom:1px solid var(--line); background:#fff; font-size:13px; }
@@ -221,16 +222,18 @@ table.tbl { width:100%; border-collapse:collapse; }
           padding:10px 12px; margin-bottom:7px; color:inherit; cursor:pointer; }
 .cocard:hover { border-color:#9fc5dd; }
 .cocard.sel { background:#f7fcff; border:2px solid var(--accent); padding:9px 11px; }
-.cocard .nm { font-weight:600; font-size:13.5px; color:var(--brand); }
+.cocard .nm { font-weight:600; font-size:14px; color:var(--brand); line-height:1.35; }
 .cocard .loc { font-size:11.5px; color:var(--muted); }
-.copill { border-radius:11px; padding:2px 9px; font-size:11px; background:#eef2f6; color:#3d5266; }
+.copill { border-radius:11px; padding:2px 9px; font-size:11px; background:#eef2f6; color:#3d5266;
+          border:1px solid transparent; font-family:inherit; cursor:pointer; }
+button.copill:hover { border-color:currentColor; }
 .copill.f4n     { background:var(--okbg); color:#076049; font-weight:600; }
 .copill.journey { background:var(--libbg); color:var(--lib); font-weight:600; }
 .copill.lapsed  { background:#f3eee6; color:var(--warn); font-weight:600; }
 .copill.scrl    { background:#e5f4fa; color:#15698c; }
 .copill.nopin   { background:#f3eee6; color:var(--warn); }
 
-.mapcol { flex:1.5 1 400px; min-width:300px; position:relative; background:#e8eef3; min-height:560px; }
+.mapcol { flex:1.15 1 360px; min-width:300px; position:relative; background:#e8eef3; min-height:560px; }
 #s-map { position:absolute; inset:0; }
 #s-map.pending { display:flex; align-items:center; justify-content:center;
                  font-size:12.5px; color:var(--muted); }
@@ -270,19 +273,18 @@ table.tbl { width:100%; border-collapse:collapse; }
 </div>
 
 <div id="app">
-  <aside class="sidebar">
-    <div class="logo">DATA<span>VAULT</span></div>
-    <div class="navitem" id="nav-dashboard" onclick="navigate('dashboard')">
-      <svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v10a1 1 0 01-1 1H4a1 1 0 01-1-1z"/></svg>Dashboard</div>
-    <div class="navitem" id="nav-search" onclick="navigate('search')">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Companies</div>
-    <div class="navitem" id="nav-scrlList" onclick="navigate('scrlList')">
-      <svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h10"/></svg>SCRLs</div>
-    <div class="foot">
-      <div id="user-name" style="color:#fff;font-weight:600;margin-bottom:5px;word-break:break-word"></div>
-      <a href="#" onclick="signOut();return false" style="color:#8fb6d4">Sign out</a>
+  <header class="appbar">
+    <div class="brand">DATA<span>VAULT</span></div>
+    <nav class="topnav">
+      <button class="navitem" id="nav-dashboard" onclick="navigate('dashboard')">Dashboard</button>
+      <button class="navitem" id="nav-search"    onclick="navigate('search')">Companies</button>
+      <button class="navitem" id="nav-scrlList"  onclick="navigate('scrlList')">SCRLs</button>
+    </nav>
+    <div class="who">
+      <span id="user-name"></span>
+      <button class="btn btn-outline btn-sm" style="color:#c6d9e8;border-color:#2e5a7d" onclick="signOut()">Sign out</button>
     </div>
-  </aside>
+  </header>
 
   <main>
 
@@ -310,18 +312,18 @@ table.tbl { width:100%; border-collapse:collapse; }
   <section class="screen" id="screen-search">
     <div class="topbar" style="padding:13px 24px">
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px">
-        <div style="flex:0 0 auto">
+        <div style="flex:0 0 auto;margin-right:4px">
           <h1 style="font-size:19px">Companies</h1>
           <div class="sub" style="margin-top:0">Supply chain database</div>
         </div>
-        <div style="flex:999 1 340px;min-width:0;position:relative">
+        <div style="flex:0 1 330px;min-width:200px;position:relative">
           <label for="s-search" class="sr">Search companies</label>
           <input type="search" id="s-search" placeholder="pressure vessel, pumps, forgings&hellip;"
                  oninput="debouncedSearch()" autocomplete="off"
                  style="width:100%;padding:10px 13px 10px 36px;border:1px solid #3d5a76;border-radius:7px;background:#17304a;color:#fff;font-size:14px">
           <svg viewBox="0 0 24 24" aria-hidden="true" style="position:absolute;left:11px;top:11px;width:17px;height:17px;fill:none;stroke:#8fb6d4;stroke-width:2"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>
         </div>
-        <button class="btn btn-primary" onclick="newCompany()">New company</button>
+        <button class="btn btn-primary" style="margin-left:auto" onclick="newCompany()">New company</button>
       </div>
     </div>
 
@@ -1033,6 +1035,23 @@ function esc(str) {
 
 function str(v) { return (v === null || v === undefined) ? '' : String(v).trim(); }
 
+/* A value safe inside a single-quoted JS literal inside a double-quoted HTML
+   attribute. JSON.stringify is wrong here and was the bug: it emits double
+   quotes, which close the attribute, so every facet chip's onclick was
+   truncated to `toggleFacet('cap',` and silently did nothing.
+   Escape the backslash and the quote for JS, then only the characters that
+   would break the attribute — NOT the apostrophe, which must survive decoding
+   as a literal quote for the JS escape above to mean anything. */
+function jsAttr(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /* The SCRL workbooks encode RAG as a single letter typed by hand — R, A, G and
    P, where P is grey because G was already taken. The letter is shown here so
    the badge does not rely on hue alone, and so the code matches the workbook. */
@@ -1504,7 +1523,7 @@ function facetChips(kind, counts, expandedKey) {
   const more = entries.length - shown.length;
   return `<div style="display:flex;flex-wrap:wrap;gap:5px">` +
     (shown.length ? shown.map(([name, n]) =>
-      `<button class="fchip ${sel === name ? 'on' : ''}" onclick="toggleFacet('${kind}',${JSON.stringify(name).replace(/'/g,"\\'")})">${esc(name)} <span class="n">${n}</span></button>`
+      `<button class="fchip ${sel === name ? 'on' : ''}" onclick="toggleFacet('${kind}','${jsAttr(name)}')">${esc(name)} <span class="n">${n}</span></button>`
     ).join('') : '<span class="text-faint" style="font-size:11.5px">none in this result</span>') +
     `</div>` +
     (more > 0 ? `<button class="fmore" onclick="expandFacet('${expandedKey}')">+ ${more} more</button>` : '');
@@ -1645,11 +1664,14 @@ function renderCards() {
     const key = companyTagKey(c);
     const pills = [];
     const st = f4nState(c);
-    if (st) pills.push(`<span class="copill ${st === 'granted' ? 'f4n' : st}">${F4N_LABEL[st]}</span>`);
+    if (st) pills.push(`<button class="copill ${st === 'granted' ? 'f4n' : st}" title="Filter by F4N status"
+        onclick="event.stopPropagation();toggleFacet('f4n','${st}')">${F4N_LABEL[st]}</button>`);
     for (const sc of (scrlByCompanyItem.get(String(c.ID)) || []).slice(0, 2))
-      pills.push(`<span class="copill scrl">${esc(sc.name)}</span>`);
-    if (key) for (const cap of [...(tagIndex.caps.get(key) || [])].slice(0, 2))
-      pills.push(`<span class="copill">${esc(cap)}</span>`);
+      pills.push(`<button class="copill scrl" title="Open this SCRL"
+        onclick="event.stopPropagation();goToSCRL(${Number(sc.id)})">${esc(sc.name)}</button>`);
+    if (key) for (const cap of [...(tagIndex.caps.get(key) || [])].slice(0, 3))
+      pills.push(`<button class="copill cap" title="Filter by this capability"
+        onclick="event.stopPropagation();toggleFacet('cap','${jsAttr(cap)}')">${esc(cap)}</button>`);
     if (!hasCoords(c)) pills.push('<span class="copill nopin">No map pin</span>');
     if (!str(c.Title)) pills.push('<span class="copill nopin">No name</span>');
     if (!key) pills.push('<span class="copill nopin">No CompanyID</span>');
