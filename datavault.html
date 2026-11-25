@@ -168,6 +168,41 @@ table.tbl { width:100%; border-collapse:collapse; }
 .stat .n { font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:800; line-height:1; color:var(--brand); }
 .stat .l { font-size:11.5px; color:var(--muted); margin-top:3px; }
 
+/* ─── company record: values read as text until you touch them ─────────── */
+.k { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700; }
+.k label { cursor:pointer; }
+.v { font-size:13px; margin-top:2px; color:#142132; word-break:break-word; }
+.g3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px 16px; }
+.g2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px 16px; }
+.fieldv input[type=text], .fieldv input[type=email], .fieldv input[type=date],
+.fieldv select, .fieldv textarea {
+  width:100%; margin-top:1px; font-size:13px; color:#142132; font-family:inherit;
+  background:transparent; border:1px solid transparent; border-radius:4px; padding:3px 5px;
+}
+.fieldv textarea { line-height:1.55; min-height:0; }
+.fieldv input:hover, .fieldv select:hover, .fieldv textarea:hover { background:#f7fbfd; border-color:var(--line); }
+.fieldv input:focus, .fieldv select:focus, .fieldv textarea:focus {
+  background:#fff; border-color:var(--accent); outline:2px solid #bfe4f3; outline-offset:-1px; }
+.fieldv input::placeholder, .fieldv textarea::placeholder { color:#9aa7b5; font-style:italic; }
+.fieldv .chkrow { margin-top:3px; font-size:13px; }
+
+.addrow { display:flex; gap:7px; margin-top:7px; }
+.addrow select { flex:1; min-width:0; }
+.addscrl { cursor:pointer; font-size:12px; color:#3d5266; border:1px dashed #b9c6d3; border-radius:6px;
+           padding:6px 12px; display:inline-block; list-style:none; }
+.addscrl::-webkit-details-marker { display:none; }
+.addscrl:hover { border-color:var(--accent); color:var(--accent2); }
+
+.minimap { height:168px; background:#e8eef3; display:flex; align-items:center; justify-content:center;
+           font-size:11.5px; color:var(--muted); text-align:center; padding:0 14px; }
+.headpill { border-radius:13px; padding:4px 12px; font-size:12px; font-weight:700; white-space:nowrap; }
+.chk { display:flex; gap:7px; align-items:baseline; font-size:12.5px; line-height:1.7; }
+.chk i { font-style:normal; font-weight:700; width:11px; flex:0 0 auto; }
+.chk.yes { color:var(--ok); } .chk.yes i::before { content:"\2713"; }
+.chk.no  { color:var(--bad); } .chk.no i::before { content:"\2715"; }
+.attnitem { font-size:12.5px; line-height:1.55; color:#2b3b4e; padding:7px 0; border-bottom:1px solid var(--line2); }
+.attnitem:last-child { border-bottom:none; }
+
 .note { border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:0 6px 6px 0;
         padding:9px 12px; font-size:12px; color:#2b3b4e; line-height:1.6; background:#fff; }
 .note.warn { border-left-color:#d98f0a; }
@@ -377,188 +412,200 @@ button.copill:hover { border-color:currentColor; }
     </div>
   </section>
 
-  <!-- ══ COMPANY ════════════════════════════════════════════════════════ -->
+  <!-- ══ COMPANY RECORD ═════════════════════════════════════════════════ -->
   <section class="screen" id="screen-company">
-    <div class="topbar">
-      <a href="#" onclick="navigateBack();return false" style="color:#8fb6d4;font-size:12.5px">&larr; Back</a>
-      <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;margin-top:8px">
-        <div style="flex:999 1 280px;min-width:0">
-          <h1 id="c-title">—</h1>
-          <div class="sub" id="c-subtitle">—</div>
+    <div class="topbar" style="padding:14px 24px 15px">
+      <a href="#" onclick="navigateBack();return false" style="color:#8fb6d4;font-size:12.5px">&larr; Back to results</a>
+      <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;margin-top:9px">
+        <div style="flex:999 1 340px;min-width:0">
+          <h1 id="c-title">&mdash;</h1>
+          <div class="sub" id="c-subtitle">&mdash;</div>
         </div>
-        <div style="display:flex;gap:7px;flex-wrap:wrap">
-          <button class="btn btn-outline btn-sm" id="btn-analyse" style="color:#c6d9e8;border-color:#2e5a7d" onclick="startScrape()">Analyse website</button>
-          <button class="btn btn-outline btn-sm" id="btn-view-scrape" style="color:#c6d9e8;border-color:#2e5a7d" onclick="viewLastScrape()">Last scrape</button>
-          <button class="btn btn-outline btn-sm" style="color:#c6d9e8;border-color:#2e5a7d" onclick="openInRolodex()">Rolodex</button>
-          <button class="btn btn-primary" onclick="saveCompany()">Save</button>
-        </div>
+        <div style="flex:0 0 auto;display:flex;flex-wrap:wrap;gap:7px" id="c-headpills"></div>
+        <input type="hidden" id="c-updatedby">
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:13px">
+        <button class="btn btn-primary" onclick="saveCompany()">Save</button>
+        <button class="btn" id="btn-analyse" style="background:#fff;color:#10243a" onclick="startScrape()">Analyse firm</button>
+        <button class="btn btn-outline btn-sm" id="btn-view-scrape" style="color:#c6d9e8;border-color:#3d5a76;padding:7px 14px;font-size:12.5px" onclick="viewLastScrape()">Last scrape</button>
+        <button class="btn btn-outline btn-sm" style="color:#c6d9e8;border-color:#3d5a76;padding:7px 14px;font-size:12.5px" onclick="focusAddToScrl()">Add to a SCRL</button>
+        <button class="btn btn-outline btn-sm" style="color:#c6d9e8;border-color:#3d5a76;padding:7px 14px;font-size:12.5px" onclick="openInRolodex()">Rolodex</button>
       </div>
     </div>
-    <div class="pagebody">
 
-      <div class="card" style="margin-bottom:13px;display:flex;flex-wrap:wrap;gap:15px;align-items:center">
-        <div id="c-ring"></div>
-        <div style="flex:1 1 300px;min-width:230px">
-          <h2 class="h2" style="margin-bottom:6px">Completeness</h2>
-          <div id="c-missing" class="minilist"></div>
-        </div>
-        <div style="flex:0 0 auto;font-size:11.5px;color:var(--faint);line-height:1.55;max-width:230px">
-          Computed from this record. The stored <span class="mono">DataComplete</span> column is read-only everywhere
-          and is not written back.
-        </div>
-      </div>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;padding:16px 24px 32px;align-items:flex-start">
 
-      <div class="tabbar" id="c-tabbar">
-        <button class="tabbtn active" onclick="switchTab('c','core',this)">Core data</button>
-        <button class="tabbtn" onclick="switchTab('c','class',this)">Classification</button>
-        <button class="tabbtn" onclick="switchTab('c','status',this)">Status</button>
-        <button class="tabbtn" onclick="switchTab('c','caps',this)">Capabilities</button>
-        <button class="tabbtn" onclick="switchTab('c','accreds',this)">Accreditations</button>
-        <button class="tabbtn" onclick="switchTab('c','scrls',this)">SCRLs</button>
-        <button class="tabbtn" onclick="switchTab('c','loc',this)">Location</button>
-      </div>
+      <main style="flex:999 1 560px;min-width:300px;display:flex;flex-direction:column;gap:13px">
 
-      <div class="tabpane active" id="c-pane-core">
-        <div class="card">
-          <div class="grid g2">
-            <div class="field"><label class="fl" for="c-name">Company name</label><input type="text" id="c-name"></div>
-            <div class="field"><label class="fl" for="c-regno">Companies House no</label><input type="text" id="c-regno"></div>
-            <div class="field"><label class="fl" for="c-website">Website</label><input type="text" id="c-website"></div>
-            <div class="field"><label class="fl" for="c-email">Email</label><input type="email" id="c-email"></div>
+        <section class="card fieldv">
+          <h2 class="h2">Core</h2>
+          <div class="g3">
+            <div><div class="k"><label for="c-name">Company name</label></div><input type="text" id="c-name" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-city">City</label></div><input type="text" id="c-city" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-county">County</label></div><input type="text" id="c-county" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-postcode">Postcode</label></div><input type="text" id="c-postcode" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-website">Website</label></div><input type="text" id="c-website" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-email">Email</label></div><input type="email" id="c-email" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-regno">CH number</label></div><input type="text" id="c-regno" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-regional">Regional SCC</label></div><input type="text" id="c-regional" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-maincommodity">Main commodity group</label></div><input type="text" id="c-maincommodity" placeholder="Not recorded"></div>
           </div>
-          <div class="field"><label class="fl" for="c-quickdesc">What they do</label>
-            <textarea id="c-quickdesc" rows="3" placeholder="Their market offering and capability, in a sentence or two."></textarea></div>
-          <div class="field"><label class="fl" for="c-notes">Notes</label><textarea id="c-notes" rows="3"></textarea></div>
-          <div class="grid g2">
-            <div class="field"><label class="fl" for="c-updatedby">Updated by</label><input type="text" id="c-updatedby"></div>
-            <div class="field"><label class="fl">Last updated</label><input type="text" id="c-lastupdated" disabled></div>
-          </div>
-        </div>
-      </div>
+          <div style="margin-top:13px"><div class="k"><label for="c-quickdesc">Quick description</label></div>
+            <textarea id="c-quickdesc" rows="3" placeholder="Not recorded — their market offering and capability, in a sentence or two."></textarea></div>
+          <div style="margin-top:11px"><div class="k"><label for="c-other-addr">Other addresses</label></div>
+            <textarea id="c-other-addr" rows="2" placeholder="Not recorded"></textarea></div>
+        </section>
 
-      <div class="tabpane" id="c-pane-class">
-        <div class="card">
-          <div class="grid g2">
-            <div class="field"><label class="fl" for="c-maincommodity">Main commodity group</label><input type="text" id="c-maincommodity"></div>
-            <div class="field"><label class="fl" for="c-regional">Regional IA</label><input type="text" id="c-regional"></div>
-            <div class="field"><label class="fl" for="c-turnover">Turnover</label><input type="text" id="c-turnover"></div>
-            <div class="field"><label class="fl" for="c-employees">Employees</label><input type="text" id="c-employees"></div>
-            <div class="field"><label class="fl" for="c-size">Size</label><input type="text" id="c-size"></div>
-            <div class="field"><label class="fl" for="c-dataconf">Data confidence</label>
-              <select id="c-dataconf"><option value="">—</option><option>HIGH</option><option>MEDIUM</option><option>LOW</option></select></div>
+        <section class="card fieldv">
+          <h2 class="h2">Classification</h2>
+          <div class="g3">
+            <div><div class="k"><label for="c-size">Size</label></div><input type="text" id="c-size" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-turnover">Turnover</label></div><input type="text" id="c-turnover" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-employees">Employees</label></div><input type="text" id="c-employees" placeholder="Not recorded"></div>
+            <div><div class="k"><label for="c-dataconf">Data confidence</label></div>
+              <select id="c-dataconf"><option value="">Not recorded</option><option>HIGH</option><option>MEDIUM</option><option>LOW</option></select></div>
+            <div><div class="k">F4N candidate</div>
+              <label class="chkrow" for="c-f4n"><input type="checkbox" id="c-f4n"><span>Yes</span></label></div>
+            <div><div class="k">F4H2 candidate</div>
+              <label class="chkrow" for="c-f4h2"><input type="checkbox" id="c-f4h2"><span>Yes</span></label></div>
           </div>
-          <div class="field"><label class="fl" for="c-marketnotes">Market notes</label><textarea id="c-marketnotes" rows="3"></textarea></div>
-        </div>
-      </div>
+        </section>
 
-      <div class="tabpane" id="c-pane-status">
-        <div class="card">
-          <div class="grid g2">
-            <div class="field"><label class="fl" for="c-rag">RAG status</label>
-              <select id="c-rag"><option value="">—</option><option>Green</option><option>Amber</option><option>Red</option><option>Grey</option></select></div>
-            <div class="field"><label class="fl" for="c-flag">Flag</label><input type="text" id="c-flag"></div>
+        <section class="card fieldv">
+          <h2 class="h2">Status &amp; nuclear reference</h2>
+          <div class="g3">
+            <div><div class="k"><label for="c-rag">RAG status</label></div>
+              <select id="c-rag"><option value="">Not set</option><option>Green</option><option>Amber</option><option>Red</option><option>Grey</option></select></div>
+            <div><div class="k"><label for="c-flag">Flag</label></div><input type="text" id="c-flag" placeholder="None"></div>
+            <div><div class="k">Nuclear reference</div>
+              <label class="chkrow" for="c-nuclear"><input type="checkbox" id="c-nuclear"><span>Yes</span></label></div>
+            <div><div class="k"><label for="c-nucdate">Nuclear ref date</label></div><input type="date" id="c-nucdate"></div>
+            <div style="grid-column:span 2"><div class="k"><label for="c-nucurl">Nuclear ref URL</label></div>
+              <input type="text" id="c-nucurl" placeholder="Not recorded"></div>
           </div>
-          <div class="field"><label class="fl" for="c-flagcomment">Flag comment</label><textarea id="c-flagcomment" rows="2"></textarea></div>
-          <div style="display:flex;flex-wrap:wrap;gap:16px;margin:4px 0 13px">
-            <div class="chkrow"><input type="checkbox" id="c-f4n"><label for="c-f4n">F4N candidate</label></div>
-            <div class="chkrow"><input type="checkbox" id="c-f4h2"><label for="c-f4h2">F4H2 candidate</label></div>
-            <div class="chkrow"><input type="checkbox" id="c-nuclear"><label for="c-nuclear">Nuclear reference</label></div>
+          <div class="g2" style="margin-top:13px">
+            <div><div class="k"><label for="c-flagcomment">Flag comment</label></div><textarea id="c-flagcomment" rows="2" placeholder="Not recorded"></textarea></div>
+            <div><div class="k"><label for="c-notes">Notes</label></div><textarea id="c-notes" rows="2" placeholder="Not recorded"></textarea></div>
+            <div style="grid-column:span 2"><div class="k"><label for="c-marketnotes">Market notes</label></div>
+              <textarea id="c-marketnotes" rows="2" placeholder="Not recorded"></textarea></div>
           </div>
-          <div class="grid g2">
-            <div class="field"><label class="fl" for="c-nucdate">Nuclear ref date</label><input type="date" id="c-nucdate"></div>
-            <div class="field"><label class="fl" for="c-nucurl">Nuclear ref URL</label><input type="text" id="c-nucurl"></div>
-          </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="tabpane" id="c-pane-caps">
-        <div style="display:flex;flex-wrap:wrap;gap:13px;align-items:flex-start">
-          <div class="card" style="flex:1 1 320px">
-            <h2 class="h2">Capabilities</h2>
-            <div id="c-caps-list" style="margin-bottom:11px"></div>
-            <div style="display:flex;gap:7px">
-              <select id="c-add-cap-sel" style="flex:1"></select>
-              <button class="btn btn-outline btn-sm" onclick="addCompanyTag('cap')">Add</button>
+        <section class="card">
+          <h2 class="h2" id="c-tags-head">Tags</h2>
+          <p class="text-faint" style="margin:0 0 12px;font-size:11.5px;line-height:1.5">
+            The junction lists record no provenance, so a tag added during a SCRL looks identical to one
+            the member picked. Worth knowing before trusting a capability you did not add yourself.</p>
+          <div style="display:flex;flex-direction:column;gap:11px">
+            <div><div class="k" style="margin-bottom:5px">Capabilities</div>
+              <div id="c-caps-list"></div>
+              <div class="addrow" id="c-add-cap-row"><select id="c-add-cap-sel"></select>
+                <button class="btn btn-outline btn-sm" onclick="addCompanyTag('cap')">Add</button></div></div>
+            <div><div class="k" style="margin-bottom:5px">Commodities</div>
+              <div id="c-coms-list"></div>
+              <div class="addrow"><select id="c-add-com-sel"></select>
+                <button class="btn btn-outline btn-sm" onclick="addCompanyTag('com')">Add</button></div></div>
+            <div><div class="k" style="margin-bottom:5px">Accreditations</div>
+              <div id="c-accreds-list"></div>
+              <div class="addrow"><select id="c-add-acred-sel"></select>
+                <button class="btn btn-outline btn-sm" onclick="addCompanyTag('acred')">Add</button></div></div>
+            <div><div class="k" style="margin-bottom:5px">Markets</div>
+              <div id="c-mkts-list"></div>
+              <div class="addrow"><select id="c-add-mkt-sel"></select>
+                <button class="btn btn-outline btn-sm" onclick="addCompanyTag('mkt')">Add</button></div></div>
+          </div>
+        </section>
+
+        <section class="card" id="c-scrl-section">
+          <h2 class="h2" id="c-scrls-head">SCRL assessments</h2>
+          <div id="c-scrls-list"></div>
+          <details id="c-add-scrl-details" style="margin-top:11px">
+            <summary class="addscrl">+ Add to a SCRL</summary>
+            <div style="border:1px solid var(--line);border-radius:7px;padding:12px 13px;margin-top:9px">
+              <p style="margin:0 0 11px;font-size:12.5px;color:#2b3b4e;line-height:1.55">
+                Pick the SCRL, then the component this firm is a candidate for, and give that pairing its
+                own RAG. Leaving the component blank links the firm to the SCRL only.</p>
+              <div class="grid g3" style="margin-bottom:11px">
+                <div><label class="fl" for="c-add-scrl-sel">SCRL</label>
+                  <select id="c-add-scrl-sel" onchange="loadSCRLComponentsForPicker()"></select></div>
+                <div><label class="fl" for="c-add-scrl-comp">Component</label>
+                  <select id="c-add-scrl-comp"><option value="">&mdash; pick an SCRL first &mdash;</option></select></div>
+                <div><label class="fl" for="c-scrl-rag">RAG</label>
+                  <select id="c-scrl-rag"><option value="">&mdash;</option><option>Green</option><option>Amber</option><option>Red</option><option>Grey</option></select></div>
+                <div><label class="fl" for="c-scrl-level">SCRL level</label><input type="number" id="c-scrl-level" min="1" max="9"></div>
+                <div><label class="fl" for="c-scrl-citation">Citation URL</label><input type="text" id="c-scrl-citation"></div>
+                <div><label class="fl" for="c-scrl-capnotes">Capability notes</label><input type="text" id="c-scrl-capnotes"></div>
+              </div>
+              <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+                <button class="btn btn-primary btn-sm" onclick="addCompanyToSCRL()">Add to SCRL</button>
+                <a href="#" id="c-open-site" target="_blank" rel="noopener" style="font-size:12px">Open their website &rarr;</a>
+                <span class="text-faint" style="font-size:11.5px">Check it before you commit the link.</span>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section class="card fieldv">
+          <h2 class="h2">Addresses</h2>
+          <div class="g2">
+            <div>
+              <div class="k" style="margin-bottom:5px">Trading address</div>
+              <input type="text" id="c-address" placeholder="Not recorded" style="margin-bottom:5px">
+              <div class="text-faint" style="font-size:11px">City, county and postcode are under Core.</div>
+            </div>
+            <div>
+              <div class="k" style="margin-bottom:5px">Registered address</div>
+              <input type="text" id="c-regaddress" placeholder="Not recorded" style="margin-bottom:5px">
+              <div class="g2" style="gap:6px">
+                <input type="text" id="c-regcity" placeholder="City">
+                <input type="text" id="c-regcounty" placeholder="County">
+              </div>
+              <input type="text" id="c-regpostcode" placeholder="Postcode" style="margin-top:5px">
             </div>
           </div>
-          <div class="card" style="flex:1 1 320px">
-            <h2 class="h2">Commodities</h2>
-            <div id="c-coms-list" style="margin-bottom:11px"></div>
-            <div style="display:flex;gap:7px">
-              <select id="c-add-com-sel" style="flex:1"></select>
-              <button class="btn btn-outline btn-sm" onclick="addCompanyTag('com')">Add</button>
+          <p class="text-faint" style="margin:11px 0 0;font-size:11.5px;line-height:1.5">
+            The registered address comes from Companies House and is often an accountant's or formation
+            agent's, so the map pin uses the trading postcode where there is one.</p>
+        </section>
+
+      </main>
+
+      <aside style="flex:1 1 282px;min-width:252px;display:flex;flex-direction:column;gap:13px">
+
+        <section class="card">
+          <h2 class="h2">Record completeness</h2>
+          <div style="display:flex;align-items:center;gap:13px;margin-bottom:12px">
+            <div id="c-ring"></div>
+            <p class="text-faint" style="margin:0;font-size:11.5px;line-height:1.5">
+              Recomputed from the checks below as you type. The stored
+              <span class="mono">DataComplete</span> column is read-only and is not written back.</p>
+          </div>
+          <div id="c-checklist"></div>
+        </section>
+
+        <section class="card" style="padding:0;overflow:hidden">
+          <div id="c-minimap" class="minimap">No coordinates on this record</div>
+          <div style="padding:13px 15px 15px">
+            <h2 class="h2">Location</h2>
+            <div id="c-coords" class="v">&mdash;</div>
+            <div id="c-pinsrc" style="margin-top:8px"></div>
+            <div style="margin-top:10px">
+              <a href="#" onclick="openGoogleMaps();return false" style="font-size:12.5px">Open in Google Maps</a>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="tabpane" id="c-pane-accreds">
-        <div style="display:flex;flex-wrap:wrap;gap:13px;align-items:flex-start">
-          <div class="card" style="flex:1 1 320px">
-            <h2 class="h2">Accreditations</h2>
-            <div id="c-accreds-list" style="margin-bottom:11px"></div>
-            <div style="display:flex;gap:7px">
-              <select id="c-add-acred-sel" style="flex:1"></select>
-              <button class="btn btn-outline btn-sm" onclick="addCompanyTag('acred')">Add</button>
-            </div>
-          </div>
-          <div class="card" style="flex:1 1 320px">
-            <h2 class="h2">Markets</h2>
-            <div id="c-mkts-list" style="margin-bottom:11px"></div>
-            <div style="display:flex;gap:7px">
-              <select id="c-add-mkt-sel" style="flex:1"></select>
-              <button class="btn btn-outline btn-sm" onclick="addCompanyTag('mkt')">Add</button>
-            </div>
-          </div>
-        </div>
-      </div>
+        <section class="card" id="c-attention" style="display:none;border-color:#d8c9ab;border-left:3px solid #c7962f;border-radius:0">
+          <h2 class="h2" style="color:var(--warn)" id="c-attention-head">Needs attention</h2>
+          <div id="c-attention-list"></div>
+        </section>
 
-      <div class="tabpane" id="c-pane-scrls">
-        <div class="card" style="margin-bottom:13px">
-          <h2 class="h2">Add to an SCRL</h2>
-          <p style="font-size:12.5px;color:#2b3b4e;line-height:1.6;margin-bottom:12px">
-            Pick the SCRL, then the component this firm is a candidate for, and give that pairing its own RAG.
-            Leaving the component blank links the firm to the SCRL only.</p>
-          <div class="grid g3" style="margin-bottom:11px">
-            <div><label class="fl" for="c-add-scrl-sel">SCRL</label>
-              <select id="c-add-scrl-sel" onchange="loadSCRLComponentsForPicker()"></select></div>
-            <div><label class="fl" for="c-add-scrl-comp">Component</label>
-              <select id="c-add-scrl-comp"><option value="">— pick an SCRL first —</option></select></div>
-            <div><label class="fl" for="c-scrl-rag">RAG</label>
-              <select id="c-scrl-rag"><option value="">—</option><option>Green</option><option>Amber</option><option>Red</option><option>Grey</option></select></div>
-            <div><label class="fl" for="c-scrl-level">SCRL level</label><input type="number" id="c-scrl-level" min="1" max="9"></div>
-            <div><label class="fl" for="c-scrl-citation">Citation URL</label><input type="text" id="c-scrl-citation"></div>
-            <div><label class="fl" for="c-scrl-capnotes">Capability notes</label><input type="text" id="c-scrl-capnotes"></div>
-          </div>
-          <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="addCompanyToSCRL()">Add to SCRL</button>
-            <a href="#" id="c-open-site" target="_blank" rel="noopener" style="font-size:12px">Open their website &rarr;</a>
-            <span class="text-faint" style="font-size:11.5px">Check it before you commit the link.</span>
-          </div>
-        </div>
-        <div class="gallery"><div id="c-scrls-list"></div></div>
-      </div>
+        <section class="card">
+          <h2 class="h2">Elsewhere</h2>
+          <div id="c-elsewhere" style="font-size:12.5px;line-height:2"></div>
+        </section>
 
-      <div class="tabpane" id="c-pane-loc">
-        <div class="card">
-          <div class="grid g2">
-            <div class="field"><label class="fl" for="c-address">Address</label><input type="text" id="c-address"></div>
-            <div class="field"><label class="fl" for="c-city">City or town</label><input type="text" id="c-city"></div>
-            <div class="field"><label class="fl" for="c-county">County</label><input type="text" id="c-county"></div>
-            <div class="field"><label class="fl" for="c-postcode">Postcode</label><input type="text" id="c-postcode"></div>
-          </div>
-          <div class="field"><label class="fl" for="c-other-addr">Other UK addresses</label><textarea id="c-other-addr" rows="2"></textarea></div>
-          <h2 class="h2" style="margin-top:15px">Registered address</h2>
-          <div class="grid g2">
-            <div class="field"><label class="fl" for="c-regaddress">Address</label><input type="text" id="c-regaddress"></div>
-            <div class="field"><label class="fl" for="c-regcity">City</label><input type="text" id="c-regcity"></div>
-            <div class="field"><label class="fl" for="c-regcounty">County</label><input type="text" id="c-regcounty"></div>
-            <div class="field"><label class="fl" for="c-regpostcode">Postcode</label><input type="text" id="c-regpostcode"></div>
-          </div>
-          <button class="btn btn-outline btn-sm" onclick="openGoogleMaps()">Open in Google Maps</button>
-        </div>
-      </div>
-
+      </aside>
     </div>
   </section>
 
@@ -941,10 +988,15 @@ async function onSignedIn() {
   navigate('dashboard');
 }
 
+/* The one place the two id spaces may be mixed. rolodex.html's deep link
+   matches on either, exactly as onSignedIn() does here, so a company with no
+   CompanyID can still be opened. Everywhere else the fallback is forbidden and
+   the test suite enforces it — any line doing this must carry the marker. */
 function openInRolodex() {
   const c = state.selectedCompany;
   if (!c) return;
-  window.open(`rolodex.html?companyId=${c.field_1 || c.ID}`, '_blank');
+  const cid = c.field_1 || c.ID;   /* rolodex-deeplink-ok */
+  window.open(`rolodex.html?companyId=${cid}`, '_blank');
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1115,12 +1167,6 @@ function switchTab(prefix, tabId, btn) {
   document.querySelectorAll(`[id^="${prefix}-pane-"]`).forEach(p => p.classList.remove('active'));
   const pane = document.getElementById(`${prefix}-pane-${tabId}`);
   if (pane) pane.classList.add('active');
-  if (prefix === 'c') {
-    if (tabId === 'caps')    loadCompanyCapsComs();
-    if (tabId === 'accreds') loadCompanyAccredsMkts();
-    if (tabId === 'scrls')   loadCompanySCRLs();
-    if (tabId === 'loc')     renderLocationTab();
-  }
   if (prefix === 'sd') {
     if (tabId === 'components') loadSCRLComponents();
     if (tabId === 'firms')      loadSCRLFirms();
@@ -2012,54 +2058,118 @@ function renderCompany(company) {
   const c = company || {};
   const isNew = !c.ID;
 
-  document.querySelectorAll('#c-tabbar .tabbtn').forEach((b,i) => b.classList.toggle('active', i === 0));
-  document.querySelectorAll('[id^="c-pane-"]').forEach((p,i) => p.classList.toggle('active', i === 0));
+  document.getElementById('c-title').textContent = isNew ? 'New company' : (str(c.Title) || '(no name)');
 
-  document.getElementById('c-title').textContent = isNew ? 'New company' : (c.Title || '—');
-  document.getElementById('c-subtitle').textContent = isNew
-    ? 'A CompanyID is assigned on save'
-    : `CompanyID ${c.field_1 || '— none —'} · item ${c.ID}${c.UpdatedBy ? ' · last touched by ' + c.UpdatedBy : ''}`;
+  const loc = [str(c.City), str(c.County)].filter(Boolean).join(', ');
+  const bits = [];
+  if (loc) bits.push(loc);
+  if (!isNew) {
+    bits.push(companyTagKey(c) ? `CompanyID ${c.field_1}` : 'no CompanyID');
+    bits.push(`item ${c.ID}`);
+    if (c.DateAdded)   bits.push(`added ${fmtDate(c.DateAdded)}`);
+    if (c.LastUpdated) bits.push(`updated ${fmtDate(c.LastUpdated)}` + (str(c.UpdatedBy) ? ` by ${c.UpdatedBy}` : ''));
+    else if (str(c.UpdatedBy)) bits.push(`last touched by ${c.UpdatedBy}`);
+  } else {
+    bits.push('a CompanyID is assigned on save');
+  }
+  document.getElementById('c-subtitle').textContent = bits.join(' · ');
 
-  setVal('c-name', c.Title);           setVal('c-regno', c.RegisteredNumber);
+  /* Who is saving is who updated it — the mockup shows this in the subtitle
+     rather than as a field, but field_24 still has to be written or it blanks. */
+  setVal('c-updatedby', currentUser?.name || str(c.UpdatedBy));
+
+  renderHeadPills(c);
+
+  setVal('c-name', c.Title);           setVal('c-city', c.City);
+  setVal('c-county', c.County);        setVal('c-postcode', c.Postcode);
   setVal('c-website', c.Website);      setVal('c-email', c.Email);
-  setVal('c-quickdesc', c.QuickDescription); setVal('c-notes', c.Notes);
-  setVal('c-updatedby', c.UpdatedBy || currentUser?.name || '');
-  setVal('c-lastupdated', fmtDate(c.LastUpdated));
-  setVal('c-maincommodity', c.MainCommodityGroup); setVal('c-regional', c.RegionalIA);
-  setVal('c-turnover', c.Turnover);    setVal('c-employees', c.Employees);
-  setVal('c-size', c.Size);            setVal('c-dataconf', c.DataConfidenceLevel);
-  setVal('c-marketnotes', c.MarketNotes);
-  setVal('c-rag', c.RAGStatus);        setVal('c-flag', c.Flag);
-  setVal('c-flagcomment', c.FlagComment);
+  setVal('c-regno', c.RegisteredNumber); setVal('c-regional', c.RegionalIA);
+  setVal('c-maincommodity', c.MainCommodityGroup);
+  setVal('c-quickdesc', c.QuickDescription); setVal('c-other-addr', c.OtherAddresses);
+  setVal('c-size', c.Size);            setVal('c-turnover', c.Turnover);
+  setVal('c-employees', c.Employees);  setVal('c-dataconf', c.DataConfidenceLevel);
   setChk('c-f4n', c.F4NCandidate);     setChk('c-f4h2', c.F4H2Candidate);
+  setVal('c-rag', c.RAGStatus);        setVal('c-flag', c.Flag);
   setChk('c-nuclear', c.NuclearReference);
   setVal('c-nucdate', isoDate(c.NuclearRefDate)); setVal('c-nucurl', c.NuclearRefURL);
-  setVal('c-address', c.Address);      setVal('c-city', c.City);
-  setVal('c-county', c.County);        setVal('c-postcode', c.Postcode);
-  setVal('c-other-addr', c.OtherAddresses);
-  setVal('c-regaddress', c.RegAddress); setVal('c-regcity', c.RegCity);
-  setVal('c-regcounty', c.RegCounty);  setVal('c-regpostcode', c.RegPostcode);
+  setVal('c-flagcomment', c.FlagComment); setVal('c-notes', c.Notes);
+  setVal('c-marketnotes', c.MarketNotes);
+  setVal('c-address', c.Address);      setVal('c-regaddress', c.RegAddress);
+  setVal('c-regcity', c.RegCity);      setVal('c-regcounty', c.RegCounty);
+  setVal('c-regpostcode', c.RegPostcode);
 
   document.getElementById('btn-analyse').style.display    = isNew ? 'none' : 'inline-block';
   document.getElementById('btn-view-scrape').style.display = isNew ? 'none' : 'inline-block';
+  const det = document.getElementById('c-add-scrl-details');
+  if (det) det.open = false;
 
   const site = document.getElementById('c-open-site');
   const url = str(c.Website);
   if (url) { site.href = /^https?:/i.test(url) ? url : 'https://' + url; site.style.display = 'inline'; }
   else { site.removeAttribute('href'); site.style.display = 'none'; }
 
+  ['c-caps-list','c-coms-list','c-accreds-list','c-mkts-list'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = isNew ? '<div class="text-faint" style="font-size:12px">Save the company first</div>' : '';
+  });
+  state.companyCapabilities = []; state.companyCommodities = [];
+  state.companyAccreditations = []; state.companyMarkets = [];
+  document.getElementById('c-scrls-list').innerHTML = isNew
+    ? '<div class="text-faint" style="font-size:12px">Save the company first</div>' : '';
+
+  renderMiniMap(c);
+  renderElsewhere(c);
   refreshCompleteness();
+
+  if (!isNew) {
+    loadCompanyCapsComs();
+    loadCompanyAccredsMkts();
+    loadCompanySCRLs();
+  }
 }
 
-function refreshCompleteness() {
-  const live = {
+function renderHeadPills(c) {
+  const el = document.getElementById('c-headpills');
+  if (!el) return;
+  const pills = [];
+  const st = f4nState(c);
+  if (st) {
+    const exp = c.F4NExpiryDate ? fmtDate(c.F4NExpiryDate) : '';
+    const bg = st === 'granted' ? 'background:#d7f5ea;color:#076049'
+             : st === 'journey' ? 'background:#ece9fa;color:#4a378f'
+             :                    'background:#fff6e6;color:#7a4f06';
+    pills.push(`<span class="headpill" style="${bg}">${F4N_LABEL[st]}${exp ? ' · ' + (st === 'lapsed' ? 'expired ' : 'expires ') + exp : ''}</span>`);
+  }
+  const rag = str(c.RAGStatus);
+  if (RAG_LETTER[rag]) {
+    const bg = { Green:'background:#d7f5ea;color:#076049', Amber:'background:#fff6e6;color:#7a4f06',
+                 Red:'background:#f8e8e6;color:#8f2525', Grey:'background:#eef2f6;color:#3d5266' }[rag];
+    pills.push(`<span class="headpill" style="${bg}">RAG ${rag}</span>`);
+  }
+  const conf = str(c.DataConfidenceLevel);
+  if (conf) pills.push(`<span class="headpill" style="background:#e5f4fa;color:#15698c">Confidence ${esc(conf.charAt(0) + conf.slice(1).toLowerCase())}</span>`);
+  el.innerHTML = pills.join('');
+}
+
+/* The live values, so the panel moves as you type rather than only on save. */
+function liveCompany() {
+  const c = state.selectedCompany || {};
+  return {
     Title: getVal('c-name'), Address: getVal('c-address'), City: getVal('c-city'),
     County: getVal('c-county'), Postcode: getVal('c-postcode'),
     RegisteredNumber: getVal('c-regno'), QuickDescription: getVal('c-quickdesc'),
-    Website: getVal('c-website'), MainCommodityGroup: getVal('c-maincommodity'),
-    Size: getVal('c-size'), Employees: getVal('c-employees'), RAGStatus: getVal('c-rag'),
-    field_1: state.selectedCompany?.field_1,
+    Website: getVal('c-website'), Email: getVal('c-email'),
+    MainCommodityGroup: getVal('c-maincommodity'), Size: getVal('c-size'),
+    Employees: getVal('c-employees'), Turnover: getVal('c-turnover'),
+    RAGStatus: getVal('c-rag'), RegAddress: getVal('c-regaddress'),
+    NuclearReference: getChk('c-nuclear') ? 'Y' : 'N', NuclearRefURL: getVal('c-nucurl'),
+    field_1: c.field_1, ID: c.ID, lat: c.lat, lng: c.lng,
+    F4NStatus: c.F4NStatus, F4NExpiryDate: c.F4NExpiryDate,
   };
+}
+
+function refreshCompleteness() {
+  const live = liveCompany();
   const counts = companyTagKey(live) ? {
     caps:   state.companyCapabilities.length,
     coms:   state.companyCommodities.length,
@@ -2068,17 +2178,126 @@ function refreshCompleteness() {
   } : null;
   const r = completeness(live, counts);
   document.getElementById('c-ring').innerHTML = ringHtml(r.pct);
-  document.getElementById('c-missing').innerHTML = r.missing.length
-    ? r.missing.map(m => `<span>${esc(m)}</span>`).join('')
-    : '<span style="background:var(--okbg);color:var(--ok)">Nothing missing</span>';
+
+  /* Every check, passed or not — the mockup lists them all so you can see what
+     "80%" is actually made of rather than only what is missing. */
+  document.getElementById('c-checklist').innerHTML = COMPLETENESS.map(row => {
+    if (row.tags && !counts) return '';
+    const got = row.test(live, counts);
+    return `<div class="chk ${got ? 'yes' : 'no'}"><i></i><span>${esc(row.label)}${got ? '' : ' — missing'}</span></div>`;
+  }).join('') + (counts ? '' :
+    '<div class="text-faint" style="font-size:11.5px;margin-top:7px;line-height:1.5">Tag checks are left out: this record has no CompanyID, so its tags cannot be found.</div>');
+
+  renderNeedsAttention(live);
 }
 
-['c-name','c-address','c-city','c-county','c-postcode','c-regno','c-quickdesc',
- 'c-website','c-maincommodity','c-size','c-employees','c-rag'].forEach(id => {
+/* Only things that are true of this record and worth acting on. */
+function companyIssues(c) {
+  const out = [];
+  if (!companyTagKey(c))
+    out.push('No CompanyID, so none of its tags can be found and none can be filed against it. Saving assigns one.');
+  if (!hasCoords(c))
+    out.push('No coordinates, so it has no pin on the supplier map.');
+  if (str(c.RegAddress) && !str(c.Address))
+    out.push('Only a registered address, which is often an accountant’s. The map pin wants a trading address.');
+  if (str(c.QuickDescription) && str(c.QuickDescription).length < DESC_MIN)
+    out.push('The description is too short to tell a client what they do.');
+  if (str(c.NuclearReference).toUpperCase() === 'Y' && !str(c.NuclearRefURL))
+    out.push('Marked as having a nuclear reference, but no URL to back it up.');
+  if (!RAG_LETTER[str(c.RAGStatus)] && str(c.RAGStatus))
+    out.push(`RAG reads "${str(c.RAGStatus)}", which is not one of the four codes.`);
+  return out;
+}
+
+function renderNeedsAttention(c) {
+  const issues = companyIssues(c);
+  const panel = document.getElementById('c-attention');
+  if (!panel) return;
+  panel.style.display = issues.length ? 'block' : 'none';
+  if (!issues.length) return;
+  document.getElementById('c-attention-head').textContent = `Needs attention · ${issues.length}`;
+  document.getElementById('c-attention-list').innerHTML =
+    issues.map(i => `<div class="attnitem">${esc(i)}</div>`).join('');
+}
+
+function renderElsewhere(c) {
+  const el = document.getElementById('c-elsewhere');
+  if (!el) return;
+  const links = [];
+  const cid = c.field_1 || c.ID;   /* rolodex-deeplink-ok */
+  if (c.ID) {
+    links.push(`<a href="rolodex.html?companyId=${esc(cid)}" target="_blank" rel="noopener">Rolodex</a>`);
+    links.push(`<a href="#" onclick="openGoogleMaps();return false">Google Maps</a>`);
+  }
+  const ch = str(c.RegisteredNumber).replace(/\s+/g, '');
+  if (ch) links.push(`<a href="https://find-and-update.company-information.service.gov.uk/company/${encodeURIComponent(ch)}"
+       target="_blank" rel="noopener">Companies House ${esc(ch)}</a>`);
+  const url = str(c.Website);
+  if (url) links.push(`<a href="${/^https?:/i.test(url) ? esc(url) : 'https://' + esc(url)}"
+       target="_blank" rel="noopener">${esc(url)}</a>`);
+  el.innerHTML = links.length ? links.join('<br>') : '<span class="text-faint">Nothing to link to yet</span>';
+}
+
+/* A single pin, on its own small map. Shares the lazy Leaflet loader with the
+   search screen, so whichever is opened first pays for it. */
+let _miniMap = null, _miniMarker = null;
+async function renderMiniMap(c) {
+  const host = document.getElementById('c-minimap');
+  const coords = document.getElementById('c-coords');
+  const src = document.getElementById('c-pinsrc');
+  if (!host) return;
+
+  if (!hasCoords(c)) {
+    host.textContent = 'No coordinates on this record';
+    coords.innerHTML = '<span class="text-faint">Not recorded</span>';
+    src.innerHTML = '';
+    return;
+  }
+  const la = parseFloat(c.lat), ln = parseFloat(c.lng);
+  coords.textContent = `${la.toFixed(4)}, ${ln.toFixed(4)}`;
+  src.innerHTML = str(c.Postcode)
+    ? `<span class="pill ok">Pin near ${esc(c.Postcode)}</span>`
+    : `<span class="pill off">No postcode to check it against</span>`;
+
+  if (_mapFailed) { host.textContent = 'Map unavailable'; return; }
+  try {
+    await loadLeaflet();
+    host.textContent = '';
+    if (!_miniMap) {
+      _miniMap = L.map(host, { zoomControl:false, scrollWheelZoom:false, dragging:false,
+                               attributionControl:false, keyboard:false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:18 }).addTo(_miniMap);
+    }
+    _miniMap.setView([la, ln], 12);
+    if (_miniMarker) _miniMap.removeLayer(_miniMarker);
+    _miniMarker = L.circleMarker([la, ln], { ...PIN.assessed, radius:9, weight:4, color:PIN.selColor }).addTo(_miniMap);
+    setTimeout(() => _miniMap && _miniMap.invalidateSize(), 60);
+  } catch (e) {
+    host.textContent = 'Map unavailable';
+  }
+}
+
+function focusAddToScrl() {
+  const det = document.getElementById('c-add-scrl-details');
+  if (!det) return;
+  det.open = true;
+  if (det.scrollIntoView) det.scrollIntoView({ block:'center' });
+  const sel = document.getElementById('c-add-scrl-sel');
+  if (sel && sel.focus) sel.focus();
+}
+
+/* Keep the completeness ring and the attention panel live as you type. */
+['c-name','c-address','c-city','c-county','c-postcode','c-regno','c-quickdesc','c-website',
+ 'c-email','c-maincommodity','c-size','c-employees','c-turnover','c-rag','c-regaddress',
+ 'c-nucurl'].forEach(id => {
   document.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', refreshCompleteness);
   });
+});
+document.addEventListener('DOMContentLoaded', () => {
+  const nuc = document.getElementById('c-nuclear');
+  if (nuc) nuc.addEventListener('change', refreshCompleteness);
 });
 
 async function saveCompany() {
@@ -2172,6 +2391,7 @@ async function loadCompanyCapsComs() {
     state.companyCommodities  = coms;
     renderTagList('c-caps-list', caps, 'CapabilityName_Ref', 'removeCompanyCap');
     renderTagList('c-coms-list', coms, 'CommodityName_Ref',  'removeCompanyCom');
+    updateTagsHeading();
     refreshCompleteness();
   } catch (e) { toast('Error: ' + e.message, 'error'); }
   showLoading(false);
@@ -2196,9 +2416,21 @@ async function loadCompanyAccredsMkts() {
     state.companyMarkets        = mkts;
     renderTagList('c-accreds-list', acreds, 'AccreditationName_Ref', 'removeCompanyAcred');
     renderTagList('c-mkts-list',    mkts,   'MarketName_Ref',        'removeCompanyMkt');
+    updateTagsHeading();
     refreshCompleteness();
   } catch (e) { toast('Error: ' + e.message, 'error'); }
   showLoading(false);
+}
+
+function updateTagsHeading() {
+  const el = document.getElementById('c-tags-head');
+  if (!el) return;
+  const n = [[state.companyCapabilities.length, 'capability', 'capabilities'],
+             [state.companyCommodities.length, 'commodity', 'commodities'],
+             [state.companyAccreditations.length, 'accreditation', 'accreditations'],
+             [state.companyMarkets.length, 'market', 'markets']];
+  const parts = n.filter(([c]) => c).map(([c, one, many]) => `${c} ${c === 1 ? one : many}`);
+  el.textContent = parts.length ? `Tags · ${parts.join(' · ')}` : 'Tags';
 }
 
 function renderTagList(containerId, items, nameField, removeFn) {
@@ -2270,22 +2502,41 @@ async function loadCompanySCRLs() {
   showLoading(true);
   try {
     const id = state.selectedCompany.ID;          // item ID, not CompanyID — see the note above
-    const rawRows = await spGetAll('SCRL_Companies', 'ID,field_1,field_2,field_3,field_7,field_8,field_9', `field_2 eq ${id}`);
+    const rawRows = await spGetAll('SCRL_Companies', 'ID,field_1,field_2,field_3,field_7,field_8,field_9,CapabilityNotes,CitationURL', `field_2 eq ${id}`);
     const rows = rawRows.map(normaliseSCRLCompany);
     const compRows = await spGetAll('SCRL_Company_Components', 'ID,SCRL_ID_Ref,ComponentName_Ref,RAG_Status', `CompanyID_Ref eq ${id}`);
     const list = document.getElementById('c-scrls-list');
-    if (!rows.length) { list.innerHTML = '<div class="empty-state">Not in any SCRL yet</div>'; showLoading(false); return; }
+    const head = document.getElementById('c-scrls-head');
+    if (head) head.textContent = rows.length ? `SCRL assessments · ${rows.length}` : 'SCRL assessments';
+    if (!rows.length) {
+      list.innerHTML = '<div class="text-faint" style="font-size:12.5px">Not in any SCRL yet.</div>';
+      showLoading(false); return;
+    }
     list.innerHTML = rows.map(r => {
-      const chips = compRows.filter(c => String(c.SCRL_ID_Ref) === String(r.SCRL_ID_Ref))
-        .map(c => `<span class="chip ${RAG_LETTER[str(c.RAG_Status)] ? str(c.RAG_Status) : ''}" style="font-size:10.5px;padding:2px 7px">${esc(c.ComponentName_Ref)}</span>`).join(' ');
-      return `<div class="gallery-row" style="cursor:default">
-        <span class="col name" style="flex:2.4">${esc(r.SCRLName_Ref)}</span>
-        <span class="col" style="flex:0 0 52px;text-align:center">${r.SCRLLevel || '—'}</span>
-        <span class="col" style="flex:0 0 92px;text-align:center">${ragBadge(r.RAGStatus)}</span>
-        <span class="col" style="flex:2.6;white-space:normal">${chips || '<span class="text-faint">no component linked</span>'}</span>
-        <span class="col" style="flex:0 0 108px">
-          <button class="btn btn-outline btn-sm" onclick="goToSCRL(${r.SCRL_ID_Ref})">Go to SCRL &rarr;</button>
-        </span>
+      const links = compRows.filter(x => String(x.SCRL_ID_Ref) === String(r.SCRL_ID_Ref));
+      const chips = links.map(x => {
+        const v = str(x.RAG_Status);
+        const letter = RAG_LETTER[v];
+        const col = { G:'#076049', A:'#7a4f06', R:'#a32d2d', P:'#3d5266' }[letter] || '#8a97a8';
+        return `<span class="chip" style="font-size:11px">${esc(x.ComponentName_Ref)}
+                  <strong style="color:${col}">${letter || '–'}</strong></span>`;
+      }).join(' ');
+      const scrl = state.scrls.find(x => String(x.ID) === String(r.SCRL_ID_Ref));
+      const meta = [scrl && str(scrl.Client), scrl && str(scrl.Status),
+                    r.DateAdded ? 'added ' + fmtDate(r.DateAdded) : ''].filter(Boolean).join(' · ');
+      return `<div style="border:1px solid var(--line);border-radius:7px;padding:12px 13px;margin-bottom:9px">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:9px">
+          <strong style="font-size:14px;color:var(--brand)">${esc(r.SCRLName_Ref)}</strong>
+          ${r.SCRLLevel ? `<span class="text-muted" style="font-size:11.5px">Level ${r.SCRLLevel}</span>` : ''}
+          ${ragBadge(r.RAGStatus)}
+          <a href="#" style="margin-left:auto;font-size:11.5px" onclick="goToSCRL(${Number(r.SCRL_ID_Ref)});return false">Open SCRL</a>
+        </div>
+        ${meta ? `<div class="text-faint" style="font-size:11.5px;margin-top:4px">${esc(meta)}</div>` : ''}
+        ${str(r.CapabilityNotes) ? `<p style="margin:7px 0 0;font-size:12px;color:#2b3b4e;line-height:1.55">${esc(r.CapabilityNotes)}</p>` : ''}
+        ${str(r.CitationURL) ? `<div style="margin-top:6px"><a href="${esc(r.CitationURL)}" target="_blank" rel="noopener" style="font-size:11.5px">Citation</a></div>` : ''}
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:9px">
+          ${chips || '<span class="text-faint" style="font-size:11.5px">No component linked — this firm is on the SCRL but not against anything.</span>'}
+        </div>
       </div>`;
     }).join('');
   } catch (e) { toast('Error: ' + e.message, 'error'); }
@@ -2377,8 +2628,6 @@ async function goToSCRL(scrlId) {
   } catch (e) { toast('Error: ' + e.message, 'error'); }
   showLoading(false);
 }
-
-function renderLocationTab() { /* fields are set in renderCompany; nothing to fetch */ }
 
 function openGoogleMaps() {
   const parts = [getVal('c-address'), getVal('c-city'), getVal('c-county'), getVal('c-postcode')].filter(Boolean);
