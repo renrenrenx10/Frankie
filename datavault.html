@@ -195,27 +195,45 @@ table.tbl { width:100%; border-collapse:collapse; }
 .attn:hover { background:#f8edd8; }
 
 .splitpane { display:flex; flex-wrap:wrap; align-items:stretch; min-height:560px; }
-.facets { flex:0 0 244px; min-width:214px; background:#fff; border-right:1px solid var(--line);
-          padding:15px 15px 22px; }
-.facets .fh { font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted);
+.facets { flex:0 0 252px; min-width:222px; background:var(--brand); color:#c6d9e8;
+          border-right:1px solid #0a1826; padding:14px 15px 24px; }
+.facets .fh { font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:#8fb6d4;
               font-weight:700; margin-bottom:8px; }
-.fchip { background:#fff; color:#3d5266; border:1px solid var(--line); border-radius:13px;
-         padding:3px 10px; font-size:11.5px; cursor:pointer; }
-.fchip:hover { border-color:var(--accent); }
-.fchip .n { color:var(--faint); margin-left:3px; }
-.fchip.on { background:var(--brand); color:#fff; border-color:var(--brand); }
-.fchip.on .n { color:#9fc0d8; }
+.facets .text-faint { color:#6f90ad; }
+.facets select, .facets input { background:#17304a; border:1px solid #3d5a76; color:#fff; }
+.facets select:focus, .facets input:focus { outline:2px solid #26a9d8; outline-offset:-1px; border-color:var(--accent); }
+.facets input::placeholder { color:#7fa0bd; }
+.facets input:disabled { background:#142b42; color:#6f90ad; }
+.facets .btn-outline { color:#c6d9e8; border-color:#3d5a76; }
+.facets .btn-outline:hover { border-color:var(--accent); color:#fff; }
+
+.matchmode { display:flex; align-items:center; gap:9px; margin-bottom:6px; }
+.mmlabel { font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:#8fb6d4; font-weight:700; }
+.mmgroup { display:inline-flex; border:1px solid #3d5a76; border-radius:6px; overflow:hidden; }
+.mm { background:none; border:none; color:#c6d9e8; font-family:inherit; font-size:12px;
+      font-weight:600; padding:4px 13px; cursor:pointer; }
+.mm + .mm { border-left:1px solid #3d5a76; }
+.mm:hover { color:#fff; }
+.mm.on { background:var(--accent); color:#06293a; font-weight:700; }
+.mmhint { margin:0 0 15px; font-size:11px; line-height:1.5; color:#8fb6d4; }
+.mmhint strong { color:#fff; }
+.fchip { background:#17304a; color:#c6d9e8; border:1px solid #3d5a76; border-radius:13px;
+         padding:3px 10px; font-size:11.5px; cursor:pointer; font-family:inherit; }
+.fchip:hover { border-color:var(--accent); color:#fff; }
+.fchip .n { color:#7fa0bd; margin-left:3px; }
+.fchip.on { background:var(--accent); color:#06293a; border-color:var(--accent); font-weight:700; }
+.fchip.on .n { color:#0a456b; }
 .fchip.f4n-granted { background:var(--okbg); color:#076049; border-color:#9fe1cb; }
 .fchip.f4n-lapsed  { background:#f3eee6; color:var(--warn); border-color:#e2d4bb; }
 .fchip.f4n-journey { background:var(--libbg); color:var(--lib); border-color:#cfc7f0; }
 .fchip.f4n-granted.on, .fchip.f4n-lapsed.on, .fchip.f4n-journey.on {
   outline:2px solid var(--brand); outline-offset:1px; font-weight:700; }
 .selchips { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px; }
-.selchip { display:inline-flex; align-items:center; gap:6px; background:var(--brand); color:#fff;
-           border-radius:13px; padding:3px 6px 3px 10px; font-size:11.5px; }
-.selchip button { background:none; border:none; color:#9fc0d8; cursor:pointer; font-size:14px;
+.selchip { display:inline-flex; align-items:center; gap:6px; background:var(--accent); color:#06293a;
+           border-radius:13px; padding:3px 6px 3px 10px; font-size:11.5px; font-weight:600; }
+.selchip button { background:none; border:none; color:#0a4b6e; cursor:pointer; font-size:14px;
                   line-height:1; padding:0 2px; font-family:inherit; }
-.selchip button:hover { color:#fff; }
+.selchip button:hover { color:#06293a; }
 .fcombo { width:100%; font-size:12.5px; padding:6px 8px; }
 
 .resultcol { flex:1.25 1 430px; min-width:330px; display:flex; flex-direction:column;
@@ -1005,7 +1023,7 @@ const state = {
   /* The four tag facets hold arrays and combine with AND, so "forging" plus
      "machining" means a firm that does both. F4N is one of three mutually
      exclusive states, so it stays single. */
-  facets: { cap:[], acred:[], com:[], mkt:[], f4n:'', county:'', attention:false },
+  facets: { cap:[], acred:[], com:[], mkt:[], f4n:'', county:'', attention:false, mode:'all' },
   reportPreset: 'geh', reportSheets: {},
 };
 
@@ -1605,7 +1623,21 @@ function renderFacets() {
   const anyActive = f.cap.length || f.acred.length || f.com.length || f.mkt.length ||
                     f.f4n || f.county || f.attention;
 
+  const nTags = selectedTags(f).length;
+  const modeBtn = (key, label) =>
+    `<button class="mm ${f.mode === key ? 'on' : ''}" onclick="setMatchMode('${key}')"
+       aria-pressed="${f.mode === key}">${label}</button>`;
+
   el.innerHTML =
+    `<div class="matchmode">
+       <span class="mmlabel">Match</span>
+       <span class="mmgroup">${modeBtn('all','All')}${modeBtn('any','Any')}</span>
+     </div>
+     <p class="mmhint">${f.mode === 'any'
+       ? 'A firm needs <strong>any one</strong> of the tags below.'
+       : 'A firm needs <strong>all</strong> of the tags below.'}
+       ${nTags > 1 ? '' : '<br>Applies once more than one is chosen.'}
+       County, F4N status and the search box always narrow.</p>` +
     facetBlock('cap',   'Capability',    countBy(base, tagIndex.caps),   'dl-cap') +
     '<div style="height:15px"></div>' +
     facetBlock('acred', 'Accreditation', countBy(base, tagIndex.acreds), 'dl-acred') +
@@ -1674,6 +1706,25 @@ function toggleAttention() {
 }
 
 /* ── results ────────────────────────────────────────────────────────────── */
+/* The selected tag criteria as [indexName, value] pairs, flattened across the
+   four facets so the match mode can be applied to them as one set. */
+function selectedTags(f) {
+  return [
+    ...f.cap.map(v   => ['caps', v]),
+    ...f.acred.map(v => ['acreds', v]),
+    ...f.com.map(v   => ['coms', v]),
+    ...f.mkt.map(v   => ['mkts', v]),
+  ];
+}
+
+function setMatchMode(mode) {
+  if (state.facets.mode === mode) return;
+  state.facets.mode = mode;
+  state.searchUncapped = false;
+  renderFacets();
+  applySearchFilters();
+}
+
 function applySearchFilters() {
   const f = state.facets;
   const words = currentWords();
@@ -1682,10 +1733,15 @@ function applySearchFilters() {
     if (!textMatch(words, c)) return false;
     if (f.attention && !needsAttention(c)) return false;
     if (f.county && c.County !== f.county) return false;
-    if (!f.cap.every(v   => hasTag(tagIndex.caps,   c, v))) return false;
-    if (!f.acred.every(v => hasTag(tagIndex.acreds, c, v))) return false;
-    if (!f.com.every(v   => hasTag(tagIndex.coms,   c, v))) return false;
-    if (!f.mkt.every(v   => hasTag(tagIndex.mkts,   c, v))) return false;
+    /* The mode spans all four tag facets at once, because the question is
+       usually "pumps or valves or ISO 19443", which crosses them. County, F4N
+       and the search box always narrow — "pumps OR in Yorkshire" is not a
+       question anyone asks. */
+    const sel = selectedTags(f);
+    if (sel.length) {
+      const hit = ([idx, v]) => hasTag(tagIndex[idx], c, v);
+      if (f.mode === 'any' ? !sel.some(hit) : !sel.every(hit)) return false;
+    }
     if (f.f4n   && f4nState(c) !== f.f4n) return false;
     return true;
   });
@@ -1693,8 +1749,9 @@ function applySearchFilters() {
   state.searchResults = results;
   renderStats();
 
-  const active = [...f.cap, ...f.acred, ...f.com, ...f.mkt,
-                  f.county, f.f4n ? F4N_LABEL[f.f4n] : ''].filter(Boolean);
+  const tagSel = selectedTags(f).map(([, v]) => v);
+  const joined = tagSel.length > 1 ? tagSel.join(f.mode === 'any' ? ' or ' : ' and ') : tagSel[0];
+  const active = [joined, f.county, f.f4n ? F4N_LABEL[f.f4n] : ''].filter(Boolean);
   document.getElementById('s-count').textContent =
     `${results.length.toLocaleString()} compan${results.length === 1 ? 'y' : 'ies'}`;
   document.getElementById('s-countsub').textContent =
@@ -1760,7 +1817,7 @@ function showAllResults() { state.searchUncapped = true; renderCards(); }
 
 function clearSearchFilters() {
   const q = document.getElementById('s-search'); if (q) q.value = '';
-  state.facets = { cap:[], acred:[], com:[], mkt:[], f4n:'', county:'', attention:false };
+  state.facets = { cap:[], acred:[], com:[], mkt:[], f4n:'', county:'', attention:false, mode:state.facets.mode };
   state.searchUncapped = false;
   state.selectedCardId = null;
   renderFacets();
