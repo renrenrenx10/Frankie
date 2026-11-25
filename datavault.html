@@ -210,8 +210,13 @@ table.tbl { width:100%; border-collapse:collapse; }
 .fchip.f4n-journey { background:var(--libbg); color:var(--lib); border-color:#cfc7f0; }
 .fchip.f4n-granted.on, .fchip.f4n-lapsed.on, .fchip.f4n-journey.on {
   outline:2px solid var(--brand); outline-offset:1px; font-weight:700; }
-.fmore { background:none; border:none; color:var(--accent2); font-size:11.5px; padding:0;
-         cursor:pointer; margin-top:2px; }
+.selchips { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px; }
+.selchip { display:inline-flex; align-items:center; gap:6px; background:var(--brand); color:#fff;
+           border-radius:13px; padding:3px 6px 3px 10px; font-size:11.5px; }
+.selchip button { background:none; border:none; color:#9fc0d8; cursor:pointer; font-size:14px;
+                  line-height:1; padding:0 2px; font-family:inherit; }
+.selchip button:hover { color:#fff; }
+.fcombo { width:100%; font-size:12.5px; padding:6px 8px; }
 
 .resultcol { flex:1.25 1 430px; min-width:330px; display:flex; flex-direction:column;
              background:var(--bg,#f3f7fb); border-right:1px solid var(--line); min-width:0; }
@@ -997,8 +1002,10 @@ const state = {
   scrlComponents: [], scrlCompanies: [], scrlCompanyComponents: [],
   pickerComponents: [],
   searchResults: [], searchUncapped: false, selectedCardId: null,
-  facets: { cap:'', acred:'', f4n:'', county:'', com:'', mkt:'', attention:false },
-  facetsExpanded: { cap:false, acred:false },
+  /* The four tag facets hold arrays and combine with AND, so "forging" plus
+     "machining" means a firm that does both. F4N is one of three mutually
+     exclusive states, so it stays single. */
+  facets: { cap:[], acred:[], com:[], mkt:[], f4n:'', county:'', attention:false },
   reportPreset: 'geh', reportSheets: {},
 };
 
@@ -1514,19 +1521,63 @@ function countBy(rows, map) {
   return out;
 }
 
-function facetChips(kind, counts, expandedKey) {
-  const sel = state.facets[kind];
-  let entries = [...counts.entries()].sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  if (sel && !entries.some(([n]) => n === sel)) entries.unshift([sel, 0]);
-  const expanded = state.facetsExpanded[expandedKey];
-  const shown = expanded ? entries : entries.slice(0, 4);
-  const more = entries.length - shown.length;
-  return `<div style="display:flex;flex-wrap:wrap;gap:5px">` +
-    (shown.length ? shown.map(([name, n]) =>
-      `<button class="fchip ${sel === name ? 'on' : ''}" onclick="toggleFacet('${kind}','${jsAttr(name)}')">${esc(name)} <span class="n">${n}</span></button>`
-    ).join('') : '<span class="text-faint" style="font-size:11.5px">none in this result</span>') +
-    `</div>` +
-    (more > 0 ? `<button class="fmore" onclick="expandFacet('${expandedKey}')">+ ${more} more</button>` : '');
+/* One control per tag facet: the chosen values as removable chips, then a
+   type-ahead combo listing what is left, with the number of firms each would
+   still match. Replaces the chip wall, which expanded but never collapsed. */
+function facetBlock(kind, label, counts, listId) {
+  const sel = state.facets[kind] || [];
+  const chips = sel.length
+    ? `<div class="selchips">` + sel.map(v =>
+        `<span class="selchip">${esc(v)}<button title="Remove" aria-label="Remove ${esc(v)}"
+           onclick="removeFacetValue('${kind}','${jsAttr(v)}')">&times;</button></span>`).join('') + `</div>`
+    : '';
+  const options = [...counts.entries()]
+    .filter(([n]) => !sel.includes(n))
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const avail = options.length;
+  return `<div class="fh">${label}${sel.length ? ` <span style="color:var(--accent2)">&middot; ${sel.length} selected</span>` : ''}</div>
+    ${chips}
+    <label for="f-${kind}" class="sr">Add ${esc(label.toLowerCase())}</label>
+    <input class="fcombo" id="f-${kind}" list="${listId}" autocomplete="off"
+           placeholder="${avail ? 'Type or pick&hellip;' : 'Nothing left to add'}" ${avail ? '' : 'disabled'}
+           onchange="addFacetValue('${kind}',this)">
+    <datalist id="${listId}">${options.map(([n, c]) =>
+      `<option value="${esc(n)}">${esc(n)} &mdash; ${c}</option>`).join('')}</datalist>`;
+}
+
+/* Accept an exact name, case ignored, or an unambiguous prefix, so typing
+   "forg" and pressing enter works. Anything else is refused rather than
+   filtering on a tag that cannot exist, which just looks broken. */
+function addFacetValue(kind, el) {
+  const raw = (el.value || '').trim();
+  el.value = '';
+  if (!raw) return;
+  const pool = { cap:state.capabilities, acred:state.accreditations,
+                 com:state.commodities,  mkt:state.markets }[kind] || [];
+  const names = pool.map(i => i.Title);
+  const lower = raw.toLowerCase();
+  let match = names.find(n => String(n).toLowerCase() === lower);
+  if (!match) {
+    const starts = names.filter(n => String(n).toLowerCase().startsWith(lower));
+    if (starts.length === 1) match = starts[0];
+    else if (starts.length > 1) {
+      toast(`"${raw}" matches ${starts.length} entries — pick one from the list`, 'warning');
+      return;
+    }
+  }
+  if (!match) { toast(`"${raw}" is not in the list`, 'warning'); return; }
+  if (state.facets[kind].includes(match)) return;
+  state.facets[kind] = [...state.facets[kind], match];
+  state.searchUncapped = false;
+  renderFacets();
+  applySearchFilters();
+}
+
+function removeFacetValue(kind, value) {
+  state.facets[kind] = (state.facets[kind] || []).filter(v => v !== value);
+  state.searchUncapped = false;
+  renderFacets();
+  applySearchFilters();
 }
 
 function renderFacets() {
@@ -1539,24 +1590,30 @@ function renderFacets() {
     return;
   }
 
-  const capCounts = countBy(base, tagIndex.caps);
-  const acrCounts = countBy(base, tagIndex.acreds);
-
   const f4nCounts = { granted:0, lapsed:0, journey:0 };
   base.forEach(c => { const st = f4nState(c); if (st) f4nCounts[st]++; });
 
   const countyCounts = new Map();
-  base.forEach(c => { const k = str(c.County); if (k) countyCounts.set(k, (countyCounts.get(k)||0) + 1); });
-  const counties = [...countyCounts.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+  base.forEach(c => { const k = str(c.County); if (k) countyCounts.set(k, (countyCounts.get(k) || 0) + 1); });
+  const counties = [...countyCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
   const f4nChip = (key, label) =>
     `<button class="fchip f4n-${key} ${state.facets.f4n === key ? 'on' : ''}"
        onclick="toggleFacet('f4n','${key}')">${label} <span class="n">${f4nCounts[key]}</span></button>`;
 
+  const f = state.facets;
+  const anyActive = f.cap.length || f.acred.length || f.com.length || f.mkt.length ||
+                    f.f4n || f.county || f.attention;
+
   el.innerHTML =
-    `<div class="fh">Capability</div>${facetChips('cap', capCounts, 'cap')}
-     <div class="fh" style="margin-top:17px">Accreditation</div>${facetChips('acred', acrCounts, 'acred')}
-     <div class="fh" style="margin-top:17px">F4N status</div>
+    facetBlock('cap',   'Capability',    countBy(base, tagIndex.caps),   'dl-cap') +
+    '<div style="height:15px"></div>' +
+    facetBlock('acred', 'Accreditation', countBy(base, tagIndex.acreds), 'dl-acred') +
+    '<div style="height:15px"></div>' +
+    facetBlock('com',   'Commodity',     countBy(base, tagIndex.coms),   'dl-com') +
+    '<div style="height:15px"></div>' +
+    facetBlock('mkt',   'Market',        countBy(base, tagIndex.mkts),   'dl-mkt') +
+    `<div class="fh" style="margin-top:17px">F4N status</div>
      <div style="display:flex;flex-wrap:wrap;gap:5px">
        ${f4nChip('granted','Granted')}${f4nChip('lapsed','Lapsed')}${f4nChip('journey','On journey')}
      </div>
@@ -1564,38 +1621,33 @@ function renderFacets() {
      <label for="s-region" class="sr">County</label>
      <select id="s-region" onchange="setFacet('county',this.value)">
        <option value="">All counties (${counties.length})</option>
-       ${counties.map(([n,k]) => `<option value="${esc(n)}" ${state.facets.county === n ? 'selected' : ''}>${esc(n)} (${k})</option>`).join('')}
-     </select>
-     <div style="border-top:1px solid #e8eef4;margin-top:17px;padding-top:12px">
-       <div class="fh" style="margin-bottom:6px">Commodity &amp; market</div>
-       <label for="s-commodity" class="sr">Commodity</label>
-       <select id="s-commodity" style="margin-bottom:6px" onchange="setFacet('com',this.value)">
-         <option value="">All commodities</option>
-         ${state.commodities.map(i => `<option value="${esc(i.Title)}" ${state.facets.com === i.Title ? 'selected' : ''}>${esc(i.Title)}</option>`).join('')}
-       </select>
-       <label for="s-market" class="sr">Market</label>
-       <select id="s-market" onchange="setFacet('mkt',this.value)">
-         <option value="">All markets</option>
-         ${state.markets.map(i => `<option value="${esc(i.Title)}" ${state.facets.mkt === i.Title ? 'selected' : ''}>${esc(i.Title)}</option>`).join('')}
-       </select>
-     </div>`;
+       ${counties.map(([n, k]) => `<option value="${esc(n)}" ${f.county === n ? 'selected' : ''}>${esc(n)} (${k})</option>`).join('')}
+     </select>` +
+    (anyActive ? `<button class="btn btn-outline btn-sm" style="width:100%;margin-top:15px"
+                    onclick="clearSearchFilters()">Clear all filters</button>` : '');
 }
 
-/* Set a facet from a <select>. Routed through a function so no handler in the
-   markup has to reach into `state` — same reason as the back-link wrappers. */
+/* Set a single-value facet from a <select> — the county list. Routed through a
+   function so no handler in the markup has to reach into `state`. */
 function setFacet(kind, value) {
   state.facets[kind] = value;
   state.searchUncapped = false;
   applySearchFilters();
 }
 
+/* Used by the F4N chips and by the pills on the result cards. Toggles
+   membership for an array facet and the value itself for a single one. */
 function toggleFacet(kind, value) {
-  state.facets[kind] = state.facets[kind] === value ? '' : value;
+  const cur = state.facets[kind];
+  if (Array.isArray(cur)) {
+    state.facets[kind] = cur.includes(value) ? cur.filter(v => v !== value) : [...cur, value];
+  } else {
+    state.facets[kind] = cur === value ? '' : value;
+  }
   state.searchUncapped = false;
   renderFacets();
   applySearchFilters();
 }
-function expandFacet(key) { state.facetsExpanded[key] = true; renderFacets(); }
 
 /* ── stats strip ────────────────────────────────────────────────────────── */
 function renderStats() {
@@ -1630,10 +1682,10 @@ function applySearchFilters() {
     if (!textMatch(words, c)) return false;
     if (f.attention && !needsAttention(c)) return false;
     if (f.county && c.County !== f.county) return false;
-    if (f.cap   && !hasTag(tagIndex.caps,   c, f.cap))   return false;
-    if (f.acred && !hasTag(tagIndex.acreds, c, f.acred)) return false;
-    if (f.com   && !hasTag(tagIndex.coms,   c, f.com))   return false;
-    if (f.mkt   && !hasTag(tagIndex.mkts,   c, f.mkt))   return false;
+    if (!f.cap.every(v   => hasTag(tagIndex.caps,   c, v))) return false;
+    if (!f.acred.every(v => hasTag(tagIndex.acreds, c, v))) return false;
+    if (!f.com.every(v   => hasTag(tagIndex.coms,   c, v))) return false;
+    if (!f.mkt.every(v   => hasTag(tagIndex.mkts,   c, v))) return false;
     if (f.f4n   && f4nState(c) !== f.f4n) return false;
     return true;
   });
@@ -1641,7 +1693,8 @@ function applySearchFilters() {
   state.searchResults = results;
   renderStats();
 
-  const active = [f.cap, f.acred, f.com, f.mkt, f.county, f.f4n ? F4N_LABEL[f.f4n] : ''].filter(Boolean);
+  const active = [...f.cap, ...f.acred, ...f.com, ...f.mkt,
+                  f.county, f.f4n ? F4N_LABEL[f.f4n] : ''].filter(Boolean);
   document.getElementById('s-count').textContent =
     `${results.length.toLocaleString()} compan${results.length === 1 ? 'y' : 'ies'}`;
   document.getElementById('s-countsub').textContent =
@@ -1707,8 +1760,7 @@ function showAllResults() { state.searchUncapped = true; renderCards(); }
 
 function clearSearchFilters() {
   const q = document.getElementById('s-search'); if (q) q.value = '';
-  state.facets = { cap:'', acred:'', f4n:'', county:'', com:'', mkt:'', attention:false };
-  state.facetsExpanded = { cap:false, acred:false };
+  state.facets = { cap:[], acred:[], com:[], mkt:[], f4n:'', county:'', attention:false };
   state.searchUncapped = false;
   state.selectedCardId = null;
   renderFacets();
