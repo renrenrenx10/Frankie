@@ -1195,6 +1195,15 @@ const BRAVE_TENDER_SOURCES = [
   // to external subrequests (see the note on fetchKlickstream above). Their
   // cert, not ours to fix, and it has been 526 on every run today.
   //
+  // 2026-11-25: a browser request to the same URL now reaches their
+  // application and returns a 500 -- "Error converting data type nvarchar to
+  // float", thrown by their own NoticeDAO while reading rows -- rather than a
+  // 526. That does NOT confirm the cert is fixed: Workers validate origin
+  // certs more strictly than browsers do, so both faults can be live at once.
+  // The scraper's own log settles it -- "Sell2Wales [TENDER]: HTTP 526" is
+  // the cert, "HTTP 500" is their SQL. Either way the API is unusable, so
+  // this entry stays.
+  //
   // This one carries its OWN terms, unlike the others: the reason for watching
   // Sell2Wales is Rolls-Royce SMR procurement, and the shared allTerms list
   // deliberately omits Nuclear terms (see the comment below), so the generic
