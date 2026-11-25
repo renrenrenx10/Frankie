@@ -11215,7 +11215,139 @@ function spPushPlan(co, current, ctx) {
   return { payload, changes, skipped };
 }
 
-function spPushPreview(co, resolved, plan) {
+// ── Tag push ───────────────────────────────────────────────────────────────
+// Two groups have a SharePoint home: commodities -> Capabilities and services
+// -> Services. categories/machining/welding/testing/design have none, and
+// markets needs a crosswalk (2 of 17 terms match).
+//
+// The two are NOT treated the same, and the reason matters:
+//
+//   commodities -> Company_Capabilities : FULL SYNC (adds and removes)
+//     members.html pre-fills the member's form from nr_companies.capabilities,
+//     which sdbSyncTagsToCrm fills from Company_Capabilities -- and
+//     nrRestoreSelections defaults any name it can't map into the Commodities
+//     group "so nothing on record is lost". So the member is shown every
+//     capability tag DataVault holds. A tag missing from their submission was
+//     deliberately removed, not merely unpicked, and SharePoint should follow.
+//
+//   services -> Company_Services : ADD ONLY
+//     SCC has never read Company_Services, so service tags never reach Supabase
+//     and never reach the member's form. Only 1 of the 20 member service terms
+//     even appears in the SP Capabilities list, so in practice a member starts
+//     with no services ticked no matter what SharePoint holds. Their list is
+//     therefore not an edit of SharePoint's, and treating absence as deletion
+//     would wipe 6,909 rows across 1,845 companies that no member ever saw.
+//     This becomes a full sync the day sdbSyncTagsToCrm also reads
+//     Company_Services and the member's form shows them.
+//
+// Junction rows key on CompanyID, never the SharePoint item id -- see
+// spResolveCompanyItem. These lists were created properly so their column names
+// are clean, unlike the Companies list's field_N names.
+const SP_TAG_TARGETS = [
+  { group: 'commodities', label: 'Capabilities', vocab: 'Capabilities', mode: 'sync',
+    join: 'Company_Capabilities', idCol: 'CapabilityID_Ref', nameCol: 'CapabilityName_Ref' },
+  { group: 'services',    label: 'Services',     vocab: 'Services',     mode: 'add',
+    why: "SCC doesn't read SharePoint's service tags, so the member never saw them to remove",
+    join: 'Company_Services',     idCol: 'ServiceID_Ref',    nameCol: 'ServiceName_Ref' }
+];
+
+let spVocabCache = {};
+
+// name (normalised, lowercased) -> list item id. Capabilities and Services both
+// have unique Titles (checked); first-wins only guards against that changing.
+async function spVocab(listTitle) {
+  if (spVocabCache[listTitle]) return spVocabCache[listTitle];
+  const rows = await spGetAll(listTitle, 'ID,Title', 2000);
+  const map = {};
+  rows.forEach(r => {
+    const k = spNorm(r.Title).toLowerCase();
+    if (k && !(k in map)) map[k] = r.ID;
+  });
+  spVocabCache[listTitle] = map;
+  return map;
+}
+
+// Existing junction rows, with their item ids -- removals need them.
+async function spExistingTags(t, companyId) {
+  const res = await spFetch("web/lists/getbytitle('" + t.join + "')/items?$filter=CompanyID_Ref eq "
+                            + companyId + '&$select=Id,' + t.nameCol + '&$top=500');
+  return (res.value || []).map(r => ({
+    id: r.Id, name: spNorm(r[t.nameCol]), key: spNorm(r[t.nameCol]).toLowerCase()
+  })).filter(r => r.key);
+}
+
+// A member's own selections are a grouped object written by members.html.
+// A flat array is the Supplier Database's own tag list copied in by
+// sdbSyncTagsToCrm, which means this company has never submitted -- there is
+// nothing member-owned to push, and nothing that could justify a removal.
+function spMemberTagGroups(co) {
+  let c = co.capabilities;
+  if (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) { return null; } }
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+  return c;
+}
+
+async function spTagPlan(co, companyId) {
+  if (!companyId) return { blocked: 'no CompanyID - cannot be keyed into the junction lists', targets: [] };
+  const groups = spMemberTagGroups(co);
+  if (!groups) return { blocked: 'this company has never submitted a profile, so there is nothing member-owned to push', targets: [] };
+  const targets = [];
+  for (const t of SP_TAG_TARGETS) {
+    const picked = Array.isArray(groups[t.group]) ? groups[t.group].filter(Boolean) : [];
+    const [vocab, existing] = await Promise.all([spVocab(t.vocab), spExistingTags(t, companyId)]);
+    const have = new Set(existing.map(r => r.key));
+    const want = new Set(picked.map(n => spNorm(n).toLowerCase()).filter(Boolean));
+
+    const add = [], already = [], unknown = [];
+    picked.forEach(name => {
+      const k = spNorm(name).toLowerCase();
+      if (!k || have.has(k)) { if (k) already.push(name); return; }
+      if (!(k in vocab))     { unknown.push(name); return; }
+      if (add.some(a => a.k === k)) return;
+      add.push({ k, id: vocab[k], name: spNorm(name) });
+    });
+
+    // Removals only where the member actually saw SharePoint's list.
+    // An empty selection is never treated as "remove everything": a form that
+    // failed to load looks exactly like a member who unticked all of it, and a
+    // junction delete has no undo and no version history.
+    let remove = [], guard = null;
+    if (t.mode === 'sync') {
+      if (!want.size) guard = picked.length === 0 && existing.length
+        ? 'member selected nothing in this group - removals skipped rather than clearing all ' + existing.length
+        : null;
+      else remove = existing.filter(r => !want.has(r.key));
+    }
+    if (!add.length && !remove.length && !unknown.length && !guard) continue;
+    targets.push({ t, add, remove, already, unknown, guard });
+  }
+  return { blocked: null, targets };
+}
+
+// One junction row. No __metadata type: the Companies MERGE succeeds without
+// one under these same headers, so SharePoint infers the entity type from the
+// URL. If a create ever 400s on a missing type, fetch it once from
+// web/lists/getbytitle('<list>')?$select=ListItemEntityTypeFullName and send it
+// as __metadata.type -- don't guess the name, this tenant's Companies list
+// reports the unusual SP.Data.CoreListItem.
+async function spCreateTagRow(t, companyId, companyName, tag) {
+  const body = {
+    Title: companyId + '-' + tag.id,
+    CompanyID_Ref: Number(companyId),
+    CompanyName_Ref: companyName
+  };
+  body[t.idCol]   = tag.id;
+  body[t.nameCol] = tag.name;
+  return spFetch("web/lists/getbytitle('" + t.join + "')/items",
+                 { method: 'POST', body: JSON.stringify(body) });
+}
+
+async function spDeleteTagRow(t, itemId) {
+  return spFetch("web/lists/getbytitle('" + t.join + "')/items(" + itemId + ")",
+                 { method: 'POST', headers: { 'X-HTTP-Method': 'DELETE', 'IF-MATCH': '*' } });
+}
+
+function spPushPreview(co, resolved, plan, tagPlan) {
   let out = 'Push to the Supplier Database (SharePoint)?\n\n' +
             co.name + '\nSharePoint item ' + resolved.itemId + ' - ' + resolved.name + '\n';
   let lastGroup = null;
@@ -11227,13 +11359,30 @@ function spPushPreview(co, resolved, plan) {
     out += '\nLeft unchanged (SharePoint has a value, SCC has none):\n';
     plan.skipped.forEach(s => { out += '  ' + s.f.label + ':  ' + spShort(s.curVal) + '\n'; });
   }
+  (tagPlan.targets || []).forEach(g => {
+    out += '\n' + g.t.label + ' tags';
+    out += g.t.mode === 'sync' ? ' (member list is authoritative):\n'
+                               : ' (added only - ' + g.t.why + '):\n';
+    g.add.forEach(a    => { out += '  + ' + spShort(a.name) + '\n'; });
+    g.remove.forEach(r => { out += '  - REMOVE ' + spShort(r.name) + '\n'; });
+    if (g.already.length) out += '  (' + g.already.length + ' already correct)\n';
+    if (g.guard)          out += '  ! ' + g.guard + '\n';
+    if (g.unknown.length) {
+      out += '  not in the SharePoint ' + g.t.vocab + ' list, skipped:\n';
+      g.unknown.forEach(u => { out += '    ? ' + spShort(u) + '\n'; });
+    }
+  });
+  const removals = (tagPlan.targets || []).reduce((n, g) => n + g.remove.length, 0);
+  if (tagPlan.blocked) out += '\nTags skipped: ' + tagPlan.blocked + '\n';
+  if (removals) out += '\n' + removals + ' tag row' + (removals === 1 ? '' : 's') +
+                       ' will be DELETED from SharePoint. There is no undo.\n';
   return out + '\nThis writes to the live Supplier Database and will show in DataVault.';
 }
 
 async function spPushCompany(coId) {
   // coAllCompanies is the only company list loaded with sharepoint_company_id,
-  // granted_date, description, website and employees on it; sharedCos carries
-  // just id/name/status/expiry_date.
+  // granted_date, description, website, employees and capabilities on it;
+  // sharedCos carries just id/name/status/expiry_date.
   const co = (typeof coAllCompanies !== 'undefined' ? coAllCompanies : []).find(c => c.id === coId);
   if (!co) { toast('Company not loaded - open it from the Companies screen and try again'); return; }
   if (!co.sharepoint_company_id) { toast('Not linked to the Supplier Database - link it first'); return; }
@@ -11251,38 +11400,82 @@ async function spPushCompany(coId) {
   const ctx = { expiry: co.expiry_date || (trackerRow && trackerRow.expiry_date) || null };
 
   const plan = spPushPlan(co, resolved.current, ctx);
-  if (!plan.changes.length) {
+
+  // An 'SP' key means the company has no CompanyID, which the junction lists
+  // key on. Fields still push; tags can't, and say so rather than guessing.
+  const key = String(co.sharepoint_company_id).trim();
+  const companyId = /^\d+$/.test(key) ? key : null;
+  let tagPlan;
+  try { tagPlan = await spTagPlan(co, companyId); }
+  catch (e) { tagPlan = { blocked: 'could not read the junction lists (' + e.message + ')', targets: [] }; }
+
+  const tagAdds    = (tagPlan.targets || []).reduce((n, g) => n + g.add.length, 0);
+  const tagRemoves = (tagPlan.targets || []).reduce((n, g) => n + g.remove.length, 0);
+  if (!plan.changes.length && !tagAdds && !tagRemoves) {
     toast(plan.skipped.length
       ? 'Already up to date (' + plan.skipped.length + ' field left alone)'
       : 'SharePoint already matches');
     return;
   }
 
-  if (!confirm(spPushPreview(co, resolved, plan))) { toast('Not pushed'); return; }
+  if (!confirm(spPushPreview(co, resolved, plan, tagPlan))) { toast('Not pushed'); return; }
 
   const { data: { user } } = await db.auth.getUser();
   const who = user?.email || 'SCC';
-  // Internal names, NOT display names -- SharePoint rejects the whole MERGE
-  // with "property 'X' does not exist on type 'SP.Data.CoreListItem'" if you
-  // use the display name, which is how the first live push failed.
-  // field_24 = UpdatedBy. field_23 = LastUpdated, a custom column and NOT
-  // SharePoint's built-in Modified, so nothing stamps it automatically --
-  // delete that line if DataVault owns the field differently.
-  plan.payload.field_24 = who;
-  plan.payload.field_23 = new Date().toISOString();
+  const logRows = [];
 
-  try { await spUpdateItem('Companies', resolved.itemId, plan.payload); }
-  catch (e) { toast('Push failed: ' + e.message); return; }
+  if (plan.changes.length) {
+    // Internal names, NOT display names -- SharePoint rejects the whole MERGE
+    // with "property 'X' does not exist on type 'SP.Data.CoreListItem'" if you
+    // use the display name, which is how the first live push failed.
+    // field_24 = UpdatedBy. field_23 = LastUpdated, a custom column and NOT
+    // SharePoint's built-in Modified, so nothing stamps it automatically --
+    // delete that line if DataVault owns the field differently.
+    plan.payload.field_24 = who;
+    plan.payload.field_23 = new Date().toISOString();
+    try { await spUpdateItem('Companies', resolved.itemId, plan.payload); }
+    catch (e) { toast('Push failed: ' + e.message); return; }
+    plan.changes.forEach(c => logRows.push(
+      c.f.label + ': ' + (c.curVal || '(blank)') + ' -> ' + c.newVal));
+  }
 
-  try {
-    await db.from('nr_sp_push_log').insert(plan.changes.map(c => ({
-      company_id: coId, company_name: co.name, sp_item_id: resolved.itemId,
-      change: c.f.label + ': ' + (c.curVal || '(blank)') + ' -> ' + c.newVal,
-      pushed_by: who
-    })));
-  } catch (e) { /* nr_sp_push_log.sql not run yet - the push itself still happened */ }
+  // One row at a time so a single bad row doesn't lose the rest. Re-running the
+  // push is safe: adds already written read back as "already correct", and a
+  // removal already done is simply no longer in the existing list.
+  let added = 0, removed = 0;
+  const failed = [];
+  for (const g of (tagPlan.targets || [])) {
+    for (const tag of g.add) {
+      try { await spCreateTagRow(g.t, companyId, resolved.name, tag); added++;
+            logRows.push(g.t.label + ' tag added: ' + tag.name); }
+      catch (e) { failed.push('add ' + g.t.label + ' / ' + tag.name + ': ' + e.message); }
+    }
+    for (const row of g.remove) {
+      try { await spDeleteTagRow(g.t, row.id); removed++;
+            logRows.push(g.t.label + ' tag removed: ' + row.name); }
+      catch (e) { failed.push('remove ' + g.t.label + ' / ' + row.name + ': ' + e.message); }
+    }
+  }
 
-  toast('Pushed to DataVault (' + plan.changes.length + ' field' + (plan.changes.length === 1 ? '' : 's') + ')');
+  if (logRows.length) {
+    try {
+      await db.from('nr_sp_push_log').insert(logRows.map(line => ({
+        company_id: coId, company_name: co.name, sp_item_id: resolved.itemId,
+        change: line, pushed_by: who
+      })));
+    } catch (e) { /* nr_sp_push_log.sql not run yet - the push itself still happened */ }
+  }
+
+  const bits = [];
+  if (plan.changes.length) bits.push(plan.changes.length + ' field' + (plan.changes.length === 1 ? '' : 's'));
+  if (added)   bits.push(added + ' tag added');
+  if (removed) bits.push(removed + ' tag removed');
+  toast('Pushed to DataVault: ' + (bits.join(', ') || 'nothing'));
+  if (failed.length) {
+    console.warn('Tag rows that failed:', failed);
+    alert(failed.length + ' tag row' + (failed.length === 1 ? '' : 's') + ' failed and were skipped.\n' +
+          'Everything else was pushed. Re-running the push will retry them.\n\n' + failed.join('\n'));
+  }
 }
 
 function sdbNormaliseCompany(c) {
