@@ -466,6 +466,7 @@ const CPV_EXCLUDE = [
   '37',    // Musical instruments, sports goods, games, toys
   '63',    // Supporting transport services; travel agencies
   '5042',  // Repair/maintenance of medical and surgical equipment
+  '9065',  // Asbestos removal services — dumped on your call 2026-10-26
 ];
 
 // The gate. Recall-oriented by design: "could one of our companies make or
@@ -543,7 +544,14 @@ const CPV_CAPABILITIES = {
                           //   45253400 petrochemical, 45253500 pharmaceutical,
                           //   45255 oil & gas, 45255200 refinery
     '45214631',           // installation works of cleanrooms
-    '4535','4532',        // mechanical installations, insulation work
+    '453',                // Building installation work — the group parent.
+                          //   4531 electrical, 4532 insulation, 4533 plumbing
+                          //   and 4535 mechanical were all already listed
+                          //   individually, but 45300000 itself was dropping
+                          //   as a root code (3 hits, 14:24 run). Same shape
+                          //   as the '716' fix. Also picks up 4534
+                          //   fencing/railing, which is fabrication work.
+                          //   Added 2026-10-26.
   ],
   'Machinery repair & maintenance': [
     '5051','5053',        // pumps/valves/taps/metal containers, machinery
@@ -553,6 +561,14 @@ const CPV_CAPABILITIES = {
                           //   Includes 5076 (public conveniences) — harmless.
     '5043',               // repair/maintenance of precision equipment
     '5024','5022',        // marine vessels, rail vehicles
+  ],
+  'Research & development': [
+    '7311',               // Research services (73110000) and research
+                          //   laboratory services (73111000). Kept on your
+                          //   call 2026-10-26 — F4N innovation and R&D
+                          //   consortium work. Its own group rather than
+                          //   bolted onto NDT, since `capability` is the tag
+                          //   members filter on and research is not testing.
   ],
   'Engineering & design services': [
     '713',                // consultative/design/misc/integrated engineering +
@@ -571,7 +587,16 @@ const CPV_CAPABILITIES = {
 
 // Inside division 42 but command/control, printing, graphics and office
 // automation — not member capability.
-const CPV_CAPABILITY_CARVEOUTS = ['4296'];
+const CPV_CAPABILITY_CARVEOUTS = [
+  '4296',       // inside division 42, but command/control, printing, graphics
+                //   and office automation — not member capability
+  // Inside the '716' prefix added for the 71600000 parent, but explicitly not
+  // member capability — the two the NDT group's own comment calls out.
+  // Without these, adding '716' silently reintroduced MOT testing and
+  // building-inspection contracts as "NDT, inspection & testing".
+  '71631200',   // technical automobile inspection services (MOT)
+  '71631300',   // technical building-inspection services
+];
 
 function capabilityForCode(cpvCode) {
   if (!cpvCode) return null;
@@ -1165,6 +1190,19 @@ const BRAVE_TENDER_SOURCES = [
   {site:'contracts.mod.uk',               source:'MOD Defence Contracts Online'},
   {site:'delta-esourcing.com',            source:'Delta eSourcing'},
   {site:'in-tend.co.uk',                  source:'In-tend'},
+  // Added 2026-10-26. Stopgap while api.sell2wales.gov.wales returns HTTP 526
+  // — their origin TLS certificate fails the strict validation Workers apply
+  // to external subrequests (see the note on fetchKlickstream above). Their
+  // cert, not ours to fix, and it has been 526 on every run today.
+  //
+  // This one carries its OWN terms, unlike the others: the reason for watching
+  // Sell2Wales is Rolls-Royce SMR procurement, and the shared allTerms list
+  // deliberately omits Nuclear terms (see the comment below), so the generic
+  // manufacturing phrases would never surface an RR notice.
+  {site:'sell2wales.gov.wales',           source:'Sell2Wales (search)',
+   terms:['Rolls-Royce','small modular reactor','nuclear','precision machining',
+          'metal fabrication','pressure vessel','castings','non-destructive testing',
+          'structural steel','fabrication']},
 ];
 
 async function fetchExternalTenderPortals(braveKey, seenTenders, newTenders) {
@@ -1178,14 +1216,22 @@ async function fetchExternalTenderPortals(braveKey, seenTenders, newTenders) {
   for (const src of BRAVE_TENDER_SOURCES) {
     // No literal "tender" requirement — these portals' notice pages don't always
     // contain that word, and site: + AND "tender" was over-filtering to 0 hits.
-    const query = 'site:'+src.site+' (' + allTerms.join(' OR ') + ')';
+    const query = 'site:'+src.site+' (' + (src.terms || allTerms).join(' OR ') + ')';
     try {
       const data = await braveSearch(query, braveKey, 15);
       const hits = data.web?.results || [];
       let n = 0;
       for (const r of hits) {
         if (seenTenders.has(r.url)) continue;
-        const sector = categTender((r.title||'') + ' ' + (r.description||''));
+        const blurb = (r.title||'') + ' ' + (r.description||'');
+        // There is no OCDS release on this path and so no CPV — categTender()
+        // used to be the only gate. Since termMatches() was tightened to
+        // require every word of a phrase, a notice naming a nuclear buyer but
+        // matching no phrase was being dropped: "Supply of X for Rolls-Royce
+        // SMR" hits nothing in TENDER_SEARCHES. Mirror gate 1 of
+        // classifyRelease() here so the buyer alone is enough. Added
+        // 2026-10-26.
+        const sector = categTender(blurb) || (buyerIsNuclear(blurb) ? 'Nuclear' : null);
         if (!sector) continue;
         newTenders.push({ title:cleanText(r.title).slice(0,255), url:r.url,
           organisation:src.source, description:cleanText(r.description).slice(0,500),
