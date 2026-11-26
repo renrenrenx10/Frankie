@@ -2808,20 +2808,56 @@ async function wCompaniesHouse(name) {
    invented. Company_Capabilities needs a value that exists in Capabilities or
    the junction row is junk, so asking a model to name capabilities freely is
    the one thing that cannot work here. */
-function matchVocabulary(text, items) {
-  const hay = ' ' + text.toLowerCase().replace(/\s+/g, ' ') + ' ';
-  const out = [];
+/* A literal substring search was too strict: the list holds "ISO 9001" and a
+   website writes "ISO9001", "ISO-9001" or "ISO 9001:2015". Separators between
+   the words of a list entry are treated as optional, and a trailing year is
+   ignored, while the ends still have to fall on a word boundary so "9001" does
+   not match inside "19001". */
+function vocabPattern(name) {
+  const tokens = String(name).trim().split(/\s+/)
+    .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .filter(Boolean);
+  if (!tokens.length) return null;
+  try { return new RegExp('\\b' + tokens.join('[\\s\\-:_/]*') + '\\b', 'i'); }
+  catch { return null; }
+}
+
+let _vocabCache = new WeakMap();
+function vocabPatterns(items) {
+  let compiled = _vocabCache.get(items);
+  if (compiled) return compiled;
+  compiled = [];
   for (const it of items) {
     const name = str(it.Title);
     if (name.length < 4) continue;              // "NDT" style stubs match everything
-    const needle = name.toLowerCase();
-    const i = hay.indexOf(needle);
-    if (i === -1) continue;
-    const before = hay[i - 1], after = hay[i + needle.length];
-    if (/[a-z0-9]/.test(before || ' ') || /[a-z0-9]/.test(after || ' ')) continue;
-    out.push(name);
+    const re = vocabPattern(name);
+    if (re) compiled.push([name, re]);
   }
+  _vocabCache.set(items, compiled);
+  return compiled;
+}
+
+function matchVocabulary(text, items) {
+  const hay = text.replace(/\s+/g, ' ');
+  const out = [];
+  for (const [name, re] of vocabPatterns(items)) if (re.test(hay)) out.push(name);
   return [...new Set(out)];
+}
+
+/* Does the vault hold something that means this? Used to tell a cert the
+   patterns found but the lists do not carry from one that simply matched
+   under a slightly different spelling. */
+function vocabLookup(found, items) {
+  const f = str(found);
+  const squash = v => v.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const fs = squash(f).replace(/(19|20)\d{2}$/, '');      // drop a trailing :2018
+  for (const it of items) {
+    const name = str(it.Title);
+    const ns = squash(name);
+    if (!ns) continue;
+    if (ns === fs || fs === ns.replace(/(19|20)\d{2}$/, '')) return name;
+  }
+  return null;
 }
 
 /* Ported from PythonScripts/regex_patterns.json, which drove the Access-era
@@ -2870,6 +2906,9 @@ async function startScrape() {
   }
 
   const body = document.getElementById('scrape-body');
+  const terms = await promptScrapeTerms(c);
+  if (terms === null) return;                     // cancelled
+
   const step = u => { body.innerHTML = `<div class="spinner"></div>
       <h2>Reading the website</h2>
       <p style="font-size:12px;color:var(--muted);margin-top:7px;word-break:break-all">${esc(u)}</p>`; };
@@ -2915,6 +2954,7 @@ async function startScrape() {
       mkts:   matchVocabulary(text, state.markets),
       certs:  extractMatches(text, CERT_RE),
       capacity: extractMatches(text, CAPACITY_RE, 6),
+      terms:  findTerms(text, terms),
       chars: text.length, pages: SUB_PAGES.length, when: new Date().toISOString(),
     };
     state.scrapeAccept = {};
@@ -2926,6 +2966,69 @@ async function startScrape() {
       <p style="font-size:12.5px;color:#2b3b4e;line-height:1.6;margin-top:9px">${esc(e.message)}</p>
       <button class="btn btn-outline btn-sm" style="margin-top:13px" onclick="closeScrape()">Close</button>`;
   }
+}
+
+/* Terms to look for beyond the lists — the thing you actually want when
+   working a SCRL: does this firm say "pressure vessel" anywhere, and in what
+   words. Kept between companies, because you are usually going down a list of
+   firms asking the same question of each. */
+const TERMS_KEY = 'dv_scrape_terms';
+
+function promptScrapeTerms(c) {
+  return new Promise(resolve => {
+    let saved = '';
+    try { saved = localStorage.getItem(TERMS_KEY) || ''; } catch {}
+    const body = document.getElementById('scrape-body');
+    body.innerHTML = `
+      <h2 style="margin-bottom:4px">Analyse ${esc(str(c.Title) || 'this company')}</h2>
+      <p style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:13px">
+        Capabilities, commodities, accreditations and markets are matched against the vault's lists
+        automatically. Add anything else you want looked for &mdash; a component, a code, a material.</p>
+      <div class="field">
+        <label class="fl" for="sc-terms">Also look for (optional, comma separated)</label>
+        <input type="text" id="sc-terms" autocomplete="off"
+               placeholder="pressure vessel, ASME III, Inconel" value="${esc(saved)}">
+      </div>
+      <p class="text-faint" style="font-size:11px;line-height:1.5;margin-bottom:13px">
+        Remembered for the next company, so you can work down a list.</p>
+      <div style="display:flex;gap:7px">
+        <button class="btn btn-primary btn-sm" id="sc-go">Analyse</button>
+        <button class="btn btn-outline btn-sm" id="sc-cancel">Cancel</button>
+      </div>`;
+    const go = () => {
+      const v = getVal('sc-terms');
+      try { localStorage.setItem(TERMS_KEY, v); } catch {}
+      resolve(v);
+    };
+    document.getElementById('sc-go').onclick = go;
+    document.getElementById('sc-terms').onkeydown = e => { if (e.key === 'Enter') go(); };
+    document.getElementById('sc-cancel').onclick = () => { closeScrape(); resolve(null); };
+    const el = document.getElementById('sc-terms');
+    if (el && el.focus) el.focus();
+  });
+}
+
+/* Report where a term appears, not just that it does — the context is what
+   tells you whether "vessel" means a pressure vessel or a ship. */
+function findTerms(text, termsString) {
+  const list = String(termsString || '').split(',').map(t => t.trim()).filter(Boolean);
+  if (!list.length) return [];
+  const hay = text.replace(/\s+/g, ' ');
+  return list.map(term => {
+    const re = vocabPattern(term);
+    const hits = [];
+    if (re) {
+      const g = new RegExp(re.source, 'gi');
+      let m, guard = 0;
+      while ((m = g.exec(hay)) !== null && hits.length < 2 && guard++ < 500) {
+        const from = Math.max(0, m.index - 80);
+        const to = Math.min(hay.length, m.index + m[0].length + 80);
+        hits.push((from > 0 ? '…' : '') + hay.slice(from, to).trim() + (to < hay.length ? '…' : ''));
+        if (g.lastIndex === m.index) g.lastIndex++;
+      }
+    }
+    return { term, hits };
+  });
 }
 
 function openScrape() { document.getElementById('scrape-overlay').classList.add('active'); }
@@ -3021,13 +3124,45 @@ function renderScrapeReview() {
   }).join('') + (key ? '' :
     '<div class="note warn">This company has no CompanyID, so tags cannot be filed against it. Save the record first.</div>');
 
-  const extras = [];
-  if ((r.certs || []).length)    extras.push(['Certifications in the text', r.certs.join(' · ')]);
-  if ((r.capacity || []).length) extras.push(['Capacity statements', r.capacity.join(' · ')]);
-  document.getElementById('sr-extra').innerHTML = extras.length
-    ? extras.map(([k, v]) => `<div style="margin-bottom:8px"><strong>${esc(k)}</strong><br>${esc(v)}</div>`).join('') +
-      `<p class="text-faint" style="font-size:11.5px;margin-top:4px">Found by pattern rather than matched to a list, so there is nothing to tick — use them to decide what to add above.</p>`
+  /* Split the pattern hits into ones the Accreditations list already covers
+     under another spelling, and ones genuinely not in it. The second group is
+     the answer to "is it missing, or did the match fail?" */
+  const certs = (r.certs || []).map(c => ({ found: c, onList: vocabLookup(c, state.accreditations) }));
+  const covered = certs.filter(c => c.onList);
+  const absent  = certs.filter(c => !c.onList);
+  const blocks = [];
+  if (covered.length) blocks.push(
+    `<div style="margin-bottom:11px"><strong>Already on your Accreditations list</strong>
+      <div style="font-size:12px;color:#2b3b4e;line-height:1.6;margin-top:3px">` +
+      covered.map(c => `${esc(c.found)} <span class="text-faint">&rarr; ${esc(c.onList)}</span>`).join('<br>') +
+      `</div><div class="text-faint" style="font-size:11px;margin-top:3px">Tick these above rather than here.</div></div>`);
+  if (absent.length) blocks.push(
+    `<div style="margin-bottom:11px"><strong>Not in your Accreditations list</strong>
+      <div style="font-size:12px;color:#2b3b4e;line-height:1.6;margin-top:3px">` +
+      absent.map(c => esc(c.found)).join(' · ') +
+      `</div><div class="note warn" style="margin-top:7px">Add these to the <strong>Accreditations</strong>
+        list in SharePoint and they will be tickable next time. Until then there is nothing valid to
+        write them to.</div></div>`);
+  const terms = r.terms || [];
+  if (terms.length) blocks.unshift(
+    `<div style="margin-bottom:13px"><strong>Terms you asked for</strong>` +
+      terms.map(t => `<div style="margin-top:7px">
+          <span class="pill ${t.hits.length ? 'ok' : 'off'}">${t.hits.length ? 'found' : 'not found'}</span>
+          <strong style="font-size:12.5px;margin-left:6px">${esc(t.term)}</strong>
+          ${t.hits.map(h => `<div style="font-size:11.5px;color:#2b3b4e;line-height:1.55;margin:4px 0 0 4px;
+             padding-left:9px;border-left:2px solid var(--line)">${esc(h)}</div>`).join('')}
+        </div>`).join('') +
+     `</div>`);
+  if ((r.capacity || []).length) blocks.push(
+    `<div style="margin-bottom:8px"><strong>Capacity statements</strong><br>
+      <span style="font-size:12px;color:#2b3b4e;line-height:1.6">${esc(r.capacity.join(' · '))}</span>
+      <div class="text-faint" style="font-size:11px;margin-top:3px">No list holds these — for the notes field.</div></div>`);
+  document.getElementById('sr-extra').innerHTML = blocks.length
+    ? blocks.join('')
     : '<span class="text-faint">Nothing beyond the fields and tags above.</span>';
+  const head = document.querySelector('#screen-scrapeReview .card:last-of-type .h2');
+  if (head) head.textContent = terms.length ? 'Your terms, and what else the patterns found'
+                                            : 'Found by pattern, not matched to a list';
 }
 
 function toggleAccept(key, val) {
