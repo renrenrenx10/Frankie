@@ -8,6 +8,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<!-- Member session for the Frankie Worker routes. Separate identity from MSAL
+     above: MSAL authenticates to SharePoint, this authenticates to the Worker. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; font-family: 'Barlow', Arial, sans-serif; background: #f3f7fb; color: #142132; font-size: 13px; }
@@ -323,10 +326,9 @@ button.copill:hover { border-color:currentColor; }
 </div>
 
 <div id="scrape-overlay">
-  <div class="box">
+  <div class="box" id="scrape-body" style="text-align:left">
     <div class="spinner"></div>
-    <h2>Analysing website</h2>
-    <p style="font-size:12.5px;color:#65758a;margin-top:6px">Polling for results — up to three minutes.</p>
+    <h2 style="text-align:center">Analysing website</h2>
   </div>
 </div>
 
@@ -426,8 +428,8 @@ button.copill:hover { border-color:currentColor; }
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:13px">
         <button class="btn btn-primary" onclick="saveCompany()">Save</button>
-        <button class="btn" id="btn-analyse" style="background:#fff;color:#10243a" onclick="startScrape()">Analyse firm</button>
-        <button class="btn btn-outline btn-sm" id="btn-view-scrape" style="color:#c6d9e8;border-color:#3d5a76;padding:7px 14px;font-size:12.5px" onclick="viewLastScrape()">Last scrape</button>
+        <button class="btn" id="btn-analyse" style="background:#fff;color:#10243a" onclick="startScrape()">Analyse website</button>
+        <button class="btn btn-outline btn-sm" id="btn-view-scrape" style="color:#c6d9e8;border-color:#3d5a76;padding:7px 14px;font-size:12.5px" onclick="viewLastScrape()">Last analysis</button>
         <button class="btn btn-outline btn-sm" style="color:#c6d9e8;border-color:#3d5a76;padding:7px 14px;font-size:12.5px" onclick="focusAddToScrl()">Add to a SCRL</button>
         <button class="btn btn-outline btn-sm" style="color:#c6d9e8;border-color:#3d5a76;padding:7px 14px;font-size:12.5px" onclick="openInRolodex()">Rolodex</button>
       </div>
@@ -620,7 +622,14 @@ button.copill:hover { border-color:currentColor; }
       <div class="note" style="margin-bottom:13px">Tick only what you want to keep. Nothing is written until you apply.</div>
       <div class="card" style="margin-bottom:13px"><div id="sr-rows"></div></div>
       <div class="card" style="margin-bottom:13px">
-        <h2 class="h2">Returned but not mapped to a field</h2>
+        <h2 class="h2">Tags found on the site</h2>
+        <p class="text-faint" style="margin:0 0 12px;font-size:11.5px;line-height:1.5">
+          Matched against the vault's own lists, so anything ticked can be written as a real tag.
+          Names the lists don't hold are shown further down as text instead.</p>
+        <div id="sr-tags"></div>
+      </div>
+      <div class="card" style="margin-bottom:13px">
+        <h2 class="h2">Found by pattern, not matched to a list</h2>
         <div id="sr-extra" style="font-size:12.5px;color:#2b3b4e;line-height:1.6"></div>
       </div>
       <button class="btn btn-primary" onclick="applyScrapedData()">Apply selected</button>
@@ -978,6 +987,7 @@ async function onSignedIn() {
     document.getElementById('user-name').textContent = currentUser.name || currentUser.username;
   }
   await loadLookupData();
+  restoreSupaSession();   // quiet; the analysis panel asks if there is none
 
   const params = new URLSearchParams(window.location.search);
   const deepId = params.get('companyId');
@@ -2638,114 +2648,386 @@ function openGoogleMaps() {
 /* ══════════════════════════════════════════════════════════════════════════
    SCRAPE — unchanged in behaviour from v1
    ══════════════════════════════════════════════════════════════════════════ */
-const SCRAPE_SELECT = 'ID,Title,Status,Name,Website,CHNumber,Address,Postcode,Overview,Capabilities,Markets,Certifications,ManufacturingCapacity';
+/* ══════════════════════════════════════════════════════════════════════════
+   WEBSITE ANALYSIS
+
+   v1 wrote a Pending row to the Scrape_Results list and polled it every ten
+   seconds for up to three minutes, waiting for an out-of-process Python script
+   (PythonScripts/scraper2.py) that the Access button used to launch. That
+   button went away with the move to HTML and nothing replaced it, so the rows
+   were never completed — the list was a mailbox with nobody collecting.
+
+   This runs in the page instead, through the same Worker routes the Frankie
+   drawers use (see website-review.js and due-diligence-drawer.js):
+     /fetch?url=   fetches any public URL server-side, strips tags, caps 15k
+     /claude       Claude Messages API with the key injected server-side
+     /ch           Companies House
+   There is no async gap to bridge, so there is no list, no poll and no
+   timeout. Nothing is written until you accept it on the review screen.
+   ══════════════════════════════════════════════════════════════════════════ */
+const WORKER = 'https://ch.rene-dorset.workers.dev';
+
+/* ── Supabase session ─────────────────────────────────────────────────────
+   Every Worker route sits behind a member session, which is a different
+   identity from the MSAL one this app signs in with. Asked for lazily, on the
+   first analysis, rather than as a second gate on load.
+
+   onAuthStateChange is not optional. scc.html took its session as a snapshot
+   and never updated it, so the token went stale about an hour after sign-in
+   and every Worker route started returning 401 at once. */
+const SUPA_URL  = 'https://qkyvmtouwrzrcyagkheo.supabase.co';
+const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFreXZtdG91d3J6cmN5YWdraGVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzODQzNjMsImV4cCI6MjA5MDk2MDM2M30.gKEgkVA-VjOnS_084W79kpzOdZhFQkhFp63MAe_FTd4';
+
+let dvSupa = null, dvSession = null;
+
+function supaClient() {
+  if (dvSupa) return dvSupa;
+  if (typeof supabase === 'undefined' || !supabase.createClient) return null;
+  dvSupa = supabase.createClient(SUPA_URL, SUPA_ANON);
+  dvSupa.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT') { dvSession = null; return; }
+    if (session) dvSession = session;
+  });
+  return dvSupa;
+}
+
+async function restoreSupaSession() {
+  const c = supaClient();
+  if (!c) return null;
+  try {
+    const { data: { session } } = await c.auth.getSession();
+    if (session) dvSession = session;
+  } catch { /* not signed in — asked for on first use */ }
+  return dvSession;
+}
+
+function supaToken() { return dvSession?.access_token || null; }
+
+/* Shown in the analysis panel the first time, then remembered by the Supabase
+   client itself, so it is once per browser rather than once per company. */
+function promptSupaSignIn() {
+  return new Promise(resolve => {
+    const host = document.getElementById('scrape-body');
+    host.innerHTML = `
+      <h2 style="margin-bottom:4px">Sign in to analyse</h2>
+      <p style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:13px">
+        Reading a company's website goes through the Frankie Worker, which needs
+        your member sign-in. This is separate from your Microsoft sign-in and is
+        only asked for once.</p>
+      <div class="field"><label class="fl" for="sv-email">Email</label>
+        <input type="text" id="sv-email" autocomplete="username"></div>
+      <div class="field"><label class="fl" for="sv-pass">Password</label>
+        <input type="password" id="sv-pass" autocomplete="current-password"></div>
+      <p id="sv-err" style="display:none;font-size:12px;color:var(--bad);margin-bottom:9px"></p>
+      <div style="display:flex;gap:7px">
+        <button class="btn btn-primary btn-sm" id="sv-go">Sign in</button>
+        <button class="btn btn-outline btn-sm" id="sv-cancel">Cancel</button>
+      </div>`;
+    const err = document.getElementById('sv-err');
+    const go = async () => {
+      const email = getVal('sv-email'), pass = document.getElementById('sv-pass').value;
+      if (!email || !pass) { err.textContent = 'Enter your email and password.'; err.style.display = 'block'; return; }
+      const c = supaClient();
+      if (!c) { err.textContent = 'The Supabase library did not load.'; err.style.display = 'block'; return; }
+      document.getElementById('sv-go').disabled = true;
+      const { data, error } = await c.auth.signInWithPassword({ email, password: pass });
+      if (error) {
+        err.textContent = error.message; err.style.display = 'block';
+        document.getElementById('sv-go').disabled = false;
+        return;
+      }
+      dvSession = data.session;
+      resolve(true);
+    };
+    document.getElementById('sv-go').onclick = go;
+    document.getElementById('sv-pass').onkeydown = e => { if (e.key === 'Enter') go(); };
+    document.getElementById('sv-cancel').onclick = () => { closeScrape(); resolve(false); };
+  });
+}
+
+/* ── Worker calls ─────────────────────────────────────────────────────────
+   /fetch returns 200 whatever the upstream said, so a 404 page or a bot
+   challenge arrives looking like a successful read. Length is the only signal
+   available here; anything short is treated as nothing rather than summarised
+   into a confident, wrong profile. */
+const MIN_USEFUL_CHARS = 400;
+
+async function wFetch(url) {
+  const token = supaToken();
+  if (!token) throw new Error('No member session');
+  const r = await fetch(`${WORKER}/fetch?url=` + encodeURIComponent(url), {
+    headers: { Authorization: 'Bearer ' + token },
+  });
+  if (r.status === 401) throw new Error('Member session expired — sign in again');
+  if (!r.ok) return '';
+  const d = await r.json().catch(() => null);
+  return (d && typeof d.text === 'string') ? d.text : '';
+}
+
+async function wClaude(prompt, maxTokens = 1200) {
+  const token = supaToken();
+  if (!token) throw new Error('No member session');
+  const r = await fetch(`${WORKER}/claude/v1/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!r.ok) throw new Error('Claude route returned ' + r.status);
+  const d = await r.json();
+  return (d?.content || []).map(b => b.text || '').join('').trim();
+}
+
+async function wCompaniesHouse(name) {
+  const token = supaToken();
+  if (!token) return null;
+  try {
+    const r = await fetch(`${WORKER}/ch/search/companies?q=` + encodeURIComponent(name) + '&items_per_page=5',
+                          { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const hit = (d.items || []).find(i => (i.company_status || '').toLowerCase() === 'active') || (d.items || [])[0];
+    if (!hit) return null;
+    const a = hit.address || {};
+    return {
+      number: hit.company_number || '',
+      title: hit.title || '',
+      address: [a.premises, a.address_line_1, a.address_line_2].filter(Boolean).join(', '),
+      locality: a.locality || '',
+      postcode: a.postal_code || '',
+      status: hit.company_status || '',
+    };
+  } catch { return null; }
+}
+
+/* ── Extraction ───────────────────────────────────────────────────────────
+   Tag suggestions are matched against the vault's own lookup lists, not
+   invented. Company_Capabilities needs a value that exists in Capabilities or
+   the junction row is junk, so asking a model to name capabilities freely is
+   the one thing that cannot work here. */
+function matchVocabulary(text, items) {
+  const hay = ' ' + text.toLowerCase().replace(/\s+/g, ' ') + ' ';
+  const out = [];
+  for (const it of items) {
+    const name = str(it.Title);
+    if (name.length < 4) continue;              // "NDT" style stubs match everything
+    const needle = name.toLowerCase();
+    const i = hay.indexOf(needle);
+    if (i === -1) continue;
+    const before = hay[i - 1], after = hay[i + needle.length];
+    if (/[a-z0-9]/.test(before || ' ') || /[a-z0-9]/.test(after || ' ')) continue;
+    out.push(name);
+  }
+  return [...new Set(out)];
+}
+
+/* Ported from PythonScripts/regex_patterns.json, which drove the Access-era
+   scraper. Kept because a lookup list holds "ISO 9001" while a website says
+   "certified to ISO 9001:2015", and only the pattern catches that. */
+const CERT_RE = /\b(?:ISO\s*\d{4,5}(?::\d{4})?|EN\s*ISO\s*\d{3,5}|EN\s*1090(?:-\d)?|AS\s*9100[A-D]?|NQA-?1|ASME\s*(?:Section\s*)?[IVX]+|RCC-?M|UKAS|JOSCAR|Achilles|Cyber\s*Essentials(?:\s*Plus)?|Fit\s*For\s*Nuclear|F4N)\b/gi;
+const CAPACITY_RE = /\b(?:max(?:imum)?\s+(?:component|part|lift|load|capacity|size)[^.\n]{0,60}|lifting\s+capacity[^.\n]{0,50}|up\s+to\s+\d[\d,.]*\s*(?:tonnes?|te\b|kg|mm|m\b)[^.\n]{0,40})/gi;
+
+function extractMatches(text, re, cap = 12) {
+  const found = (text.match(re) || []).map(m => m.replace(/\s+/g, ' ').trim());
+  return [...new Set(found)].slice(0, cap);
+}
+
+/* A handful of pages, not a crawl. Most of what matters on a manufacturer's
+   site is on these. */
+const SUB_PAGES = ['', '/about', '/about-us', '/capabilities', '/services', '/quality', '/accreditations'];
+
+async function gatherSiteText(website, onStep) {
+  const base = /^https?:/i.test(website) ? website : 'https://' + website;
+  let root;
+  try { root = new URL(base); } catch { throw new Error('That website address is not valid'); }
+  const seen = new Set();
+  const parts = [];
+  for (const p of SUB_PAGES) {
+    const u = root.origin + (p || root.pathname || '/');
+    if (seen.has(u)) continue;
+    seen.add(u);
+    onStep && onStep(u);
+    let t = '';
+    try { t = await wFetch(u); } catch (e) { if (/session/i.test(e.message)) throw e; }
+    if (t && t.length >= MIN_USEFUL_CHARS) parts.push(t);
+    if (parts.join(' ').length > 40000) break;
+  }
+  return parts.join('\n\n');
+}
 
 async function startScrape() {
-  if (!state.selectedCompany?.ID) return;
-  const overlay = document.getElementById('scrape-overlay');
-  overlay.classList.add('active');
-  state.scrapePollCount = 0;
-  try {
-    const existing = await spGetAll('Scrape_Results', 'ID', `Title eq '${state.selectedCompany.ID}'`);
-    for (const row of existing) await spDelete('Scrape_Results', row.ID);
-    await spPost('Scrape_Results', {
-      Title: String(state.selectedCompany.ID),
-      CompanyName: state.selectedCompany.Title,
-      Website: state.selectedCompany.Website || '',
-      Status: 'Pending',
-    });
-    state.scrapeInterval = setInterval(pollScrape, 10000);
-  } catch (e) {
-    overlay.classList.remove('active');
-    toast('Failed to start scrape: ' + e.message, 'error');
-  }
-}
+  const c = state.selectedCompany;
+  if (!c?.ID) return;
+  if (!str(c.Website)) { toast('No website on this record to analyse', 'warning'); return; }
 
-async function pollScrape() {
-  state.scrapePollCount++;
+  openScrape();
+  if (!supaToken()) {
+    await restoreSupaSession();
+    if (!supaToken()) { const ok = await promptSupaSignIn(); if (!ok) return; }
+  }
+
+  const body = document.getElementById('scrape-body');
+  const step = u => { body.innerHTML = `<div class="spinner"></div>
+      <h2>Reading the website</h2>
+      <p style="font-size:12px;color:var(--muted);margin-top:7px;word-break:break-all">${esc(u)}</p>`; };
+
   try {
-    const rows = await spGetAll('Scrape_Results', SCRAPE_SELECT, `Title eq '${state.selectedCompany.ID}'`);
-    const row = rows[0];
-    if (row?.Status === 'Complete') {
-      clearInterval(state.scrapeInterval);
-      document.getElementById('scrape-overlay').classList.remove('active');
-      state.varScrapeRow = row;
-      state.scrapeAccept = {};
-      navigate('scrapeReview');
-    } else if (row?.Status === 'Error' || state.scrapePollCount >= 18) {
-      clearInterval(state.scrapeInterval);
-      document.getElementById('scrape-overlay').classList.remove('active');
-      toast('Scrape failed or timed out', 'error');
+    step(c.Website);
+    const text = await gatherSiteText(c.Website, step);
+
+    if (!text || text.length < MIN_USEFUL_CHARS) {
+      body.innerHTML = `<h2>Nothing usable came back</h2>
+        <p style="font-size:12.5px;color:#2b3b4e;line-height:1.6;margin-top:9px">
+          The site returned almost no text. That usually means it renders in the browser
+          rather than on the server, or it refused the request. Worth opening it yourself.</p>
+        <div style="margin-top:13px;display:flex;gap:7px">
+          <a class="btn btn-outline btn-sm" href="${esc(/^https?:/i.test(c.Website) ? c.Website : 'https://' + c.Website)}"
+             target="_blank" rel="noopener">Open the site</a>
+          <button class="btn btn-outline btn-sm" onclick="closeScrape()">Close</button>
+        </div>`;
+      return;
     }
+
+    body.innerHTML = '<div class="spinner"></div><h2>Summarising</h2>';
+    const prompt =
+      `You are reading the website of a UK manufacturer or engineering firm for a nuclear supply chain database.\n\n` +
+      `Write a description of what this company makes or does, for a supply chain analyst. Two or three sentences, ` +
+      `plain prose, no marketing language, no bullet points, no preamble. Say what they manufacture or supply and ` +
+      `for which sectors. If the text does not say what they make, reply with exactly: UNCLEAR\n\n` +
+      `WEBSITE TEXT:\n${text.slice(0, 14000)}`;
+    let overview = '';
+    try { overview = await wClaude(prompt, 600); } catch (e) { toast('Summary failed: ' + e.message, 'warning'); }
+    if (/^unclear$/i.test(overview.trim())) overview = '';
+
+    const ch = await wCompaniesHouse(str(c.Title));
+
+    state.varScrapeRow = {
+      Name: '', Website: c.Website,
+      CHNumber: ch?.number || '', Address: ch?.address || '',
+      Postcode: ch?.postcode || '', Overview: overview,
+      chStatus: ch?.status || '', chTitle: ch?.title || '',
+      caps:   matchVocabulary(text, state.capabilities),
+      coms:   matchVocabulary(text, state.commodities),
+      acreds: matchVocabulary(text, state.accreditations),
+      mkts:   matchVocabulary(text, state.markets),
+      certs:  extractMatches(text, CERT_RE),
+      capacity: extractMatches(text, CAPACITY_RE, 6),
+      chars: text.length, pages: SUB_PAGES.length, when: new Date().toISOString(),
+    };
+    state.scrapeAccept = {};
+    try { sessionStorage.setItem('dv_scrape_' + c.ID, JSON.stringify(state.varScrapeRow)); } catch {}
+    closeScrape();
+    navigate('scrapeReview');
   } catch (e) {
-    clearInterval(state.scrapeInterval);
-    document.getElementById('scrape-overlay').classList.remove('active');
-    toast('Poll error: ' + e.message, 'error');
+    body.innerHTML = `<h2>Could not read the site</h2>
+      <p style="font-size:12.5px;color:#2b3b4e;line-height:1.6;margin-top:9px">${esc(e.message)}</p>
+      <button class="btn btn-outline btn-sm" style="margin-top:13px" onclick="closeScrape()">Close</button>`;
   }
 }
 
-async function viewLastScrape() {
-  if (!state.selectedCompany?.ID) return;
-  showLoading(true);
-  try {
-    const rows = await spGetAll('Scrape_Results', SCRAPE_SELECT,
-      `Title eq '${state.selectedCompany.ID}' and Status eq 'Complete'`);
-    if (!rows.length) { toast('No scrape data found', 'warning'); showLoading(false); return; }
-    state.varScrapeRow = rows.sort((a,b) => b.ID - a.ID)[0];
-    state.scrapeAccept = {};
-    navigate('scrapeReview');
-  } catch (e) { toast('Error: ' + e.message, 'error'); }
-  showLoading(false);
+function openScrape() { document.getElementById('scrape-overlay').classList.add('active'); }
+function closeScrape() { document.getElementById('scrape-overlay').classList.remove('active'); }
+
+/* Nothing is stored server-side now, so "last analysis" means this session. */
+function viewLastScrape() {
+  const c = state.selectedCompany;
+  if (!c?.ID) return;
+  let raw = null;
+  try { raw = sessionStorage.getItem('dv_scrape_' + c.ID); } catch {}
+  if (!raw) { toast('No analysis for this company yet in this session', 'warning'); return; }
+  state.varScrapeRow = JSON.parse(raw);
+  state.scrapeAccept = {};
+  navigate('scrapeReview');
 }
 
+/* ── Review ───────────────────────────────────────────────────────────── */
 const SCRAPE_ROWS = [
-  { key:'name',     label:'Company name',       from:'Name',      current:c => c.Title },
-  { key:'website',  label:'Website',            from:'Website',   current:c => c.Website },
-  { key:'ch',       label:'Companies House no', from:'CHNumber',  current:c => c.RegisteredNumber },
-  { key:'address',  label:'Address',            from:'Address',   current:c => c.Address },
-  { key:'postcode', label:'Postcode',           from:'Postcode',  current:c => c.Postcode },
-  { key:'desc',     label:'What they do',       from:'Overview',  current:c => c.QuickDescription },
+  { key:'desc',     label:'What they do',       from:'Overview',  field:'field_10', current:c => c.QuickDescription },
+  { key:'ch',       label:'Companies House no', from:'CHNumber',  field:'field_8',  current:c => c.RegisteredNumber },
+  { key:'address',  label:'Address',            from:'Address',   field:'field_25', current:c => c.Address },
+  { key:'postcode', label:'Postcode',           from:'Postcode',  field:'field_4',  current:c => c.Postcode },
+];
+
+const TAG_GROUPS = [
+  { key:'caps',   label:'Capabilities',   type:'cap',   list:'companyCapabilities' },
+  { key:'coms',   label:'Commodities',    type:'com',   list:'companyCommodities' },
+  { key:'acreds', label:'Accreditations', type:'acred', list:'companyAccreditations' },
+  { key:'mkts',   label:'Markets',        type:'mkt',   list:'companyMarkets' },
 ];
 
 function renderScrapeReview() {
   const r = state.varScrapeRow || {};
   const c = state.selectedCompany || {};
-  document.getElementById('sr-sub').textContent = `${c.Title || '—'} · ${r.Website || 'no website recorded'}`;
+  document.getElementById('sr-sub').textContent =
+    `${str(c.Title) || '—'} · ${r.chars ? r.chars.toLocaleString() + ' characters read' : 'no text'}` +
+    (r.when ? ' · ' + fmtDate(r.when) : '');
 
   document.getElementById('sr-rows').innerHTML = SCRAPE_ROWS.map(row => {
-    const scraped = str(r[row.from]);
+    const found = str(r[row.from]);
     const current = str(row.current(c));
-    const same = scraped && scraped === current;
+    const same = found && found === current;
     const accepted = !!state.scrapeAccept[row.key];
     return `<div id="review-row-${row.key}" style="display:flex;flex-wrap:wrap;gap:11px;padding:10px 0;border-bottom:1px solid var(--line2)">
       <div style="flex:0 0 150px">
         <div style="font-size:12.5px;font-weight:600">${row.label}</div>
-        ${same ? '<span class="pill off">no change</span>' : (scraped ? '' : '<span class="pill off">nothing found</span>')}
+        <div class="text-faint mono" style="font-size:10.5px">${row.field}</div>
+        ${same ? '<span class="pill off">no change</span>' : (found ? '' : '<span class="pill off">nothing found</span>')}
       </div>
       <div style="flex:1 1 190px;min-width:160px">
         <label class="fl">On the record</label>
         <div style="font-size:12.5px;color:#2b3b4e;line-height:1.5">${esc(current) || '<span class="text-faint">empty</span>'}</div>
       </div>
       <div style="flex:1 1 190px;min-width:160px">
-        <label class="fl">From the scrape</label>
-        <div style="font-size:12.5px;color:#2b3b4e;line-height:1.5">${esc(scraped) || '<span class="text-faint">—</span>'}</div>
+        <label class="fl">Found</label>
+        <div style="font-size:12.5px;color:#2b3b4e;line-height:1.5">${esc(found) || '<span class="text-faint">—</span>'}</div>
       </div>
       <div style="flex:0 0 96px;align-self:center">
-        ${scraped && !same
+        ${found && !same
           ? `<label class="chkrow"><input type="checkbox" ${accepted ? 'checked' : ''}
                onchange="toggleAccept('${row.key}',this.checked)"> Use it</label>`
           : '<span class="text-faint" style="font-size:11.5px">—</span>'}
       </div>
     </div>`;
-  }).join('');
+  }).join('') +
+  (r.chTitle && str(c.Title) && r.chTitle.toLowerCase() !== str(c.Title).toLowerCase()
+    ? `<div class="note warn" style="margin-top:11px">Companies House returned
+         <strong>${esc(r.chTitle)}</strong>${r.chStatus ? ' (' + esc(r.chStatus) + ')' : ''},
+         which is not quite the name on this record. Check it is the same firm before accepting the number.</div>`
+    : '');
 
-  const extras = [['Capabilities', r.Capabilities], ['Markets', r.Markets],
-                  ['Certifications', r.Certifications], ['Manufacturing capacity', r.ManufacturingCapacity]]
-    .filter(([,v]) => str(v));
+  /* Tags are the part v1 threw away: it showed capabilities and markets as
+     free text with nowhere to put them. These are matched against the vault's
+     own lists, so an accepted one can be written as a junction row. */
+  const key = companyTagKey(c);
+  document.getElementById('sr-tags').innerHTML = TAG_GROUPS.map(g => {
+    const found = (r[g.key] || []);
+    const have = new Set((state[g.list] || []).map(x => str(x[{
+      cap:'CapabilityName_Ref', com:'CommodityName_Ref',
+      acred:'AccreditationName_Ref', mkt:'MarketName_Ref' }[g.type]])));
+    const fresh = found.filter(n => !have.has(n));
+    return `<div style="margin-bottom:13px">
+      <div class="k" style="margin-bottom:5px">${g.label} · ${fresh.length} new of ${found.length} found</div>
+      ${fresh.length
+        ? `<div style="display:flex;flex-wrap:wrap;gap:6px">` + fresh.map(n =>
+            `<label class="chip" style="cursor:pointer">
+               <input type="checkbox" style="width:auto;margin-right:5px"
+                 ${state.scrapeAccept['tag:' + g.type + ':' + n] ? 'checked' : ''}
+                 onchange="toggleAccept('tag:${g.type}:${jsAttr(n)}',this.checked)">${esc(n)}</label>`).join('') + `</div>`
+        : `<span class="text-faint" style="font-size:11.5px">${found.length ? 'all already on the record' : 'none found'}</span>`}
+    </div>`;
+  }).join('') + (key ? '' :
+    '<div class="note warn">This company has no CompanyID, so tags cannot be filed against it. Save the record first.</div>');
+
+  const extras = [];
+  if ((r.certs || []).length)    extras.push(['Certifications in the text', r.certs.join(' · ')]);
+  if ((r.capacity || []).length) extras.push(['Capacity statements', r.capacity.join(' · ')]);
   document.getElementById('sr-extra').innerHTML = extras.length
-    ? extras.map(([k,v]) => `<div style="margin-bottom:8px"><strong>${k}</strong><br>${esc(v)}</div>`).join('') +
-      `<p class="text-faint" style="font-size:11.5px;margin-top:4px">These come back as free text with no list to match against, so they are shown rather than applied. Add them as tags on the Capabilities and Accreditations tabs.</p>`
-    : '<span class="text-faint">Nothing beyond the mapped fields.</span>';
+    ? extras.map(([k, v]) => `<div style="margin-bottom:8px"><strong>${esc(k)}</strong><br>${esc(v)}</div>`).join('') +
+      `<p class="text-faint" style="font-size:11.5px;margin-top:4px">Found by pattern rather than matched to a list, so there is nothing to tick — use them to decide what to add above.</p>`
+    : '<span class="text-faint">Nothing beyond the fields and tags above.</span>';
 }
 
 function toggleAccept(key, val) {
@@ -2755,26 +3037,36 @@ function toggleAccept(key, val) {
 }
 
 async function applyScrapedData() {
-  if (!state.selectedCompany?.ID) return;
+  const c = state.selectedCompany;
+  if (!c?.ID) return;
   const r = state.varScrapeRow || {};
   const a = state.scrapeAccept;
-  const c = state.selectedCompany;
-  if (!Object.values(a).some(Boolean)) { toast('Nothing ticked', 'warning'); return; }
-  const body = {
-    Title:    a.name     ? r.Name     : c.Title,
-    field_6:  a.website  ? r.Website  : c.Website,
-    field_8:  a.ch       ? r.CHNumber : c.RegisteredNumber,
-    field_25: a.address  ? r.Address  : c.Address,
-    field_4:  a.postcode ? r.Postcode : c.Postcode,
-    field_10: a.desc     ? r.Overview : c.QuickDescription,
-  };
+
+  const body = {};
+  for (const row of SCRAPE_ROWS) if (a[row.key]) body[row.field] = str(r[row.from]);
+  const tags = Object.keys(a).filter(k => a[k] && k.startsWith('tag:'))
+    .map(k => { const [, type, ...rest] = k.split(':'); return { type, value: rest.join(':') }; });
+
+  if (!Object.keys(body).length && !tags.length) { toast('Nothing ticked', 'warning'); return; }
+
   showLoading(true);
   try {
-    await spPatch('Companies', c.ID, body);
-    state.selectedCompany = normaliseCompany({ ...c, ...body });
-    const idx = state.companies.findIndex(x => x.ID === c.ID);
-    if (idx >= 0) state.companies[idx] = normaliseCompany({ ...state.companies[idx], ...body });
-    toast('Changes applied', 'success');
+    if (Object.keys(body).length) {
+      await spPatch('Companies', c.ID, body);
+      state.selectedCompany = normaliseCompany({ ...c, ...body });
+      const idx = state.companies.findIndex(x => x.ID === c.ID);
+      if (idx >= 0) state.companies[idx] = normaliseCompany({ ...state.companies[idx], ...body });
+    }
+    let added = 0;
+    for (const t of tags) {
+      const sel = document.getElementById(TAG_LISTS[t.type].sel);
+      if (!sel) continue;
+      sel.value = t.value;
+      await addCompanyTag(t.type);     // one path for tag writes, keys and dedupe included
+      added++;
+    }
+    toast(`Applied${Object.keys(body).length ? ' ' + Object.keys(body).length + ' field' + (Object.keys(body).length !== 1 ? 's' : '') : ''}` +
+          `${added ? (Object.keys(body).length ? ' and ' : ' ') + added + ' tag' + (added !== 1 ? 's' : '') : ''}`, 'success');
     navigate('company', { company: state.selectedCompany });
   } catch (e) { toast('Error: ' + e.message, 'error'); }
   showLoading(false);
